@@ -278,7 +278,11 @@
                                     {% endif %}
 
                                     <div>
-                                        <div class="title-main">{{ anime.title }}</div>
+                                        <div class="title-main">
+                                            <a href="/anime/{{ anime.mal_id }}/relations/">
+                                                {{ anime.display_title }}
+                                            </a>
+                                        </div>
                                         <div class="title-sub">MAL ID: {{ anime.mal_id }}</div>
                                     </div>
                                 </div>

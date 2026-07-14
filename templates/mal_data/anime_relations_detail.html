@@ -155,7 +155,7 @@
                 {% endif %}
 
                 <div>
-                    <h1>{{ anime.title }}</h1>
+                    <h1>{{ anime.display_title }}</h1>
                     <p class="subtitle">
                         MAL ID: {{ anime.mal_id }} ·
                         Estado local: <span class="badge badge-local">{{ anime.personal_status_label }}</span> ·
@@ -195,13 +195,13 @@
                             <td>
                                 <div class="title-cell">
                                     {% if relation.target_picture_url %}
-                                        <img class="cover" src="{{ relation.target_picture_url }}" alt="{{ relation.target_title }}">
+                                        <img class="cover" src="{{ relation.target_picture_url }}" alt="{{ relation.target_display_title }}">
                                     {% else %}
                                         <div class="cover"></div>
                                     {% endif %}
 
                                     <div>
-                                        <div class="title-main">{{ relation.target_title }}</div>
+                                        <div class="title-main">{{ relation.target_display_title }}</div>
                                         <div class="title-sub">MAL ID: {{ relation.target_mal_id }}</div>
                                     </div>
                                 </div>

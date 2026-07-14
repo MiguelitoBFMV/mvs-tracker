@@ -96,6 +96,7 @@ class Command(BaseCommand):
         node = item.get("node", {})
         list_status = item.get("list_status", {})
         main_picture = node.get("main_picture") or {}
+        alternative_titles = node.get("alternative_titles") or {}
 
         mal_id = node.get("id")
 
@@ -107,6 +108,8 @@ class Command(BaseCommand):
 
         defaults = {
             "title": node.get("title") or "",
+            "title_japanese": alternative_titles.get("ja"),
+            "title_english": alternative_titles.get("en"),
             "main_picture_url": main_picture.get("large") or main_picture.get("medium"),
             "media_type": node.get("media_type"),
             "airing_status": node.get("status"),

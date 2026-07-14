@@ -47,6 +47,7 @@ class MyAnimeListClient:
                 "start_date",
                 "end_date",
                 "main_picture",
+                "alternative_titles",
             ]),
         }
 
@@ -87,6 +88,7 @@ class MyAnimeListClient:
                 "start_date",
                 "end_date",
                 "main_picture",
+                "alternative_titles",
             ]),
         }
 
@@ -128,6 +130,7 @@ class MyAnimeListClient:
                 "end_date",
                 "related_anime",
                 "related_manga",
+                "alternative_titles",
             ]),
         }
 

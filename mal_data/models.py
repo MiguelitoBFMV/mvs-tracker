@@ -59,6 +59,8 @@ class AnimeEntry(models.Model):
     # Datos base del anime en MAL
     mal_id = models.PositiveIntegerField(unique=True)
     title = models.CharField(max_length=255)
+    title_japanese = models.CharField(max_length=255, blank=True, null=True)
+    title_english = models.CharField(max_length=255, blank=True, null=True)
     main_picture_url = models.URLField(blank=True, null=True)
 
     media_type = models.CharField(max_length=50, blank=True, null=True)
@@ -83,6 +85,13 @@ class AnimeEntry(models.Model):
 
     # Control interno de sincronización
     last_synced_at = models.DateTimeField(default=timezone.now)
+
+    @property
+    def display_title(self):
+        if self.title_japanese:
+            return f"{self.title} ({self.title_japanese})"
+
+        return self.title
 
     @property
     def personal_status_label(self):
@@ -190,6 +199,15 @@ class AnimeRelation(models.Model):
             return "-"
 
         return target.score
+
+    @property
+    def target_display_title(self):
+        target = self.target_anime_entry
+
+        if target:
+            return target.display_title
+
+        return self.target_title
 
     class Meta:
         unique_together = (
