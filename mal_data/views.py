@@ -1,5 +1,7 @@
 from datetime import timedelta
 
+from django.core.paginator import Paginator
+from django.http import Http404
 from django.shortcuts import render
 from django.utils import timezone
 
@@ -70,3 +72,60 @@ def dashboard(request):
     }
 
     return render(request, "mal_data/dashboard.html", context)
+
+
+def anime_status_list(request, status):
+    valid_statuses = {
+        "watching": "Watching",
+        "on_hold": "On hold",
+        "plan_to_watch": "Plan to watch",
+        "completed": "Completed",
+        "dropped": "Dropped",
+    }
+
+    if status not in valid_statuses:
+        raise Http404("Estado de anime no válido")
+
+    anime_entries = AnimeEntry.objects.filter(list_status=status)
+
+    airing_filter = request.GET.get("airing")
+
+    valid_airing_statuses = {
+        "finished_airing": "Finalizados",
+        "currently_airing": "En emisión",
+        "not_yet_aired": "Por emitir",
+    }
+
+    if airing_filter in valid_airing_statuses:
+        anime_entries = anime_entries.filter(airing_status=airing_filter)
+    else:
+        airing_filter = None
+
+    # Orden inicial según el tipo de lista
+    if status == "plan_to_watch":
+        anime_entries = anime_entries.order_by("title")
+    elif status == "completed":
+        anime_entries = anime_entries.order_by("-updated_at_mal")
+    elif status == "dropped":
+        anime_entries = anime_entries.order_by("-updated_at_mal")
+    elif status == "on_hold":
+        anime_entries = anime_entries.order_by("title")
+    else:
+        anime_entries = anime_entries.order_by("-updated_at_mal")
+
+    paginator = Paginator(anime_entries, 50)
+
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        "status": status,
+        "status_label": valid_statuses[status],
+        "page_obj": page_obj,
+        "anime_entries": page_obj.object_list,
+        "total_entries": paginator.count,
+        "airing_filter": airing_filter,
+        "valid_airing_statuses": valid_airing_statuses,
+    }
+
+    return render(request, "mal_data/anime_status_list.html", context)

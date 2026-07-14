@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ status_label }} - MAL Insight Lab</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #111827;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 32px;
+        }
+
+        h1 {
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #9ca3af;
+            margin-bottom: 24px;
+        }
+
+        .nav {
+            margin-bottom: 24px;
+        }
+
+        .nav a {
+            color: #60a5fa;
+            text-decoration: none;
+            margin-right: 16px;
+        }
+
+        .nav a:hover {
+            text-decoration: underline;
+        }
+
+        .section {
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #374151;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        th {
+            color: #93c5fd;
+            font-size: 14px;
+        }
+
+        td {
+            color: #e5e7eb;
+        }
+
+        .muted {
+            color: #9ca3af;
+        }
+
+        .badge {
+            background: #374151;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+            display: inline-block;
+        }
+
+        .cover {
+            width: 44px;
+            height: 64px;
+            object-fit: cover;
+            border-radius: 6px;
+            background: #374151;
+        }
+
+        .title-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .title-main {
+            font-weight: bold;
+        }
+
+        .title-sub {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        .pagination {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 14px 20px;
+        }
+
+        .pagination a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+
+        .pagination a:hover {
+            text-decoration: underline;
+        }
+
+        .pagination span {
+            color: #e5e7eb;
+        }
+
+        .filters {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 14px 20px;
+        }
+
+        .filters a {
+            color: #60a5fa;
+            text-decoration: none;
+            background: #374151;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 14px;
+        }
+
+        .filters a:hover {
+            text-decoration: underline;
+        }
+
+        .filters .active-filter {
+            background: #60a5fa;
+            color: #111827;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">← Dashboard</a>
+        <a href="/anime/status/watching/">Watching</a>
+        <a href="/anime/status/on_hold/">On hold</a>
+        <a href="/anime/status/plan_to_watch/">Plan to watch</a>
+        <a href="/anime/status/completed/">Completed</a>
+        <a href="/anime/status/dropped/">Dropped</a>
+        <a href="/admin/">Admin</a>
+    </div>
+
+    <h1>{{ status_label }}</h1>
+    <p class="subtitle">
+        Total en esta lista: {{ total_entries }}
+    </p>
+
+    <div class="filters">
+        <span class="muted">Estado emisión:</span>
+
+        <a href="/anime/status/{{ status }}/"
+        class="{% if not airing_filter %}active-filter{% endif %}">
+            Todos
+        </a>
+
+        <a href="/anime/status/{{ status }}/?airing=finished_airing"
+        class="{% if airing_filter == 'finished_airing' %}active-filter{% endif %}">
+            Finalizados
+        </a>
+
+        <a href="/anime/status/{{ status }}/?airing=currently_airing"
+        class="{% if airing_filter == 'currently_airing' %}active-filter{% endif %}">
+            En emisión
+        </a>
+
+        <a href="/anime/status/{{ status }}/?airing=not_yet_aired"
+        class="{% if airing_filter == 'not_yet_aired' %}active-filter{% endif %}">
+            Por emitir
+        </a>
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page=1{% if airing_filter %}&airing={{ airing_filter }}{% endif %}">« Primera</a>
+                <a href="?page={{ page_obj.previous_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}">‹ Anterior</a>
+            {% endif %}
+
+            <span>
+                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+            </span>
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}">Siguiente ›</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}">Última »</a>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <div class="section">
+        {% if anime_entries %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Título</th>
+                        <th>Mi estado</th>
+                        <th>Progreso</th>
+                        <th>Score</th>
+                        <th>Tipo</th>
+                        <th>Estado emisión</th>
+                        <th>Última actualización</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for anime in anime_entries %}
+                        <tr>
+                            <td>
+                                <div class="title-cell">
+                                    {% if anime.main_picture_url %}
+                                        <img class="cover" src="{{ anime.main_picture_url }}" alt="{{ anime.title }}">
+                                    {% else %}
+                                        <div class="cover"></div>
+                                    {% endif %}
+
+                                    <div>
+                                        <div class="title-main">{{ anime.title }}</div>
+                                        <div class="title-sub">MAL ID: {{ anime.mal_id }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="badge">{{ anime.personal_status_label }}</span></td>
+                            <td>{{ anime.num_episodes_watched }}/{{ anime.num_episodes }}</td>
+                            <td>{{ anime.score }}</td>
+                            <td><span class="badge">{{ anime.media_type }}</span></td>
+                            <td><span class="badge">{{ anime.airing_status }}</span></td>
+                            <td>{{ anime.updated_at_mal|date:"d M Y H:i" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No hay animes en esta lista todavía.</p>
+        {% endif %}
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page=1{% if airing_filter %}&airing={{ airing_filter }}{% endif %}">« Primera</a>
+                <a href="?page={{ page_obj.previous_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}">‹ Anterior</a>
+            {% endif %}
+
+            <span>
+                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+            </span>
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}">Siguiente ›</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}">Última »</a>
+            {% endif %}
+        </div>
+    {% endif %}
+
+</body>
+</html>
