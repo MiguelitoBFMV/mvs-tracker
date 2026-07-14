@@ -136,6 +136,61 @@ class AnimeRelation(models.Model):
     raw_data = models.JSONField(blank=True, null=True)
     last_synced_at = models.DateTimeField(default=timezone.now)
 
+    @property
+    def target_anime_entry(self):
+        if self.relation_source_type != "anime":
+            return None
+
+        return AnimeEntry.objects.filter(mal_id=self.target_mal_id).first()
+
+    @property
+    def target_display_status(self):
+        target = self.target_anime_entry
+
+        if target:
+            return target.personal_status_label
+
+        if self.target_local_list_status:
+            return self.target_local_list_status
+
+        return "Not in local list"
+
+    @property
+    def target_display_media_type(self):
+        target = self.target_anime_entry
+
+        if target and target.media_type:
+            return target.media_type
+
+        return self.target_media_type or "-"
+
+    @property
+    def target_display_airing_status(self):
+        target = self.target_anime_entry
+
+        if target and target.airing_status:
+            return target.airing_status
+
+        return self.target_status or "-"
+
+    @property
+    def target_display_progress(self):
+        target = self.target_anime_entry
+
+        if not target:
+            return "-"
+
+        return f"{target.num_episodes_watched}/{target.num_episodes}"
+
+    @property
+    def target_display_score(self):
+        target = self.target_anime_entry
+
+        if not target:
+            return "-"
+
+        return target.score
+
     class Meta:
         unique_together = (
             "source_mal_id",

@@ -259,6 +259,11 @@
                                 Última actualización
                             </a>
                         </th>
+                        <th>
+                            <a href="?sort={% if sort == '-updated_at_mal' %}updated_at_mal{% else %}-updated_at_mal{% endif %}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}">
+                                Relaciones
+                            </a>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -284,6 +289,7 @@
                             <td><span class="badge">{{ anime.media_type }}</span></td>
                             <td><span class="badge">{{ anime.airing_status }}</span></td>
                             <td>{{ anime.updated_at_mal|date:"d M Y H:i" }}</td>
+                            <td><a href="/anime/{{ anime.mal_id }}/relations/">Ver</a></td>
                         </tr>
                     {% endfor %}
                 </tbody>

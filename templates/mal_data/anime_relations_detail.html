@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Relaciones anime - MAL Insight Lab</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #111827;
+            color: #e5e7eb;
+            margin: 0;
+            padding: 32px;
+        }
+
+        h1 {
+            margin-bottom: 8px;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        .subtitle {
+            color: #9ca3af;
+            margin-bottom: 24px;
+        }
+
+        .nav {
+            margin-bottom: 24px;
+        }
+
+        .nav a {
+            color: #60a5fa;
+            text-decoration: none;
+            margin-right: 16px;
+        }
+
+        .nav a:hover {
+            text-decoration: underline;
+        }
+
+        .section {
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .anime-header {
+            display: flex;
+            gap: 18px;
+            align-items: center;
+        }
+
+        .cover-large {
+            width: 90px;
+            height: 130px;
+            object-fit: cover;
+            border-radius: 8px;
+            background: #374151;
+            flex-shrink: 0;
+        }
+
+        .muted {
+            color: #9ca3af;
+        }
+
+        .badge {
+            background: #374151;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+            display: inline-block;
+        }
+
+        .badge-local {
+            background: #60a5fa;
+            color: #111827;
+            font-weight: bold;
+        }
+
+        .badge-empty {
+            background: #4b5563;
+            color: #d1d5db;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #374151;
+            text-align: left;
+            vertical-align: middle;
+        }
+
+        th {
+            color: #93c5fd;
+            font-size: 14px;
+        }
+
+        td {
+            color: #e5e7eb;
+        }
+
+        .title-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .cover {
+            width: 44px;
+            height: 64px;
+            object-fit: cover;
+            border-radius: 6px;
+            background: #374151;
+            flex-shrink: 0;
+        }
+
+        .title-main {
+            font-weight: bold;
+        }
+
+        .title-sub {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        a {
+            color: #60a5fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="/">← Dashboard</a>
+        <a href="/anime/status/watching/">Watching</a>
+        <a href="/anime/status/plan_to_watch/">Plan to watch</a>
+        <a href="/admin/mal_data/animerelation/">Admin relations</a>
+    </div>
+
+    <div class="section">
+        {% if anime %}
+            <div class="anime-header">
+                {% if anime.main_picture_url %}
+                    <img class="cover-large" src="{{ anime.main_picture_url }}" alt="{{ anime.title }}">
+                {% else %}
+                    <div class="cover-large"></div>
+                {% endif %}
+
+                <div>
+                    <h1>{{ anime.title }}</h1>
+                    <p class="subtitle">
+                        MAL ID: {{ anime.mal_id }} ·
+                        Estado local: <span class="badge badge-local">{{ anime.personal_status_label }}</span> ·
+                        {{ anime.num_episodes_watched }}/{{ anime.num_episodes }} episodios
+                    </p>
+                </div>
+            </div>
+        {% else %}
+            <h1>Anime MAL ID: {{ mal_id }}</h1>
+            <p class="subtitle">
+                Este anime no está guardado como AnimeEntry local, pero sí tiene relaciones importadas.
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <h2>Related anime</h2>
+        <p class="muted">Relaciones directas importadas desde MyAnimeList.</p>
+
+        {% if anime_relations %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Título</th>
+                        <th>Relación</th>
+                        <th>Estado local</th>
+                        <th>Progreso</th>
+                        <th>Score</th>
+                        <th>Tipo</th>
+                        <th>Estado emisión</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for relation in anime_relations %}
+                        <tr>
+                            <td>
+                                <div class="title-cell">
+                                    {% if relation.target_picture_url %}
+                                        <img class="cover" src="{{ relation.target_picture_url }}" alt="{{ relation.target_title }}">
+                                    {% else %}
+                                        <div class="cover"></div>
+                                    {% endif %}
+
+                                    <div>
+                                        <div class="title-main">{{ relation.target_title }}</div>
+                                        <div class="title-sub">MAL ID: {{ relation.target_mal_id }}</div>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td>
+                                <span class="badge">{{ relation.relation_type_formatted }}</span>
+                            </td>
+
+                            <td>
+                                {% if relation.target_local_list_status %}
+                                    <span class="badge badge-local">{{ relation.target_display_status }}</span>
+                                {% else %}
+                                    <span class="badge badge-empty">{{ relation.target_display_status }}</span>
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {{ relation.target_display_progress }}
+                            </td>
+
+                            <td>
+                                {{ relation.target_display_score }}
+                            </td>
+
+                            <td>
+                                <span class="badge">{{ relation.target_display_media_type }}</span>
+                            </td>
+
+                            <td>
+                                <span class="badge">{{ relation.target_display_airing_status }}</span>
+                            </td>
+
+                            <td>
+                                <a href="/anime/{{ relation.target_mal_id }}/relations/">Ver relaciones</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No hay related anime importados para este anime.</p>
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <h2>Related manga</h2>
+        <p class="muted">Relaciones directas de manga, si MAL las entrega desde este anime.</p>
+
+        {% if manga_relations %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Título</th>
+                        <th>Relación</th>
+                        <th>Estado local</th>
+                        <th>Tipo</th>
+                        <th>Estado publicación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for relation in manga_relations %}
+                        <tr>
+                            <td>
+                                <div class="title-cell">
+                                    {% if relation.target_picture_url %}
+                                        <img class="cover" src="{{ relation.target_picture_url }}" alt="{{ relation.target_title }}">
+                                    {% else %}
+                                        <div class="cover"></div>
+                                    {% endif %}
+
+                                    <div>
+                                        <div class="title-main">{{ relation.target_title }}</div>
+                                        <div class="title-sub">MAL ID: {{ relation.target_mal_id }}</div>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td>
+                                <span class="badge">{{ relation.relation_type_formatted }}</span>
+                            </td>
+
+                            <td>
+                                {% if relation.target_local_list_status %}
+                                    <span class="badge badge-local">{{ relation.target_local_list_status }}</span>
+                                {% else %}
+                                    <span class="badge badge-empty">not in local list</span>
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                <span class="badge">{{ relation.target_media_type }}</span>
+                            </td>
+
+                            <td>
+                                <span class="badge">{{ relation.target_status }}</span>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No hay related manga importados para este anime.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

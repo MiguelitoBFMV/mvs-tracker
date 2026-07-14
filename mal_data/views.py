@@ -5,7 +5,7 @@ from django.http import Http404
 from django.shortcuts import render
 from django.utils import timezone
 
-from .models import AnimeEntry
+from .models import AnimeEntry, AnimeRelation
 
 
 def dashboard(request):
@@ -156,3 +156,27 @@ def anime_status_list(request, status):
     }
 
     return render(request, "mal_data/anime_status_list.html", context)
+
+def anime_relations_detail(request, mal_id):
+    anime = AnimeEntry.objects.filter(mal_id=mal_id).first()
+
+    relations = AnimeRelation.objects.filter(
+        source_mal_id=mal_id
+    ).order_by(
+        "relation_source_type",
+        "relation_type",
+        "target_title",
+    )
+
+    anime_relations = relations.filter(relation_source_type="anime")
+    manga_relations = relations.filter(relation_source_type="manga")
+
+    context = {
+        "anime": anime,
+        "mal_id": mal_id,
+        "anime_relations": anime_relations,
+        "manga_relations": manga_relations,
+        "total_relations": relations.count(),
+    }
+
+    return render(request, "mal_data/anime_relations_detail.html", context)
