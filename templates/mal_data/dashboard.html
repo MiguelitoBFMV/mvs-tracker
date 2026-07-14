@@ -223,7 +223,11 @@
                 <tbody>
                     {% for anime in old_watching_entries %}
                         <tr>
-                            <td>{{ anime.title }}</td>
+                            <td>
+                                <a href="{% url 'anime_relations_detail' anime.mal_id %}">
+                                    {{ anime.display_title }}
+                                </a>
+                            </td>
                             <td><span class="badge">{{ anime.personal_status_label }}</span></td>
                             <td>{{ anime.num_episodes_watched }}/{{ anime.num_episodes }}</td>
                             <td>{{ anime.score }}</td>
@@ -259,7 +263,11 @@
                 <tbody>
                     {% for anime in on_hold_entries %}
                         <tr>
-                            <td>{{ anime.title }}</td>
+                            <td>
+                                <a href="{% url 'anime_relations_detail' anime.mal_id %}">
+                                    {{ anime.display_title }}
+                                </a>
+                            </td>
                             <td><span class="badge">{{ anime.personal_status_label }}</span></td>
                             <td>{{ anime.num_episodes_watched }}/{{ anime.num_episodes }}</td>
                             <td>{{ anime.score }}</td>
@@ -295,7 +303,11 @@
                 <tbody>
                     {% for anime in plan_to_watch_entries %}
                         <tr>
-                            <td>{{ anime.title }}</td>
+                            <td>
+                                <a href="{% url 'anime_relations_detail' anime.mal_id %}">
+                                    {{ anime.display_title }}
+                                </a>
+                            </td>
                             <td><span class="badge">{{ anime.personal_status_label }}</span></td>
                             <td>{{ anime.num_episodes }}</td>
                             <td>{{ anime.score }}</td>
