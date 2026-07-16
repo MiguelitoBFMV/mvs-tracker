@@ -1,359 +1,259 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Relaciones anime - MAL Insight Lab</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #111827;
-            color: #e5e7eb;
-            margin: 0;
-            padding: 32px;
-        }
+{% extends "base.html" %}
 
-        h1 {
-            margin-bottom: 8px;
-        }
-
-        h2 {
-            margin-top: 0;
-        }
-
-        .subtitle {
-            color: #9ca3af;
-            margin-bottom: 24px;
-        }
-
-        .nav {
-            margin-bottom: 24px;
-        }
-
-        .nav a {
-            color: #60a5fa;
-            text-decoration: none;
-            margin-right: 16px;
-        }
-
-        .nav a:hover {
-            text-decoration: underline;
-        }
-
-        .section {
-            background: #1f2937;
-            border: 1px solid #374151;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 24px;
-        }
-
-        .anime-header {
-            display: flex;
-            gap: 18px;
-            align-items: center;
-        }
-
-        .cover-large {
-            width: 90px;
-            height: 130px;
-            object-fit: cover;
-            border-radius: 8px;
-            background: #374151;
-            flex-shrink: 0;
-        }
-
-        .muted {
-            color: #9ca3af;
-        }
-
-        .badge {
-            background: #374151;
-            border-radius: 999px;
-            padding: 4px 10px;
-            font-size: 12px;
-            display: inline-block;
-        }
-
-        .badge-local {
-            background: #60a5fa;
-            color: #111827;
-            font-weight: bold;
-        }
-
-        .badge-empty {
-            background: #4b5563;
-            color: #d1d5db;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 12px;
-        }
-
-        th, td {
-            padding: 10px;
-            border-bottom: 1px solid #374151;
-            text-align: left;
-            vertical-align: middle;
-        }
-
-        th {
-            color: #93c5fd;
-            font-size: 14px;
-        }
-
-        td {
-            color: #e5e7eb;
-        }
-
-        .title-cell {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .cover {
-            width: 44px;
-            height: 64px;
-            object-fit: cover;
-            border-radius: 6px;
-            background: #374151;
-            flex-shrink: 0;
-        }
-
-        .title-main {
-            font-weight: bold;
-        }
-
-        .title-sub {
-            font-size: 12px;
-            color: #9ca3af;
-            margin-top: 4px;
-        }
-
-        a {
-            color: #60a5fa;
-        }
-
-        .button {
-            display: inline-block;
-            margin-top: 16px;
-            padding: 10px 14px;
-            border: 1px solid #334155;
-            border-radius: 10px;
-            background: #1e293b;
-            color: #e5e7eb;
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-        .button:hover {
-            background: #334155;
-        }
-    </style>
-</head>
-<body>
-    <nav class="nav">
-        <a href="/">← Dashboard</a>
-        <a href="/anime/status/watching/">Watching</a>
-        <a href="/anime/status/plan_to_watch/">Plan to watch</a>
-        <a href="/admin/mal_data/animerelation/">Admin relations</a>
-    </nav>
-
-    {% if messages %}
-        {% for message in messages %}
-            <div class="section">
-                <strong>{{ message }}</strong>
-            </div>
-        {% endfor %}
+{% block title %}
+    {% if anime %}
+        {{ anime.display_title }} · Relation Scan
+    {% else %}
+        Relation Scan · MAL Insight Lab
     {% endif %}
+{% endblock %}
 
-    <section class="section">
-        {% if anime %}
-            <div class="anime-header">
-                {% if anime.main_picture_url %}
-                    <img class="cover-large" src="{{ anime.main_picture_url }}" alt="{{ anime.title }}">
-                {% else %}
-                    <div class="cover-large"></div>
-                {% endif %}
-
-                <div>
-                    <h1>{{ anime.display_title }}</h1>
-                    <p class="subtitle">
-                        MAL ID: {{ anime.mal_id }} ·
-                        Estado local: <span class="badge badge-local">{{ anime.personal_status_label }}</span> ·
-                        {{ anime.num_episodes_watched }}/{{ anime.num_episodes }} episodios
-                    </p>
-                </div>
-            </div>
+{% block content %}
+<header class="hero relation-hero">
+    <div class="relation-source">
+        {% if anime and anime.main_picture_url %}
+            <img
+                class="relation-source-cover"
+                src="{{ anime.main_picture_url }}"
+                alt="{{ anime.display_title }}"
+            >
         {% else %}
-            <h1>Anime MAL ID: {{ mal_id }}</h1>
-            <p class="subtitle">
-                Este anime no está guardado como AnimeEntry local, pero sí tiene relaciones importadas.
-            </p>
+            <div class="relation-source-cover relation-source-cover-empty"></div>
         {% endif %}
 
+        <div class="hero-title">
+            <h1>
+                {% if anime %}
+                    {{ anime.display_title }}
+                {% else %}
+                    Unknown Source Node
+                {% endif %}
+            </h1>
+
+            <p>
+                RELATION SCAN |
+                MAL ID: {{ mal_id }}
+                {% if anime %}
+                    | STATUS: {{ anime.personal_status_label|upper }}
+                    | PROGRESS:
+                    {{ anime.num_episodes_watched }}/
+                    {% if anime.num_episodes > 0 %}
+                        {{ anime.num_episodes }}
+                    {% else %}
+                        TBD
+                    {% endif %}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="hero-meta">
+        Source: MyAnimeList<br>
+        Relation Nodes: {{ total_relations }}
+    </div>
+</header>
+
+{% if sync_result %}
+    <section class="message-panel">
+        Relations synchronized from MAL.
+        Anime related: {{ sync_result.related_anime_count }} ·
+        Manga related: {{ sync_result.related_manga_count }}
+    </section>
+{% endif %}
+
+{% if sync_error %}
+    <section class="message-panel">
+        Relation sync failed: {{ sync_error }}
+    </section>
+{% endif %}
+
+<section class="panel">
+    <header class="panel-header">
+        <h2 class="panel-title">Source Controls</h2>
+        <span class="panel-title">MAL ID {{ mal_id }}</span>
+    </header>
+
+    <div class="panel-body relation-actions-bar">
         <form method="post" action="{% url 'sync_anime_relations' mal_id %}">
             {% csrf_token %}
-            <button type="submit" class="button">
-                Actualizar relaciones desde MAL
+            <button class="command-button relation-sync-button" type="submit">
+                Update Relations From MAL
             </button>
         </form>
-    </section>
 
-    {% if sync_result %}
-        <div class="section">
-            <strong>Relaciones sincronizadas desde MAL.</strong>
-            <p class="muted">
-                Related anime: {{ sync_result.related_anime_count }} ·
-                Related manga: {{ sync_result.related_manga_count }}
-            </p>
-        </div>
-    {% endif %}
+        {% if anime %}
+            <a class="secondary-button" href="{% url 'anime_status_list' anime.list_status %}">
+                Back To {{ anime.personal_status_label }}
+            </a>
+        {% endif %}
 
-    {% if sync_error %}
-        <div class="section">
-            <strong>No se pudieron sincronizar las relaciones.</strong>
-            <p class="muted">{{ sync_error }}</p>
-        </div>
-    {% endif %}
+        <a class="secondary-button" href="{% url 'dashboard' %}">
+            Dashboard
+        </a>
+    </div>
+</section>
 
-    <section class="section">
-        <h2>Related anime</h2>
-        <p class="muted">Relaciones directas importadas desde MyAnimeList.</p>
+<section class="panel">
+    <header class="panel-header">
+        <h2 class="panel-title">Related Anime</h2>
+        <span class="panel-title">{{ anime_relations|length }} Nodes</span>
+    </header>
 
+    <div class="panel-body">
         {% if anime_relations %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Título</th>
-                        <th>Relación</th>
-                        <th>Estado local</th>
-                        <th>Progreso</th>
-                        <th>Score</th>
-                        <th>Tipo</th>
-                        <th>Estado emisión</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for relation in anime_relations %}
-                        <tr>
-                            <td>
-                                <div class="title-cell">
-                                    {% if relation.target_picture_url %}
-                                        <img class="cover" src="{{ relation.target_picture_url }}" alt="{{ relation.target_display_title }}">
-                                    {% else %}
-                                        <div class="cover"></div>
-                                    {% endif %}
+            <div class="relation-grid">
+                {% for relation in anime_relations %}
+                    <article class="relation-card">
+                        {% if relation.target_picture_url %}
+                            <img
+                                class="relation-cover"
+                                src="{{ relation.target_picture_url }}"
+                                alt="{{ relation.target_display_title }}"
+                            >
+                        {% else %}
+                            <div class="relation-cover relation-cover-empty"></div>
+                        {% endif %}
 
-                                    <div>
-                                        <div class="title-main">{{ relation.target_display_title }}</div>
-                                        <div class="title-sub">MAL ID: {{ relation.target_mal_id }}</div>
-                                    </div>
-                                </div>
-                            </td>
+                        <div class="relation-card-body">
+                            <div class="relation-card-kicker">
+                                {{ relation.relation_type_formatted|default:relation.relation_type|upper }}
+                            </div>
 
-                            <td>
-                                <span class="badge">{{ relation.relation_type_formatted }}</span>
-                            </td>
+                            <h3 class="relation-card-title">
+                                <a href="{% url 'anime_relations_detail' relation.target_mal_id %}">
+                                    {{ relation.target_display_title }}
+                                </a>
+                            </h3>
 
-                            <td>
+                            <div class="archive-meta">
+                                MAL ID: {{ relation.target_mal_id }}
+                            </div>
+
+                            <div class="relation-stats">
+                                <span>STATUS: {{ relation.target_display_status|upper }}</span>
+                                <span>PROGRESS: {{ relation.target_display_progress }}</span>
+                                <span>SCORE: {{ relation.target_display_score }}</span>
+                            </div>
+
+                            <div class="relation-badges">
+                                <span class="status-pill status-paused">
+                                    {{ relation.relation_type_formatted|default:relation.relation_type }}
+                                </span>
+
                                 {% if relation.target_local_list_status %}
-                                    <span class="badge badge-local">{{ relation.target_display_status }}</span>
+                                    <span class="status-pill status-live">
+                                        {{ relation.target_display_status|upper }}
+                                    </span>
                                 {% else %}
-                                    <span class="badge badge-empty">{{ relation.target_display_status }}</span>
+                                    <span class="status-pill">
+                                        NOT LOCAL
+                                    </span>
                                 {% endif %}
-                            </td>
 
-                            <td>
-                                {{ relation.target_display_progress }}
-                            </td>
+                                <span class="status-pill">
+                                    {{ relation.target_display_media_type|upper }}
+                                </span>
 
-                            <td>
-                                {{ relation.target_display_score }}
-                            </td>
+                                {% if relation.target_display_airing_status == "currently_airing" %}
+                                    <span class="status-pill status-live">LIVE</span>
+                                {% elif relation.target_display_airing_status == "finished_airing" %}
+                                    <span class="status-pill status-paused">FINISHED</span>
+                                {% elif relation.target_display_airing_status == "not_yet_aired" %}
+                                    <span class="status-pill status-paused">QUEUED</span>
+                                {% else %}
+                                    <span class="status-pill">
+                                        {{ relation.target_display_airing_status|upper }}
+                                    </span>
+                                {% endif %}
+                            </div>
 
-                            <td>
-                                <span class="badge">{{ relation.target_display_media_type }}</span>
-                            </td>
-
-                            <td>
-                                <span class="badge">{{ relation.target_display_airing_status }}</span>
-                            </td>
-
-                            <td>
-                                <a href="/anime/{{ relation.target_mal_id }}/relations/">Ver relaciones</a>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                            <div class="relation-card-actions">
+                                <a class="secondary-button compact-button" href="{% url 'anime_relations_detail' relation.target_mal_id %}">
+                                    Scan Node
+                                </a>
+                            </div>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
         {% else %}
-            <p>No hay related anime importados para este anime.</p>
+            <p class="empty-state">
+                No related anime nodes detected. Run relation sync to scan this source.
+            </p>
         {% endif %}
-    </section>
+    </div>
+</section>
 
-    <section class="section">
-        <h2>Related manga</h2>
-        <p class="muted">Relaciones directas de manga, si MAL las entrega desde este anime.</p>
+<section class="panel">
+    <header class="panel-header">
+        <h2 class="panel-title">Related Manga</h2>
+        <span class="panel-title">{{ manga_relations|length }} Nodes</span>
+    </header>
 
+    <div class="panel-body">
         {% if manga_relations %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Título</th>
-                        <th>Relación</th>
-                        <th>Estado local</th>
-                        <th>Tipo</th>
-                        <th>Estado publicación</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for relation in manga_relations %}
-                        <tr>
-                            <td>
-                                <div class="title-cell">
-                                    {% if relation.target_picture_url %}
-                                        <img class="cover" src="{{ relation.target_picture_url }}" alt="{{ relation.target_title }}">
-                                    {% else %}
-                                        <div class="cover"></div>
-                                    {% endif %}
+            <div class="relation-grid">
+                {% for relation in manga_relations %}
+                    <article class="relation-card">
+                        {% if relation.target_picture_url %}
+                            <img
+                                class="relation-cover"
+                                src="{{ relation.target_picture_url }}"
+                                alt="{{ relation.target_title }}"
+                            >
+                        {% else %}
+                            <div class="relation-cover relation-cover-empty"></div>
+                        {% endif %}
 
-                                    <div>
-                                        <div class="title-main">{{ relation.target_title }}</div>
-                                        <div class="title-sub">MAL ID: {{ relation.target_mal_id }}</div>
-                                    </div>
-                                </div>
-                            </td>
+                        <div class="relation-card-body">
+                            <div class="relation-card-kicker">
+                                {{ relation.relation_type_formatted|default:relation.relation_type|upper }}
+                            </div>
 
-                            <td>
-                                <span class="badge">{{ relation.relation_type_formatted }}</span>
-                            </td>
+                            <h3 class="relation-card-title">
+                                {{ relation.target_title }}
+                            </h3>
 
-                            <td>
+                            <div class="archive-meta">
+                                MAL ID: {{ relation.target_mal_id }}
+                            </div>
+
+                            <div class="relation-badges">
+                                <span class="status-pill status-paused">
+                                    {{ relation.relation_type_formatted|default:relation.relation_type }}
+                                </span>
+
                                 {% if relation.target_local_list_status %}
-                                    <span class="badge badge-local">{{ relation.target_local_list_status }}</span>
+                                    <span class="status-pill status-live">
+                                        {{ relation.target_local_list_status|upper }}
+                                    </span>
                                 {% else %}
-                                    <span class="badge badge-empty">not in local list</span>
+                                    <span class="status-pill">
+                                        NOT LOCAL
+                                    </span>
                                 {% endif %}
-                            </td>
 
-                            <td>
-                                <span class="badge">{{ relation.target_media_type }}</span>
-                            </td>
+                                {% if relation.target_media_type %}
+                                    <span class="status-pill">
+                                        {{ relation.target_media_type|upper }}
+                                    </span>
+                                {% endif %}
 
-                            <td>
-                                <span class="badge">{{ relation.target_status }}</span>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                                {% if relation.target_status %}
+                                    <span class="status-pill">
+                                        {{ relation.target_status|upper }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
         {% else %}
-            <p>No hay related manga importados para este anime.</p>
+            <p class="empty-state">
+                No related manga nodes detected from this anime source.
+            </p>
         {% endif %}
-    </section>
-</body>
-</html>
+    </div>
+</section>
+{% endblock %}

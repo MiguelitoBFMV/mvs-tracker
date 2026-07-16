@@ -726,3 +726,142 @@ a:hover {
     padding: 7px 10px;
     font-size: 12px;
 }
+
+.relation-hero {
+    align-items: center;
+}
+
+.relation-source {
+    display: grid;
+    grid-template-columns: 92px 1fr;
+    gap: 18px;
+    align-items: center;
+}
+
+.relation-source .hero-title {
+    margin: 0;
+}
+
+.relation-source-cover {
+    width: 92px;
+    height: 128px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    background: var(--panel-muted);
+}
+
+.relation-source-cover-empty {
+    display: block;
+}
+
+.relation-actions-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+
+.relation-actions-bar form {
+    margin: 0;
+}
+
+.relation-sync-button {
+    width: auto;
+    min-width: 260px;
+}
+
+.relation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 14px;
+}
+
+.relation-card {
+    border: 1px solid var(--border-soft);
+    background: rgba(255, 255, 255, 0.015);
+    display: grid;
+    grid-template-columns: 76px 1fr;
+    gap: 14px;
+    padding: 14px;
+    min-height: 136px;
+}
+
+.relation-card:hover {
+    border-color: var(--border);
+    background: rgba(169, 193, 255, 0.04);
+}
+
+.relation-cover {
+    width: 76px;
+    height: 108px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    background: var(--panel-muted);
+}
+
+.relation-cover-empty {
+    display: block;
+}
+
+.relation-card-body {
+    min-width: 0;
+}
+
+.relation-card-kicker {
+    font-family: var(--font-mono);
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 7px;
+}
+
+.relation-card-title {
+    margin: 0;
+    font-size: 17px;
+    line-height: 1.25;
+}
+
+.relation-card-title a {
+    color: var(--blue-strong);
+}
+
+.relation-stats {
+    margin-top: 10px;
+    display: grid;
+    gap: 4px;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.relation-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.relation-card-actions {
+    margin-top: 14px;
+}
+
+@media (max-width: 720px) {
+    .relation-source {
+        grid-template-columns: 1fr;
+    }
+
+    .relation-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .relation-card {
+        grid-template-columns: 64px 1fr;
+    }
+
+    .relation-cover {
+        width: 64px;
+        height: 92px;
+    }
+}
