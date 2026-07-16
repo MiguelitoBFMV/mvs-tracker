@@ -553,3 +553,45 @@ a:hover {
     font-size: 12px;
     line-height: 1.35;
 }
+
+.episode-signal-track {
+    height: 8px;
+    background: var(--bar-bg);
+    margin: 10px 0 16px;
+    display: flex;
+    overflow: hidden;
+}
+
+.episode-seen-fill {
+    height: 100%;
+    background: var(--blue);
+    flex-shrink: 0;
+}
+
+.episode-pending-fill {
+    height: 100%;
+    background: var(--red);
+    flex-shrink: 0;
+}
+
+.episode-signals-list {
+    max-height: 760px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.episode-signals-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.episode-signals-list::-webkit-scrollbar-track {
+    background: #111317;
+}
+
+.episode-signals-list::-webkit-scrollbar-thumb {
+    background: var(--border);
+}
+
+.episode-signals-list::-webkit-scrollbar-thumb:hover {
+    background: var(--blue);
+}

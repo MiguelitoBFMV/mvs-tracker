@@ -206,10 +206,15 @@
     </div>
 
     {% if page_obj.paginator.num_pages > 1 %}
-        <div class="pagination">
+        <nav class="pagination" aria-label="Paginación">
             {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.next_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">« Primera</a>
-                <a href="?page={{ page_obj.next_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">‹ Anterior</a>
+                <a href="?page=1{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">
+                    « Primera
+                </a>
+
+                <a href="?page={{ page_obj.previous_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">
+                    ‹ Anterior
+                </a>
             {% endif %}
 
             <span>
@@ -217,10 +222,15 @@
             </span>
 
             {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">Siguiente ›</a>
-                <a href="?page={{ page_obj.next_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">Última »</a>
+                <a href="?page={{ page_obj.next_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">
+                    Siguiente ›
+                </a>
+
+                <a href="?page={{ page_obj.paginator.num_pages }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">
+                    Última »
+                </a>
             {% endif %}
-        </div>
+        </nav>
     {% endif %}
 
     <div class="section">
@@ -304,10 +314,15 @@
     </div>
 
     {% if page_obj.paginator.num_pages > 1 %}
-        <div class="pagination">
+        <nav class="pagination" aria-label="Paginación">
             {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.next_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">« Primera</a>
-                <a href="?page={{ page_obj.next_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">‹ Anterior</a>
+                <a href="?page=1{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">
+                    « Primera
+                </a>
+
+                <a href="?page={{ page_obj.previous_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">
+                    ‹ Anterior
+                </a>
             {% endif %}
 
             <span>
@@ -315,10 +330,15 @@
             </span>
 
             {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">Siguiente ›</a>
-                <a href="?page={{ page_obj.next_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">Última »</a>
+                <a href="?page={{ page_obj.next_page_number }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">
+                    Siguiente ›
+                </a>
+
+                <a href="?page={{ page_obj.paginator.num_pages }}{% if airing_filter %}&airing={{ airing_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}">
+                    Última »
+                </a>
             {% endif %}
-        </div>
+        </nav>
     {% endif %}
 
 </body>

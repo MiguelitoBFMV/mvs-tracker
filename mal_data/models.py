@@ -248,3 +248,44 @@ class AnimeSyncEvent(models.Model):
 
     def __str__(self):
         return f"{self.title_snapshot} · {self.event_type}: {self.old_value} → {self.new_value}"
+
+
+class AnimeAiringData(models.Model):
+    anime = models.OneToOneField(
+        AnimeEntry,
+        on_delete=models.CASCADE,
+        related_name="airing_data",
+    )
+    mal_id = models.PositiveIntegerField(unique=True)
+    anilist_id = models.PositiveIntegerField(blank=True, null=True)
+
+    title_romaji = models.CharField(max_length=255, blank=True, null=True)
+    title_english = models.CharField(max_length=255, blank=True, null=True)
+    title_native = models.CharField(max_length=255, blank=True, null=True)
+
+    anilist_status = models.CharField(max_length=50, blank=True, null=True)
+    anilist_episodes = models.PositiveIntegerField(default=0)
+
+    next_airing_episode = models.PositiveIntegerField(blank=True, null=True)
+    next_airing_at = models.DateTimeField(blank=True, null=True)
+    time_until_airing_seconds = models.PositiveIntegerField(blank=True, null=True)
+
+    episodes_aired_estimated = models.PositiveIntegerField(default=0)
+
+    streaming_links = models.JSONField(default=list, blank=True)
+    streaming_episodes = models.JSONField(default=list, blank=True)
+
+    raw_data = models.JSONField(blank=True, null=True)
+    last_synced_at = models.DateTimeField(default=timezone.now)
+
+    @property
+    def pending_episodes_for_user(self):
+        pending = self.episodes_aired_estimated - self.anime.num_episodes_watched
+        return max(pending, 0)
+
+    @property
+    def has_episode_signal(self):
+        return self.pending_episodes_for_user > 0
+
+    def __str__(self):
+        return f"{self.anime.title} · AniList airing data"

@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from .models import AnimeEntry, AnimeRelation, AnimeSyncEvent
+from .models import AnimeAiringData, AnimeEntry, AnimeRelation, AnimeSyncEvent
 from mal_data.services.anime_relations_sync import sync_anime_relations
 from mal_data.services.anime_list_sync import sync_all_anime_statuses
 
@@ -29,10 +29,61 @@ def dashboard(request):
     )
 
     broadcast_watchlist_entries = (
-        plan_to_watch_entries
-        .filter(airing_status="currently_airing")
-        .order_by("-updated_at_mal", "title")[:10]
+        plan_to_watch_entries.filter(airing_status="currently_airing").order_by("-updated_at_mal", "title")[:10]
     )
+
+    episode_signal_data = (
+        AnimeAiringData.objects
+        .select_related("anime")
+        .filter(
+            anime__list_status="watching",
+        )
+    )
+
+    episode_signal_entries = [
+        airing_data
+        for airing_data in episode_signal_data
+        if airing_data.pending_episodes_for_user > 0
+    ]
+
+
+    def episode_signal_priority(airing_data):
+        anime = airing_data.anime
+
+        is_finished = anime.airing_status == "finished_airing"
+
+        is_longrun = (
+            airing_data.episodes_aired_estimated >= 60
+            or (anime.num_episodes and anime.num_episodes >= 60)
+        )
+
+        if is_finished:
+            group = 2
+        elif is_longrun:
+            group = 1
+        else:
+            group = 0
+
+        next_airing_sort = (
+            airing_data.next_airing_at.timestamp()
+            if airing_data.next_airing_at
+            else 0
+        )
+
+        return (
+            group,
+            -next_airing_sort,
+            -airing_data.pending_episodes_for_user,
+            anime.title,
+        )
+
+
+    episode_signal_entries = sorted(
+        episode_signal_entries,
+        key=episode_signal_priority,
+    )[:15]
+
+    fallback_active_entries = watching_entries.order_by("-updated_at_mal")[:4]
 
     priority_source_entries = list(watching_entries) + list(completed_entries)
 
@@ -155,6 +206,8 @@ def dashboard(request):
         "last_synced_entry": last_synced_entry,
         "sequel_recommendations": sequel_recommendations,
         "broadcast_watchlist_entries": broadcast_watchlist_entries,
+        "episode_signal_entries": episode_signal_entries,
+        "fallback_active_entries": fallback_active_entries,
     }
 
     return render(request, "mal_data/dashboard.html", context)

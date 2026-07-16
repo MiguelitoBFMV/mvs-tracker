@@ -117,16 +117,107 @@
     <section class="center-column" aria-label="Protocolos activos">
         <section class="panel">
             <header class="panel-header">
-                <h2 class="panel-title">Active Protocols</h2>
+                <h2 class="panel-title">Episode Signals</h2>
                 <a class="panel-link" href="{% url 'anime_status_list' 'watching' %}">
                     View All
                 </a>
             </header>
 
             <div class="panel-body">
-                {% if recent_watching_entries %}
+                {% if episode_signal_entries %}
+                    <div class="protocol-list episode-signals-list">
+                        {% for airing_data in episode_signal_entries %}
+                            {% with anime=airing_data.anime %}
+                                <article class="protocol-card">
+                                    {% if anime.main_picture_url %}
+                                        <img class="cover" src="{{ anime.main_picture_url }}" alt="{{ anime.display_title }}">
+                                    {% else %}
+                                        <div class="cover"></div>
+                                    {% endif %}
+
+                                    <div>
+                                        <h3 class="protocol-title">
+                                            <a href="{% url 'anime_relations_detail' anime.mal_id %}">
+                                                {{ anime.display_title }}
+                                            </a>
+                                        </h3>
+
+                                        <div class="protocol-meta">
+                                            EPISODE {{ anime.num_episodes_watched }} /
+                                            {% if anime.num_episodes > 0 %}
+                                                {{ anime.num_episodes }}
+                                            {% else %}
+                                                TBD
+                                            {% endif %}
+                                            · AIRED {{ airing_data.episodes_aired_estimated }}
+                                            · PENDING +{{ airing_data.pending_episodes_for_user }}
+                                        </div>
+
+                                        <div class="protocol-progress-row">
+                                            <span>Episode Signal</span>
+                                            <strong>
+                                                {{ anime.num_episodes_watched }}/{{ airing_data.episodes_aired_estimated }}
+                                            </strong>
+                                        </div>
+
+                                        <div class="episode-signal-track" aria-hidden="true">
+                                            {% if anime.num_episodes > 0 %}
+                                                <div
+                                                    class="episode-seen-fill"
+                                                    style="width: {% widthratio anime.num_episodes_watched anime.num_episodes 100 %}%;"
+                                                ></div>
+                                                <div
+                                                    class="episode-pending-fill"
+                                                    style="width: {% widthratio airing_data.pending_episodes_for_user anime.num_episodes 100 %}%;"
+                                                ></div>
+                                            {% else %}
+                                                <div
+                                                    class="episode-seen-fill"
+                                                    style="width: {% widthratio anime.num_episodes_watched airing_data.episodes_aired_estimated 100 %}%;"
+                                                ></div>
+                                                <div
+                                                    class="episode-pending-fill"
+                                                    style="width: {% widthratio airing_data.pending_episodes_for_user airing_data.episodes_aired_estimated 100 %}%;"
+                                                ></div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="protocol-actions">
+                                            <span class="status-pill status-live">
+                                                +{{ airing_data.pending_episodes_for_user }} EP
+                                            </span>
+
+                                            {% if anime.airing_status == "finished_airing" %}
+                                                <span class="status-pill status-paused">
+                                                    Anime Finished
+                                                </span>
+                                            {% elif airing_data.next_airing_episode %}
+                                                <span class="status-pill status-paused">
+                                                    NEXT EP {{ airing_data.next_airing_episode }}
+                                                </span>
+                                            {% endif %}
+
+                                            <a class="secondary-button" href="{% url 'anime_relations_detail' anime.mal_id %}">
+                                                Details
+                                            </a>
+                                        </div>
+
+                                        {% if airing_data.streaming_links %}
+                                            <div class="log-subtext">
+                                                STREAM:
+                                                {% for link in airing_data.streaming_links|slice:":3" %}
+                                                    {{ link.site }}{% if not forloop.last %} · {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </article>
+                            {% endwith %}
+                        {% endfor %}
+                    </div>
+                {% else %}
                     <div class="protocol-list">
-                        {% for anime in recent_watching_entries|slice:":4" %}
+                        {% for anime in fallback_active_entries %}
                             <article class="protocol-card">
                                 {% if anime.main_picture_url %}
                                     <img class="cover" src="{{ anime.main_picture_url }}" alt="{{ anime.display_title }}">
@@ -142,7 +233,7 @@
                                     </h3>
 
                                     <div class="protocol-meta">
-                                        Episode {{ anime.num_episodes_watched }} /
+                                        EPISODE {{ anime.num_episodes_watched }} /
                                         {% if anime.num_episodes > 0 %}
                                             {{ anime.num_episodes }}
                                         {% else %}
@@ -152,7 +243,7 @@
                                     </div>
 
                                     <div class="protocol-progress-row">
-                                        <span>Episode Progress</span>
+                                        <span>No pending signal detected</span>
                                         <strong>
                                             {% if anime.num_episodes > 0 %}
                                                 {{ anime.num_episodes_watched }}/{{ anime.num_episodes }}
@@ -180,8 +271,6 @@
                                             <span class="status-pill status-live">Live</span>
                                         {% elif anime.airing_status == "finished_airing" %}
                                             <span class="status-pill status-paused">Anime Finished</span>
-                                        {% elif anime.airing_status == "not_yet_aired" %}
-                                            <span class="status-pill status-paused">Paused</span>
                                         {% else %}
                                             <span class="status-pill status-paused">{{ anime.airing_status|default:"Unknown" }}</span>
                                         {% endif %}
@@ -192,10 +281,10 @@
                                     </div>
                                 </div>
                             </article>
+                        {% empty %}
+                            <p class="empty-state">No episode signals detected.</p>
                         {% endfor %}
                     </div>
-                {% else %}
-                    <p class="empty-state">No active watching protocols detected.</p>
                 {% endif %}
             </div>
         </section>

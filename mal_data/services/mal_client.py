@@ -6,6 +6,7 @@ class MyAnimeListClient:
     ANIME_LIST_URL = "https://api.myanimelist.net/v2/users/@me/animelist"
     MANGA_LIST_URL = "https://api.myanimelist.net/v2/users/@me/mangalist"
     ANIME_DETAIL_URL = "https://api.myanimelist.net/v2/anime/{anime_id}"
+    ANIME_MY_LIST_STATUS_URL = "https://api.myanimelist.net/v2/anime/{anime_id}/my_list_status"
 
     def __init__(self):
         self.access_token = settings.MAL_ACCESS_TOKEN
@@ -135,3 +136,22 @@ class MyAnimeListClient:
         }
 
         return self.fetch_page(url, params=params)
+    
+    def fetch_anime_my_list_status(self, anime_id):
+        url = self.ANIME_MY_LIST_STATUS_URL.format(anime_id=anime_id)
+
+        response = requests.get(
+            url,
+            headers=self.get_headers(),
+            timeout=30,
+        )
+
+        if response.status_code == 404:
+            return None
+
+        if not response.ok:
+            raise Exception(
+                f"MyAnimeList API error {response.status_code}: {response.text}"
+            )
+
+        return response.json()
