@@ -13,4 +13,6 @@ urlpatterns = [
         views.sync_anime_relations_view,
         name="sync_anime_relations",
     ),
+    path("anime/search/", views.anime_search_view, name="anime_search"),
+    path("anime/search/rescue/", views.rescue_anime_from_search_view, name="rescue_anime_from_search"),
 ]

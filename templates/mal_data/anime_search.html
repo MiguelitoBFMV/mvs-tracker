@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Search Node · MAL Insight Lab{% endblock %}
+
+{% block content %}
+<header class="hero">
+    <div class="hero-title">
+        <h1>Search Anime</h1>
+        <p>Source: AniList Anime Search | Target: MAL Local Archive | Mode: Manual Track</p>
+    </div>
+
+    <div class="hero-meta">
+        Search Protocol: Online<br>
+        Rescue Mode: Enabled
+    </div>
+</header>
+
+<section class="panel">
+    <header class="panel-header">
+        <h2 class="panel-title">Search Input</h2>
+        <span class="panel-title">AniList</span>
+    </header>
+
+    <div class="panel-body">
+        <form class="search-form" method="get" action="{% url 'anime_search' %}">
+            <label class="sr-only" for="q">Anime title</label>
+            <input
+                id="q"
+                class="command-input"
+                type="search"
+                name="q"
+                value="{{ query }}"
+                placeholder="Input anime title..."
+                autocomplete="off"
+            >
+
+            <button class="secondary-button" type="submit">
+                Search Anime
+            </button>
+        </form>
+    </div>
+</section>
+
+{% if search_error %}
+    <section class="message-panel">
+        Search failed: {{ search_error }}
+    </section>
+{% endif %}
+
+<section class="panel">
+    <header class="panel-header">
+        <h2 class="panel-title">Anime Results</h2>
+        <span class="panel-title">{{ results|length }} Nodes</span>
+    </header>
+
+    <div class="panel-body">
+        {% if query and not results and not search_error %}
+            <p class="empty-state">
+                No nodes detected for this query.
+            </p>
+        {% endif %}
+
+        {% if not query %}
+            <p class="empty-state">
+                Input a title to scan AniList and compare against your local MAL archive.
+            </p>
+        {% endif %}
+
+        {% if results %}
+            <div class="search-result-grid">
+                {% for result in results %}
+                    <article class="search-result-card">
+                        {% if result.cover_url %}
+                            <img
+                                class="search-result-cover"
+                                src="{{ result.cover_url }}"
+                                alt="{{ result.title.romaji|default:'Anime cover' }}"
+                            >
+                        {% else %}
+                            <div class="search-result-cover search-result-cover-empty"></div>
+                        {% endif %}
+
+                        <div class="search-result-body">
+                            <div class="relation-card-kicker">
+                                ANILIST ID {{ result.anilist_id }}
+                                {% if result.mal_id %}
+                                    · MAL ID {{ result.mal_id }}
+                                {% else %}
+                                    · NO MAL ID
+                                {% endif %}
+                            </div>
+
+                            <h3 class="relation-card-title">
+                                {{ result.title.romaji|default:"Unknown title" }}
+                            </h3>
+
+                            {% if result.title.native %}
+                                <div class="archive-meta">
+                                    {{ result.title.native }}
+                                </div>
+                            {% endif %}
+
+                            {% if result.title.english %}
+                                <div class="archive-meta">
+                                    EN: {{ result.title.english }}
+                                </div>
+                            {% endif %}
+
+                            <div class="relation-stats">
+                                <span>ANILIST STATUS: {{ result.status|default:"UNKNOWN" }}</span>
+                                <span>
+                                    EPISODES:
+                                    {% if result.episodes %}
+                                        {{ result.episodes }}
+                                    {% else %}
+                                        TBD
+                                    {% endif %}
+                                </span>
+                                <span>
+                                    NEXT:
+                                    {% if result.next_airing_episode %}
+                                        EP {{ result.next_airing_episode }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </span>
+                            </div>
+
+                            <div class="relation-badges">
+                                {% if result.local_entry %}
+                                    <span class="status-pill status-live">
+                                        LOCAL: {{ result.local_entry.personal_status_label|upper }}
+                                    </span>
+                                {% else %}
+                                    <span class="status-pill">
+                                        NOT LOCAL
+                                    </span>
+                                {% endif %}
+
+                                {% if result.manual_entry %}
+                                    <span class="status-pill status-paused">
+                                        MANUAL TRACKED
+                                    </span>
+                                {% endif %}
+
+                                {% if result.status == "RELEASING" %}
+                                    <span class="status-pill status-live">LIVE</span>
+                                {% elif result.status == "FINISHED" %}
+                                    <span class="status-pill status-paused">FINISHED</span>
+                                {% elif result.status == "NOT_YET_RELEASED" %}
+                                    <span class="status-pill status-paused">QUEUED</span>
+                                {% else %}
+                                    <span class="status-pill">{{ result.status|default:"UNKNOWN" }}</span>
+                                {% endif %}
+                            </div>
+
+                            <div class="search-actions">
+                                {% if result.local_entry %}
+                                    <a class="secondary-button compact-button" href="{% url 'anime_relations_detail' result.local_entry.mal_id %}">
+                                        Open Local Node
+                                    </a>
+                                {% endif %}
+
+                                {% if result.mal_id %}
+                                    <form method="post" action="{% url 'rescue_anime_from_search' %}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="mal_id" value="{{ result.mal_id }}">
+                                        <input type="hidden" name="title_snapshot" value="{{ result.title.romaji|default:'' }}">
+
+                                        <select class="command-select" name="status">
+                                            <option value="watching">Watching</option>
+                                            <option value="plan_to_watch">Plan to Watch</option>
+                                            <option value="on_hold">On Hold</option>
+                                            <option value="completed">Completed</option>
+                                            <option value="dropped">Dropped</option>
+                                        </select>
+
+                                        <input
+                                            class="small-command-input"
+                                            type="number"
+                                            min="0"
+                                            name="episodes_watched"
+                                            value="{% if result.local_entry %}{{ result.local_entry.num_episodes_watched }}{% else %}0{% endif %}"
+                                            aria-label="Episodes watched"
+                                        >
+
+                                        <input
+                                            class="small-command-input"
+                                            type="number"
+                                            min="0"
+                                            max="10"
+                                            name="score"
+                                            value="{% if result.local_entry %}{{ result.local_entry.score }}{% else %}0{% endif %}"
+                                            aria-label="Score"
+                                        >
+
+                                        <button class="secondary-button compact-button" type="submit">
+                                            Rescue / Track
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <span class="archive-meta">
+                                        Rescue disabled: no MAL ID.
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

@@ -6,11 +6,12 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from .models import AnimeAiringData, AnimeEntry, AnimeRelation, AnimeSyncEvent
+from .models import AnimeAiringData, AnimeEntry, AnimeRelation, AnimeSyncEvent, ManualTrackedAnime
 from mal_data.services.anime_relations_sync import sync_anime_relations
 from mal_data.services.anime_list_sync import sync_all_anime_statuses
 from mal_data.services.anilist_airing_sync import sync_airing_data_for_dashboard
-from mal_data.services.manual_tracked_sync import sync_manual_tracked_anime_entries
+from mal_data.services.anilist_client import AniListClient
+from mal_data.services.manual_tracked_sync import sync_manual_tracked_anime_entries, sync_manual_tracked_anime_entry
 
 def dashboard(request):
     now = timezone.now()
@@ -312,23 +313,92 @@ def anime_relations_detail(request, mal_id):
         except Exception as error:
             sync_error = str(error)
 
-    relations = AnimeRelation.objects.filter(
-        source_mal_id=mal_id
-    ).order_by(
-        "relation_source_type",
-        "relation_type",
-        "target_title",
+    def relation_sort_key(relation):
+        relation_type_priority = {
+            "sequel": 0,
+            "prequel": 1,
+            "parent_story": 2,
+            "side_story": 3,
+            "spin_off": 4,
+            "alternative_version": 5,
+            "alternative_setting": 6,
+            "summary": 7,
+            "full_story": 8,
+            "other": 9,
+            "character": 10,
+        }
+
+        media_type_priority = {
+            "movie": 0,
+            "ova": 1,
+            "special": 2,
+            "tv_special": 3,
+            "ona": 4,
+            "tv": 5,
+            "music": 8,
+            "pv": 9,
+            "cm": 10,
+        }
+
+        status_priority = {
+            "watching": 0,
+            "completed": 1,
+            "plan_to_watch": 2,
+            "on_hold": 3,
+            "dropped": 4,
+        }
+
+        local_status = relation.target_local_list_status
+
+        local_group = 0 if local_status else 1
+        local_status_order = status_priority.get(local_status, 99)
+
+        media_type = relation.target_display_media_type
+        media_type_order = media_type_priority.get(
+            str(media_type).lower() if media_type else "",
+            99,
+        )
+
+        try:
+            score = int(relation.target_display_score)
+        except (TypeError, ValueError):
+            score = 0
+
+        return (
+            0 if relation.relation_source_type == "anime" else 1,
+            local_group,
+            local_status_order,
+            relation_type_priority.get(relation.relation_type, 99),
+            media_type_order,
+            -score,
+            relation.target_display_title.lower(),
+        )
+
+
+    relations = list(
+        AnimeRelation.objects.filter(source_mal_id=mal_id)
     )
 
-    anime_relations = relations.filter(relation_source_type="anime")
-    manga_relations = relations.filter(relation_source_type="manga")
+    relations = sorted(relations, key=relation_sort_key)
 
+    anime_relations = [
+        relation
+        for relation in relations
+        if relation.relation_source_type == "anime"
+    ]
+
+    manga_relations = [
+        relation
+        for relation in relations
+        if relation.relation_source_type == "manga"
+    ]
+    
     context = {
         "anime": anime,
         "mal_id": mal_id,
         "anime_relations": anime_relations,
         "manga_relations": manga_relations,
-        "total_relations": relations.count(),
+        "total_relations": len(relations),
         "sync_result": sync_result,
         "sync_error": sync_error,
     }
@@ -398,3 +468,123 @@ def sync_anime_list_view(request):
         )
 
     return redirect("dashboard")
+
+def anime_search_view(request):
+    query = request.GET.get("q", "").strip()
+    results = []
+    search_error = None
+
+    if query:
+        try:
+            client = AniListClient()
+            candidates = client.search_anime_candidates(query)
+
+            for candidate in candidates:
+                mal_id = candidate.get("idMal")
+                local_entry = None
+                manual_entry = None
+
+                if mal_id:
+                    local_entry = AnimeEntry.objects.filter(mal_id=mal_id).first()
+                    manual_entry = ManualTrackedAnime.objects.filter(mal_id=mal_id).first()
+
+                results.append(
+                    {
+                        "anilist_id": candidate.get("id"),
+                        "mal_id": mal_id,
+                        "title": candidate.get("title") or {},
+                        "status": candidate.get("status"),
+                        "episodes": candidate.get("episodes"),
+                        "cover_url": (
+                            (candidate.get("coverImage") or {}).get("large")
+                            or (candidate.get("coverImage") or {}).get("medium")
+                        ),
+                        "next_airing_episode": (
+                            (candidate.get("nextAiringEpisode") or {}).get("episode")
+                        ),
+                        "local_entry": local_entry,
+                        "manual_entry": manual_entry,
+                    }
+                )
+        except Exception as error:
+            search_error = str(error)
+
+    def search_result_priority(result):
+        local_entry = result["local_entry"]
+        manual_entry = result["manual_entry"]
+        status = result["status"]
+
+        if local_entry:
+            local_group = 0
+        elif manual_entry:
+            local_group = 1
+        else:
+            local_group = 2
+
+        has_mal_id_group = 0 if result["mal_id"] else 1
+        airing_group = 0 if status == "RELEASING" else 1
+
+        return (
+            local_group,
+            has_mal_id_group,
+            airing_group,
+            result["title"].get("romaji") or "",
+        )
+
+
+    results = sorted(results, key=search_result_priority)
+
+    context = {
+        "query": query,
+        "results": results,
+        "search_error": search_error,
+    }
+
+    return render(request, "mal_data/anime_search.html", context)
+
+
+def rescue_anime_from_search_view(request):
+    if request.method != "POST":
+        return redirect("anime_search")
+
+    mal_id = request.POST.get("mal_id")
+    title_snapshot = request.POST.get("title_snapshot", "").strip()
+    status = request.POST.get("status", "watching")
+    episodes_watched = request.POST.get("episodes_watched") or 0
+    score = request.POST.get("score") or 0
+
+    if not mal_id:
+        messages.error(request, "Cannot rescue anime without MAL ID.")
+        return redirect("anime_search")
+
+    try:
+        tracked_entry, _ = ManualTrackedAnime.objects.update_or_create(
+            mal_id=int(mal_id),
+            defaults={
+                "title_snapshot": title_snapshot,
+                "status": status,
+                "episodes_watched": int(episodes_watched),
+                "score": int(score),
+                "is_rewatching": False,
+                "active": True,
+            },
+        )
+
+        anime, created = sync_manual_tracked_anime_entry(tracked_entry)
+
+        messages.success(
+            request,
+            (
+                "Anime rescued and tracked. "
+                f"Node: {anime.display_title} · "
+                f"Status: {anime.personal_status_label} · "
+                f"Created: {created}"
+            ),
+        )
+
+        return redirect("anime_relations_detail", mal_id=anime.mal_id)
+
+    except Exception as error:
+        messages.error(request, f"Rescue failed: {error}")
+
+    return redirect("anime_search")
