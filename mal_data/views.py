@@ -241,8 +241,6 @@ def anime_status_list(request, status):
         airing_filter = None
 
     # Orden inicial según el tipo de lista
-        sort = request.GET.get("sort")
-
     sort = request.GET.get("sort")
 
     allowed_sorts = {
@@ -258,6 +256,8 @@ def anime_status_list(request, status):
         "-airing_status": "-airing_status",
         "updated_at_mal": "updated_at_mal",
         "-updated_at_mal": "-updated_at_mal",
+        "media_type": "media_type",
+        "-media_type": "-media_type",
     }
 
     if sort in allowed_sorts:
@@ -290,8 +290,6 @@ def anime_status_list(request, status):
         "airing_filter": airing_filter,
         "valid_airing_statuses": valid_airing_statuses,
         "sort": sort,
-        "media_type": "media_type",
-        "-media_type": "-media_type",
     }
 
     return render(request, "mal_data/anime_status_list.html", context)
