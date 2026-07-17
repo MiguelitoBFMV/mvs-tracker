@@ -1,48 +1,25 @@
 {% extends "base.html" %}
 
 {% block title %}
-    {% if anime %}
-        {{ anime.display_title }} · Relation Scan
-    {% else %}
-        Relation Scan · MAL Insight Lab
-    {% endif %}
+    {{ source_title }} · Relation Scan
 {% endblock %}
 
 {% block content %}
 <header class="hero relation-hero">
     <div class="relation-source">
-        {% if anime and anime.main_picture_url %}
-            <img
-                class="relation-source-cover"
-                src="{{ anime.main_picture_url }}"
-                alt="{{ anime.display_title }}"
-            >
+        {% if source_picture_url %}
+            <img src="{{ source_picture_url }}" alt="{{ source_title }}" class="relation-source-cover">
         {% else %}
-            <div class="relation-source-cover relation-source-cover-empty"></div>
+            <div class="relation-source-placeholder">?</div>
         {% endif %}
 
         <div class="hero-title">
             <h1>
-                {% if anime %}
-                    {{ anime.display_title }}
-                {% else %}
-                    Unknown Source Node
-                {% endif %}
+                {{ source_title }}
             </h1>
 
             <p>
-                RELATION SCAN |
-                MAL ID: {{ mal_id }}
-                {% if anime %}
-                    | STATUS: {{ anime.personal_status_label|upper }}
-                    | PROGRESS:
-                    {{ anime.num_episodes_watched }}/
-                    {% if anime.num_episodes > 0 %}
-                        {{ anime.num_episodes }}
-                    {% else %}
-                        TBD
-                    {% endif %}
-                {% endif %}
+                RELATION SCAN | MAL ID: {{ mal_id }} | STATUS: {{ source_status|upper }} | PROGRESS: {{ source_progress }}
             </p>
         </div>
     </div>
