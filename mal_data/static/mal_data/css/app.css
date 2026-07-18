@@ -1091,6 +1091,37 @@ button.danger-button:hover {
     color: #ffffff;
 }
 
+.audit-details {
+    overflow: hidden;
+}
+
+.audit-summary {
+    cursor: pointer;
+    list-style: none;
+}
+
+.audit-summary::-webkit-details-marker {
+    display: none;
+}
+
+.audit-summary::after {
+    content: "COLLAPSE";
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.audit-details:not([open]) .audit-summary {
+    border-bottom: 0;
+}
+
+.audit-details:not([open]) .audit-summary::after {
+    content: "EXPAND";
+    color: var(--blue);
+}
+
 .audit-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
