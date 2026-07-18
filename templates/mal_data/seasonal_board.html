@@ -137,11 +137,34 @@
                                 <div class="relation-badges">
                                     {% if local_entry %}
                                         <span class="status-pill status-live">LOCAL NODE</span>
-                                        <span class="status-pill status-live">
-                                            {{ local_entry.personal_status_label|upper }}
-                                        </span>
+
+                                        {% if local_entry.list_status == "watching" %}
+                                            <span class="status-pill status-watching">
+                                                {{ local_entry.personal_status_label|upper }}
+                                            </span>
+                                        {% elif local_entry.list_status == "plan_to_watch" %}
+                                            <span class="status-pill status-plan">
+                                                {{ local_entry.personal_status_label|upper }}
+                                            </span>
+                                        {% elif local_entry.list_status == "completed" %}
+                                            <span class="status-pill status-completed">
+                                                {{ local_entry.personal_status_label|upper }}
+                                            </span>
+                                        {% elif local_entry.list_status == "on_hold" %}
+                                            <span class="status-pill status-on-hold">
+                                                {{ local_entry.personal_status_label|upper }}
+                                            </span>
+                                        {% elif local_entry.list_status == "dropped" %}
+                                            <span class="status-pill status-dropped">
+                                                {{ local_entry.personal_status_label|upper }}
+                                            </span>
+                                        {% else %}
+                                            <span class="status-pill">
+                                                {{ local_entry.personal_status_label|upper }}
+                                            </span>
+                                        {% endif %}
                                     {% else %}
-                                        <span class="status-pill">NOT LOCAL</span>
+                                        <span class="status-pill status-not-local">NOT LOCAL</span>
                                     {% endif %}
 
                                     {% if seasonal.status == "RELEASING" %}

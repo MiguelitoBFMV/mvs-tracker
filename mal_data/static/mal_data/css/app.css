@@ -396,6 +396,60 @@ a:hover {
     color: var(--blue);
 }
 
+.status-node-local {
+    border-color: var(--blue);
+    color: var(--blue);
+    background: rgba(169, 193, 255, 0.08);
+}
+
+.status-node-external {
+    border-color: #5f6b7a;
+    color: #c7d0dd;
+    background: rgba(167, 176, 192, 0.05);
+}
+
+.status-metadata {
+    border-color: var(--border);
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.status-not-local {
+    border-color: var(--border);
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.status-watching {
+    border-color: var(--red);
+    color: #ff6b78;
+    background: rgba(196, 0, 26, 0.08);
+}
+
+.status-plan {
+    border-color: #5f6b7a;
+    color: #c7d0dd;
+    background: rgba(167, 176, 192, 0.06);
+}
+
+.status-completed {
+    border-color: #2fa866;
+    color: #64d994;
+    background: rgba(47, 168, 102, 0.08);
+}
+
+.status-on-hold {
+    border-color: #d08a2d;
+    color: #ffb86b;
+    background: rgba(208, 138, 45, 0.08);
+}
+
+.status-dropped {
+    border-color: #8f4fd6;
+    color: #c49cff;
+    background: rgba(143, 79, 214, 0.08);
+}
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -1212,4 +1266,40 @@ button.danger-button:hover {
         width: 76px;
         height: 108px;
     }
+}
+
+.status-watching {
+    border-color: var(--red);
+    color: #ff6b78;
+    background: rgba(196, 0, 26, 0.08);
+}
+
+.status-plan {
+    border-color: #5f6b7a;
+    color: #c7d0dd;
+    background: rgba(167, 176, 192, 0.06);
+}
+
+.status-completed {
+    border-color: #2fa866;
+    color: #64d994;
+    background: rgba(47, 168, 102, 0.08);
+}
+
+.status-on-hold {
+    border-color: #d08a2d;
+    color: #ffb86b;
+    background: rgba(208, 138, 45, 0.08);
+}
+
+.status-dropped {
+    border-color: #8f4fd6;
+    color: #c49cff;
+    background: rgba(143, 79, 214, 0.08);
+}
+
+.status-not-local {
+    border-color: var(--border);
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.015);
 }
