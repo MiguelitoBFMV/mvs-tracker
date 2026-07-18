@@ -35,6 +35,23 @@ class MyAnimeListClient:
 
         return response.json()
 
+    def put_page(self, url, data=None):
+        response = requests.put(
+            url,
+            headers=self.get_headers(),
+            data=data,
+            timeout=30,
+        )
+
+        if not response.ok:
+            raise Exception(
+                "Error actualizando MAL API.\n"
+                f"Status: {response.status_code}.\n"
+                f"Response: {response.text}"
+            )
+
+        return response.json()
+    
     def fetch_all_anime_by_status(self, status):
         params = {
             "status": status,
@@ -157,3 +174,23 @@ class MyAnimeListClient:
             )
 
         return response.json()
+    
+    def update_anime_list_status(
+        self,
+        anime_id,
+        status,
+        num_watched_episodes=0,
+        score=0,
+        is_rewatching=False,
+    ):
+        url = f"{self.BASE_URL}/anime/{anime_id}/my_list_status"
+
+        data = {
+            "status": status,
+            "num_watched_episodes": num_watched_episodes,
+            "score": score,
+            "is_rewatching": int(is_rewatching),
+        }
+
+        return self.put(url, data=data)
+

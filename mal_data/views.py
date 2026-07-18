@@ -22,6 +22,7 @@ from mal_data.services.anilist_airing_sync import sync_airing_data_for_dashboard
 from mal_data.services.anilist_client import AniListClient
 from mal_data.services.manual_tracked_sync import sync_manual_tracked_anime_entries, sync_manual_tracked_anime_entry
 from mal_data.services.anime_metadata_sync import sync_anime_metadata
+from mal_data.services.mal_client import MyAnimeListClient
 
 def dashboard(request):
     now = timezone.now()
@@ -861,7 +862,6 @@ def add_seasonal_to_plan_view(request):
         return redirect("seasonal_board")
 
     mal_id = request.POST.get("mal_id")
-    title_snapshot = request.POST.get("title_snapshot", "").strip()
     next_url = request.POST.get("next") or "seasonal_board"
 
     if not mal_id:
@@ -869,32 +869,27 @@ def add_seasonal_to_plan_view(request):
         return redirect(next_url)
 
     try:
-        tracked_entry, _ = ManualTrackedAnime.objects.update_or_create(
-            mal_id=int(mal_id),
-            defaults={
-                "title_snapshot": title_snapshot,
-                "status": "plan_to_watch",
-                "episodes_watched": 0,
-                "score": 0,
-                "is_rewatching": False,
-                "active": True,
-            },
+        client = MyAnimeListClient()
+
+        client.update_anime_my_list_status(
+            anime_id=int(mal_id),
+            status="plan_to_watch",
+            num_watched_episodes=0,
+            score=0,
+            is_rewatching=False,
         )
 
-        anime, created = sync_manual_tracked_anime_entry(tracked_entry)
+        sync_all_anime_statuses()
+        sync_airing_data_for_dashboard()
 
         messages.success(
             request,
-            (
-                "Seasonal anime added to Plan to Watch. "
-                f"Node: {anime.display_title} · "
-                f"Created: {created}"
-            ),
+            "Anime added to MyAnimeList Plan to Watch and synchronized locally.",
         )
 
         return redirect(next_url)
 
     except Exception as error:
-        messages.error(request, f"Seasonal add failed: {error}")
+        messages.error(request, f"Could not add anime to MAL: {error}")
         return redirect(next_url)
     
