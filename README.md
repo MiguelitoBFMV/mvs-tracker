@@ -1,55 +1,138 @@
 # MAL Insight Lab
 
-MAL Insight Lab is a Django-based personal anime analytics dashboard built around MyAnimeList data, enriched with AniList metadata for airing schedules, episode signals, streaming links, and franchise discovery.
+MAL Insight Lab is a Django-based personal anime analytics dashboard built around MyAnimeList data and enriched with AniList metadata.
 
-The project started as a personal MAL list viewer, but evolved into a command-center style tool for auditing anime progress, detecting missing franchise entries, tracking currently airing shows, and rescuing entries that may not appear correctly through the MyAnimeList list API.
+The project started as a personal MAL list viewer, but evolved into a command-center style tool for auditing anime progress, tracking seasonal anime, detecting franchise gaps, monitoring episode signals, and managing Plan to Watch decisions directly from the app.
 
 ## Current Status
 
 This project is in active development.
 
-The current version focuses on anime data. Manga support exists partially at the model level, but it is not the main focus yet.
+The current MVP focuses on anime. Manga support exists partially at the model and sync level, but it is not the main active module yet.
+
+Current anime features are functional enough to be used as a personal local dashboard.
 
 ## Main Features
 
-- Sync anime lists from MyAnimeList by status:
-  - Watching
-  - Completed
-  - On hold
-  - Dropped
-  - Plan to watch
+### Command Center Dashboard
 
-- Command Center dashboard:
-  - Anime totals by status
-  - Backlog clear ratio
-  - Latest sync events
-  - Episode signals for currently watched anime
-  - Broadcast watchlist for Plan to Watch anime that are currently airing
-  - Sequel radar based on MAL relations
-  - Manual resync flow
+The dashboard acts as the main anime control panel.
 
-- AniList integration:
-  - Airing status
-  - Estimated aired episodes
-  - Next airing episode
-  - Time until next episode
-  - Streaming links when available
+It includes:
 
-- Relation Scan:
-  - Direct anime and manga relations from MAL
-  - Local status detection for related anime
-  - Prioritized relation sorting
-  - Useful for finding missing movies, OVAs, sequels, specials, and franchise gaps
+- Anime totals by list status.
+- Backlog clear ratio.
+- Latest sync logs.
+- Episode signals for active watching entries.
+- Rewatch episode signals shown after regular watching items.
+- Broadcast watchlist for Plan to Watch anime that are currently airing.
+- Sequel radar based on MAL relations.
+- Manual resync flow for MAL, manual tracked entries, and AniList airing data.
 
-- Search Anime / Rescue:
-  - Search anime through AniList
-  - Compare results against the local MAL archive
-  - Rescue manually tracked anime entries
-  - Useful when MAL web shows an anime in the list but the MAL API does not return it correctly
+### Episode Signals
 
-- Manual tracked anime:
-  - Keeps rescued anime entries synchronized locally
-  - Prevents edge cases from disappearing during normal MAL sync
+Episode Signals use AniList airing data to estimate pending episodes.
+
+They help detect:
+
+- New aired episodes for currently watched anime.
+- Long-running anime with accumulated pending episodes.
+- Finished anime that still have unseen episodes.
+- Rewatch entries with pending episodes.
+
+Rewatch entries are included, but sorted after regular watching signals.
+
+### Anime Archive
+
+The archive includes list views for:
+
+- All Anime
+- Watching
+- Completed
+- Plan to Watch
+- On Hold
+- Dropped
+
+The All Anime view supports multi-status filtering, allowing multiple list states to be enabled or disabled at once.
+
+The archive also includes filters by airing status:
+
+- All
+- Finished
+- Airing
+- Queued
+
+### Relation Scan
+
+Relation Scan imports anime and manga relations from MyAnimeList.
+
+It is useful for franchise auditing and finding missing related entries such as:
+
+- Sequels
+- Prequels
+- Movies
+- OVAs
+- Specials
+- Side stories
+- Alternative versions
+- Summary episodes
+- Character specials
+- Low-priority extras
+
+Related anime are classified by local status, external metadata availability, and priority.
+
+### Franchise Audit
+
+Each Relation Scan page includes a Franchise Audit section that groups related anime into:
+
+- Local Priority
+- Local Completed
+- External Priority
+- Low Priority / Extras
+- Unknown Nodes
+
+The Franchise Audit can be collapsed or expanded from the relation page.
+
+### External Anime Metadata
+
+The app stores public metadata for anime that are not in the local MAL list.
+
+This allows non-local relation nodes to show better information, including:
+
+- Title
+- Cover image
+- Media type
+- Airing status
+- Episode count
+
+### Search / Rescue
+
+Search Anime uses AniList search to find anime candidates and compare them with the local MAL archive.
+
+It helps with:
+
+- Finding anime by title.
+- Opening local nodes.
+- Detecting whether an anime is already in the local database.
+- Rescuing entries that MAL web may show but the MAL list API does not return correctly.
+
+Manual rescue is used for edge cases where a MAL entry needs to be tracked locally.
+
+### Seasonal Board
+
+Seasonal Board is a LiveChart-style personal seasonal anime view powered by AniList data.
+
+It currently supports:
+
+- Viewing anime by season and year.
+- Filtering by format.
+- Filtering by local status.
+- Comparing AniList seasonal entries against the local MAL archive.
+- Showing whether an anime is local, not local, watching, completed, or Plan to Watch.
+- Adding seasonal anime directly to the official MyAnimeList Plan to Watch list.
+- Syncing local data after adding an anime to MAL.
+
+This makes Seasonal Board useful as a personal discovery and planning tool.
 
 ## Tech Stack
 
@@ -67,19 +150,19 @@ The current version focuses on anime data. Manga support exists partially at the
 
 ```text
 mal-insight-lab/
-├── config/                  # Django project settings
-├── mal_data/                # Main Django app
-│   ├── management/commands/ # Sync and inspection commands
-│   ├── migrations/          # Database migrations
-│   ├── services/            # MAL, AniList and sync services
-│   ├── static/              # CSS
+├── config/                         # Django project settings
+├── mal_data/                       # Main Django app
+│   ├── management/commands/        # Sync and inspection commands
+│   ├── migrations/                 # Database migrations
+│   ├── services/                   # MAL, AniList and sync services
+│   ├── static/mal_data/css/        # App CSS
 │   ├── admin.py
 │   ├── models.py
 │   ├── urls.py
 │   └── views.py
 ├── templates/
 │   ├── base.html
-│   └── mal_data/            # Dashboard, archive, relation and search templates
+│   └── mal_data/                   # Dashboard, archive, relation, search and seasonal templates
 ├── manage.py
 ├── requirements.txt
 └── README.md
@@ -102,7 +185,7 @@ DB_PORT=5432
 MAL_ACCESS_TOKEN=your-mal-access-token
 ```
 
-Do not commit `.env`, access tokens, raw API responses, or local virtual environments.
+Do not commit `.env`, access tokens, raw API responses, local databases, or virtual environments.
 
 ## Local Setup
 
@@ -148,7 +231,7 @@ http://127.0.0.1:8000/
 
 ## Useful Commands
 
-Sync one MAL anime status:
+### Sync anime from MyAnimeList
 
 ```bash
 python manage.py fetch_anime_status watching
@@ -158,43 +241,60 @@ python manage.py fetch_anime_status dropped
 python manage.py fetch_anime_status plan_to_watch
 ```
 
-Sync AniList airing data for dashboard targets:
+### Sync AniList airing data
 
 ```bash
 python manage.py sync_airing_data --dashboard
 ```
 
-Inspect AniList airing data for a specific MAL ID:
+### Inspect AniList airing data for a MAL ID
 
 ```bash
 python manage.py inspect_airing_data 63832
 ```
 
-Fetch or update relations for a specific anime:
+### Fetch or update relations for an anime
 
 ```bash
 python manage.py fetch_anime_relations 32182
 ```
 
-Rescue an anime entry manually when MAL API does not return it correctly from the list endpoint:
+### Rescue a manually tracked anime
+
+Useful when MAL web shows an anime in the list but the MAL list API does not return it correctly.
 
 ```bash
 python manage.py rescue_anime_entry 46488 --status watching --episodes-watched 1 --sync-airing
+```
+
+### Sync a seasonal anime board
+
+```bash
+python manage.py sync_seasonal_anime SUMMER 2026
 ```
 
 ## Data Sources
 
 MAL Insight Lab uses MyAnimeList as the main source for personal list data.
 
-AniList is used as an external metadata source for airing information, next episode data, streaming links, native titles, and search support.
+AniList is used as an external metadata source for:
 
-The project does not use AniList as the personal list source.
+- Airing information
+- Next episode data
+- Estimated aired episodes
+- Streaming links
+- Native titles
+- Seasonal anime data
+- Search support
+
+AniList is not used as the personal list source.
 
 ## Current Limitations
 
 - Manga support is not fully implemented yet.
-- External relation nodes that are not in the local MAL list do not have a dedicated metadata table yet.
-- Some MyAnimeList API edge cases may require manual rescue.
+- Seasonal Board currently works by specific season and year; yearly ALL-season views are planned next.
+- Seasonal sorting by countdown/title is planned.
+- Some MyAnimeList API edge cases may still require manual rescue.
 - Streaming availability depends on what AniList exposes through external links.
 - This is a local personal dashboard, not a deployed production app.
 
@@ -202,13 +302,17 @@ The project does not use AniList as the personal list source.
 
 Planned next steps:
 
-- Add `AnimeMetadata` for public anime nodes outside the personal MAL list.
-- Improve Relation Scan for non-local nodes.
-- Add a personal seasonal / LiveChart-style view.
+- Add Season `ALL` mode for Seasonal Board.
+- Add contextual Seasonal Board sync:
+  - Single season sync when a specific season is selected.
+  - Full year sync when Season is set to `ALL`.
+- Add Seasonal sorting by countdown and title.
+- Improve Seasonal discovery filters.
+- Add a dedicated Episode Signals page.
 - Expand manga support.
-- Build a franchise graph view.
-- Improve search and rescue workflows.
-- Add richer filtering for archives and relations.
+- Build Anime ↔ Manga bridge views.
+- Improve admin styling or add internal navigation.
+- Add richer filtering for archives, relations, and seasonal views.
 
 ## Security Notes
 
