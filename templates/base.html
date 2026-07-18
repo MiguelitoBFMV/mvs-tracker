@@ -35,34 +35,34 @@
         </header>
 
         {% if messages %}
-            <div class="toast-stack" aria-live="polite" aria-atomic="true">
-                {% for message in messages %}
-                    <article class="toast-message toast-{{ message.tags|default:'info' }}">
-                        <div class="toast-indicator"></div>
+        <div class="toast-stack" aria-live="polite" aria-atomic="true">
+            {% for message in messages %}
+                <article class="toast-message toast-{{ message.tags|default:'info' }}">
+                    <div class="toast-indicator"></div>
 
-                        <div class="toast-content">
-                            <span class="toast-kicker">
-                                {% if "success" in message.tags %}
-                                    Sync Complete
-                                {% elif "error" in message.tags %}
-                                    System Alert
-                                {% elif "warning" in message.tags %}
-                                    Warning
-                                {% else %}
-                                    Command Log
-                                {% endif %}
-                            </span>
+                    <div class="toast-content">
+                        <span class="toast-kicker">
+                            {% if "success" in message.tags %}
+                                Sync Complete
+                            {% elif "error" in message.tags %}
+                                System Alert
+                            {% elif "warning" in message.tags %}
+                                Warning
+                            {% else %}
+                                Command Log
+                            {% endif %}
+                        </span>
 
-                            <strong>{{ message }}</strong>
-                        </div>
+                        <strong>{{ message }}</strong>
+                    </div>
 
-                        <button type="button" class="toast-close" aria-label="Cerrar notificación">
-                            ×
-                        </button>
-                    </article>
-                {% endfor %}
-            </div>
-            {% endif %}
+                    <button type="button" class="toast-close" aria-label="Cerrar notificación">
+                        ×
+                    </button>
+                </article>
+            {% endfor %}
+        </div>
+        {% endif %}
 
         <main class="page">
             {% block content %}{% endblock %}
@@ -88,7 +88,7 @@
                     closeButton.addEventListener("click", removeToast);
                 }
 
-                window.setTimeout(removeToast, 5000);
+                window.setTimeout(removeToast, 6000);
             });
         });
     </script>
