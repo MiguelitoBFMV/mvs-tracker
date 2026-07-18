@@ -28,76 +28,79 @@
     </header>
 
     <div class="panel-body">
-        <form class="seasonal-filter-form" method="get">
-            <label>
-                Season
-                <select class="command-select" name="season">
-                    {% for option in season_options %}
-                        <option value="{{ option }}" {% if option == season %}selected{% endif %}>
-                            {{ option }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </label>
+        <div class="seasonal-control-bar">
+            <form class="seasonal-filter-form" method="get">
+                <label>
+                    Season
+                    <select class="command-select" name="season">
+                        {% for option in season_options %}
+                            <option value="{{ option }}" {% if option == season %}selected{% endif %}>
+                                {{ option }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </label>
 
-            <label>
-                Year
-                <select class="command-select" name="year">
-                    {% for option in year_options %}
-                        <option value="{{ option }}" {% if option == year %}selected{% endif %}>
-                            {{ option }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </label>
+                <label>
+                    Year
+                    <select class="command-select" name="year">
+                        {% for option in year_options %}
+                            <option value="{{ option }}" {% if option == year %}selected{% endif %}>
+                                {{ option }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </label>
 
-            <label>
-                Format
-                <select class="command-select" name="format">
-                    {% for option in format_options %}
-                        <option value="{{ option }}" {% if option == format_filter %}selected{% endif %}>
-                            {{ option|upper }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </label>
+                <label>
+                    Format
+                    <select class="command-select" name="format">
+                        {% for option in format_options %}
+                            <option value="{{ option }}" {% if option == format_filter %}selected{% endif %}>
+                                {{ option|upper }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </label>
 
-            <label>
-                Local
-                <select class="command-select" name="local">
-                    {% for value, label in local_filter_options %}
-                        <option value="{{ value }}" {% if value == local_filter %}selected{% endif %}>
-                            {{ label }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </label>
+                <label>
+                    Local
+                    <select class="command-select" name="local">
+                        {% for value, label in local_filter_options %}
+                            <option value="{{ value }}" {% if value == local_filter %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </label>
 
-            <label for="sort">
-                Sort
-                <select id="sort" name="sort">
-                    {% for value, label in sort_options %}
-                        <option value="{{ value }}" {% if sort == value %}selected{% endif %}>
-                            {{ label }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </label>
+                <label>
+                    Sort
+                    <select class="command-select" name="sort">
+                        {% for value, label in sort_options %}
+                            <option value="{{ value }}" {% if sort == value %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </label>
 
-            <button class="secondary-button" type="submit">
-                Apply Filters
-            </button>
-        </form>
+                <button class="secondary-button" type="submit">
+                    Apply Filters
+                </button>
+            </form>
 
-        <form method="post" action="{% url 'sync_seasonal_board' %}">
-            {% csrf_token %}
-            <input type="hidden" name="season" value="{{ season }}">
-            <input type="hidden" name="year" value="{{ year }}">
-            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-            <button type="submit" class="command-button command-button-primary">
-                Sync Board
-            </button>
-        </form>
+            <form class="sync-board-form" method="post" action="{% url 'sync_seasonal_board' %}">
+                {% csrf_token %}
+                <input type="hidden" name="season" value="{{ season }}">
+                <input type="hidden" name="year" value="{{ year }}">
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+
+                <button type="submit" class="command-button command-button-primary sync-board-button">
+                    Sync Board
+                </button>
+            </form>
+        </div>
     </div>
 </section>
 

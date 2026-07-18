@@ -1469,3 +1469,60 @@ button.danger-button:hover {
     color: #c49cff;
     background: rgba(143, 79, 214, 0.08);
 }
+
+.seasonal-control-bar {
+ display: flex;
+ align-items: flex-end;
+ gap: 16px;
+ flex-wrap: wrap;
+ width: 100%;
+}
+
+.seasonal-filter-form {
+ flex: 1;
+ display: flex;
+ align-items: flex-end;
+ gap: 14px;
+ flex-wrap: wrap;
+}
+
+.seasonal-filter-form label {
+ min-width: 150px;
+}
+
+.seasonal-filter-form .secondary-button {
+ height: 44px;
+ white-space: nowrap;
+}
+
+.sync-board-form {
+ margin-left: auto;
+ display: flex;
+ align-items: flex-end;
+}
+
+.sync-board-button {
+ height: 44px;
+ min-width: 180px;
+ padding-inline: 22px;
+ white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+ .seasonal-control-bar {
+  align-items: stretch;
+ }
+
+ .seasonal-filter-form,
+ .sync-board-form {
+  width: 100%;
+ }
+
+ .sync-board-form {
+  margin-left: 0;
+ }
+
+ .sync-board-button {
+  width: 100%;
+ }
+}
