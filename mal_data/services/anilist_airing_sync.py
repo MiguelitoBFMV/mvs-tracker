@@ -70,12 +70,12 @@ def sync_airing_data_for_anime(mal_id):
 
     return airing_data, created
 
-
 def sync_airing_data_for_dashboard():
     targets = (
         AnimeEntry.objects
         .filter(
             Q(list_status="watching")
+            | Q(is_rewatching=True)
             | Q(list_status="plan_to_watch", airing_status="currently_airing")
         )
         .order_by("title")
@@ -110,7 +110,6 @@ def sync_airing_data_for_dashboard():
             )
 
     return results
-
 
 def parse_anilist_timestamp(value):
     if not value:

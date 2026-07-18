@@ -5,7 +5,7 @@ from django.http import Http404
 from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.utils import timezone
-from django.db.models import Case, IntegerField, Value, When
+from django.db.models import Case, IntegerField, Q, Value, When
 
 from mal_data.models import (
     AnimeAiringData,
@@ -36,10 +36,7 @@ def dashboard(request):
     plan_to_watch_entries = anime_entries.filter(list_status="plan_to_watch")
     completed_entries = anime_entries.filter(list_status="completed")
     dropped_entries = anime_entries.filter(list_status="dropped")
-    completed_rewatch_entries = anime_entries.filter(
-        list_status="completed",
-        is_rewatching=True,
-    )
+    rewatching_entries = anime_entries.filter(is_rewatching=True)
 
     broadcast_watchlist_entries = (
         plan_to_watch_entries.filter(airing_status="currently_airing").order_by("-updated_at_mal", "title")[:10]
@@ -49,7 +46,8 @@ def dashboard(request):
         AnimeAiringData.objects
         .select_related("anime")
         .filter(
-            anime__list_status="watching",
+            Q(anime__list_status="watching")
+            | Q(anime__is_rewatching=True)
         )
     )
 
@@ -62,15 +60,16 @@ def dashboard(request):
 
     def episode_signal_priority(airing_data):
         anime = airing_data.anime
-
         is_finished = anime.airing_status == "finished_airing"
-
+        is_rewatching = anime.is_rewatching
         is_longrun = (
             airing_data.episodes_aired_estimated >= 60
             or (anime.num_episodes and anime.num_episodes >= 60)
         )
 
-        if is_finished:
+        if is_rewatching:
+            group = 3
+        elif is_finished:
             group = 2
         elif is_longrun:
             group = 1
@@ -200,7 +199,7 @@ def dashboard(request):
     context = {
         "total_anime": total_anime,
         "watching_count": watching_entries.count(),
-        "rewatching_count": completed_rewatch_entries.count(),
+        "rewatching_count": rewatching_entries.count(),
         "currently_airing_count": currently_airing_count,
         "finished_airing_count": finished_airing_count,
         "old_watching_entries": old_watching_entries,

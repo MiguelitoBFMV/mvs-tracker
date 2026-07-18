@@ -187,6 +187,10 @@
                                                 +{{ airing_data.pending_episodes_for_user }} EP
                                             </span>
 
+                                            {% if anime.is_rewatching %}
+                                                <span class="status-pill status-rewatch">REWATCH</span>
+                                            {% endif %}
+
                                             {% if anime.airing_status == "finished_airing" %}
                                                 <span class="status-pill status-paused">
                                                     Anime Finished

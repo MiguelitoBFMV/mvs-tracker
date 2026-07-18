@@ -1367,3 +1367,9 @@ button.danger-button:hover {
     color: var(--muted);
     background: rgba(255, 255, 255, 0.015);
 }
+
+.status-rewatch {
+    border-color: #8f4fd6;
+    color: #c49cff;
+    background: rgba(143, 79, 214, 0.08);
+}
