@@ -25,64 +25,54 @@
         <nav class="filter-nav" aria-label="Filtros de estado de emisión">
             <span class="filter-label">Airing Status</span>
 
-            <a
-                href="{% url 'anime_status_list' status %}{% if sort %}?sort={{ sort }}{% endif %}"
-                class="filter-chip {% if not airing_filter %}active{% endif %}"
-            >
-                All
-            </a>
+            <a  href="{% url 'anime_status_list' status %}{% if sort %}?sort={{ sort }}{% endif %}"
+                class="filter-chip {% if not airing_filter %}active{% endif %}">All</a>
 
             <a
                 href="{% url 'anime_status_list' status %}?airing=finished_airing{% if sort %}&sort={{ sort }}{% endif %}"
-                class="filter-chip {% if airing_filter == 'finished_airing' %}active{% endif %}"
-            >
-                Finished
+                class="filter-chip {% if airing_filter == 'finished_airing' %}active{% endif %}">Finished
             </a>
 
             <a
                 href="{% url 'anime_status_list' status %}?airing=currently_airing{% if sort %}&sort={{ sort }}{% endif %}"
-                class="filter-chip {% if airing_filter == 'currently_airing' %}active{% endif %}"
-            >
-                Airing
+                class="filter-chip {% if airing_filter == 'currently_airing' %}active{% endif %}">Airing
             </a>
 
             <a
                 href="{% url 'anime_status_list' status %}?airing=not_yet_aired{% if sort %}&sort={{ sort }}{% endif %}"
-                class="filter-chip {% if airing_filter == 'not_yet_aired' %}active{% endif %}"
-            >
-                Queued
+                class="filter-chip {% if airing_filter == 'not_yet_aired' %}active{% endif %}">Queued
             </a>
         </nav>
+
+        {% if status == "all" %}
+            <form class="archive-status-filter-form" method="get">
+                {% if airing_filter %}
+                    <input type="hidden" name="airing" value="{{ airing_filter }}">
+                {% endif %}
+
+                <div class="filter-nav archive-filter-row">
+                    <span class="filter-label">List Status</span>
+
+                    {% for status_key, status_name in status_filter_options %}
+                        <label class="status-check-chip">
+                            <input
+                                type="checkbox"
+                                name="statuses"
+                                value="{{ status_key }}"
+                                {% if status_key in selected_statuses %}checked{% endif %}
+                            >
+                            <span>{{ status_name }}</span>
+                        </label>
+                    {% endfor %}
+
+                    <button class="secondary-button compact-button" type="submit">
+                        Apply
+                    </button>
+                </div>
+            </form>
+        {% endif %}
     </div>
 </section>
-
-{% if status == "all" %}
-    <form class="archive-status-filter-form" method="get">
-        {% if airing_filter %}
-            <input type="hidden" name="airing" value="{{ airing_filter }}">
-        {% endif %}
-
-        <div class="filter-nav archive-filter-row">
-            <span class="filter-label">List Status</span>
-
-            {% for status_key, status_name in status_filter_options %}
-                <label class="status-check-chip">
-                    <input
-                        type="checkbox"
-                        name="statuses"
-                        value="{{ status_key }}"
-                        {% if status_key in selected_statuses %}checked{% endif %}
-                    >
-                    <span>{{ status_name }}</span>
-                </label>
-            {% endfor %}
-
-            <button class="secondary-button compact-button" type="submit">
-                Apply
-            </button>
-        </div>
-    </form>
-{% endif %}
 
 {% if page_obj.paginator.num_pages > 1 %}
     <nav class="pagination-panel" aria-label="Paginación superior">
@@ -184,33 +174,31 @@
                                 </td>
 
                                 <td>
-                                    <span class="status-pill status-paused">
-                                        {% if anime.list_status == "watching" %}
-                                            <span class="status-pill status-watching">
-                                                {{ anime.personal_status_label|upper }}
-                                            </span>
-                                        {% elif anime.list_status == "plan_to_watch" %}
-                                            <span class="status-pill status-plan">
-                                                {{ anime.personal_status_label|upper }}
-                                            </span>
-                                        {% elif anime.list_status == "completed" %}
-                                            <span class="status-pill status-completed">
-                                                {{ anime.personal_status_label|upper }}
-                                            </span>
-                                        {% elif anime.list_status == "on_hold" %}
-                                            <span class="status-pill status-on-hold">
-                                                {{ anime.personal_status_label|upper }}
-                                            </span>
-                                        {% elif anime.list_status == "dropped" %}
-                                            <span class="status-pill status-dropped">
-                                                {{ anime.personal_status_label|upper }}
-                                            </span>
-                                        {% else %}
-                                            <span class="status-pill">
-                                                {{ anime.personal_status_label|upper }}
-                                            </span>
-                                        {% endif %}
-                                    </span>
+                                    {% if anime.list_status == "watching" %}
+                                        <span class="status-pill status-watching">
+                                            {{ anime.personal_status_label|upper }}
+                                        </span>
+                                    {% elif anime.list_status == "plan_to_watch" %}
+                                        <span class="status-pill status-plan">
+                                            {{ anime.personal_status_label|upper }}
+                                        </span>
+                                    {% elif anime.list_status == "completed" %}
+                                        <span class="status-pill status-completed">
+                                            {{ anime.personal_status_label|upper }}
+                                        </span>
+                                    {% elif anime.list_status == "on_hold" %}
+                                        <span class="status-pill status-on-hold">
+                                            {{ anime.personal_status_label|upper }}
+                                        </span>
+                                    {% elif anime.list_status == "dropped" %}
+                                        <span class="status-pill status-dropped">
+                                            {{ anime.personal_status_label|upper }}
+                                        </span>
+                                    {% else %}
+                                        <span class="status-pill">
+                                            {{ anime.personal_status_label|upper }}
+                                        </span>
+                                    {% endif %}
                                 </td>
 
                                 <td>
