@@ -238,9 +238,42 @@ def anime_status_list(request, status):
     if status not in valid_statuses:
         raise Http404("Estado de anime no válido")
 
+    status_order = [
+        "watching",
+        "completed",
+        "plan_to_watch",
+        "on_hold",
+        "dropped",
+    ]
+
+    status_filter_options = [
+        (status_key, valid_statuses[status_key])
+        for status_key in status_order
+    ]
+
     if status == "all":
-        anime_entries = AnimeEntry.objects.all()
+        selected_statuses = request.GET.getlist("statuses")
+
+        if not selected_statuses:
+            selected_statuses = status_order.copy()
+
+        selected_statuses = [
+            selected_status
+            for selected_status in selected_statuses
+            if selected_status in status_order
+        ]
+
+        if len(selected_statuses) == 1:
+            return redirect("anime_status_list", status=selected_statuses[0])
+
+        if not selected_statuses:
+            selected_statuses = status_order.copy()
+
+        anime_entries = AnimeEntry.objects.filter(
+            list_status__in=selected_statuses
+        )
     else:
+        selected_statuses = [status]
         anime_entries = AnimeEntry.objects.filter(list_status=status)
 
     airing_filter = request.GET.get("airing")
@@ -327,6 +360,9 @@ def anime_status_list(request, status):
         "airing_filter": airing_filter,
         "valid_airing_statuses": valid_airing_statuses,
         "sort": sort,
+        "status_order": status_order,
+        "selected_statuses": selected_statuses,
+        "status_filter_options": status_filter_options,
     }
 
     return render(request, "mal_data/anime_status_list.html", context)
