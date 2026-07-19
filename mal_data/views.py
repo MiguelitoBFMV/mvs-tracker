@@ -1118,8 +1118,49 @@ def add_seasonal_to_plan_view(request):
 
     try:
         mal_id = int(mal_id)
+    except ValueError:
+        messages.error(request, "Invalid MAL ID.")
+        return redirect(next_url)
 
+    try:
         client = MyAnimeListClient()
+
+        existing_list_status = client.fetch_anime_my_list_status(mal_id)
+
+        if existing_list_status:
+            anime_details = client.fetch_anime_details(mal_id)
+
+            anime_payload = {
+                "node": anime_details,
+                "list_status": {
+                    "status": existing_list_status.get("status"),
+                    "score": existing_list_status.get("score", 0),
+                    "num_episodes_watched": existing_list_status.get(
+                        "num_episodes_watched",
+                        0,
+                    ),
+                    "is_rewatching": existing_list_status.get(
+                        "is_rewatching",
+                        False,
+                    ),
+                    "updated_at": existing_list_status.get("updated_at"),
+                },
+            }
+
+            anime, created = upsert_anime_entry(anime_payload)
+
+            messages.info(
+                request,
+                (
+                    "Anime already exists in MyAnimeList. "
+                    "Local archive synchronized instead. "
+                    f"Node: {anime.display_title} · "
+                    f"Status: {anime.personal_status_label} · "
+                    f"Created locally: {created}"
+                ),
+            )
+
+            return redirect(next_url)
 
         updated_list_status = client.update_anime_my_list_status(
             anime_id=mal_id,
@@ -1150,20 +1191,36 @@ def add_seasonal_to_plan_view(request):
 
         anime, created = upsert_anime_entry(anime_payload)
 
-        sync_airing_data_for_dashboard()
+        try:
+            sync_airing_data_for_dashboard()
+        except Exception as airing_error:
+            messages.warning(
+                request,
+                (
+                    "Anime added to Plan to Watch, but Episode Signals sync failed. "
+                    f"Reason: {airing_error}"
+                ),
+            )
+            return redirect(next_url)
 
         messages.success(
             request,
             (
                 "Anime added to MyAnimeList Plan to Watch and synchronized locally. "
                 f"Node: {anime.display_title} · "
-                f"Created: {created}"
+                f"Created locally: {created}"
             ),
         )
 
-        return redirect(next_url)
-
     except Exception as error:
-        messages.error(request, f"Could not add anime to MAL: {error}")
-        return redirect(next_url)
+        messages.error(
+            request,
+            (
+                "Add to Plan failed. "
+                "No local status was changed unless MyAnimeList accepted the update. "
+                f"Reason: {error}"
+            ),
+        )
+
+    return redirect(next_url)
     
