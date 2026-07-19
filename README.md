@@ -1,16 +1,33 @@
 # MAL Insight Lab
 
-MAL Insight Lab is a Django-based personal anime analytics dashboard built around MyAnimeList data and enriched with AniList metadata.
+MAL Insight Lab is a Django-based personal anime and manga analytics dashboard built around MyAnimeList data and enriched with AniList metadata.
 
 The project started as a personal MAL list viewer, but evolved into a command-center style tool for auditing anime progress, tracking seasonal anime, detecting franchise gaps, monitoring episode signals, and managing Plan to Watch decisions directly from the app.
+
+The current production build is deployed on Render and uses Supabase PostgreSQL as the shared database.
 
 ## Current Status
 
 This project is in active development.
 
-The current MVP focuses on anime. Manga support exists partially at the model and sync level, but it is not the main active module yet.
+The current MVP focuses on **Anime Mode**, which is already functional and deployed as a personal production dashboard.
 
-Current anime features are functional enough to be used as a personal local dashboard.
+Anime Mode currently includes:
+
+- Dashboard analytics.
+- Episode Signals.
+- Rewatch support.
+- Seasonal discovery.
+- Seasonal yearly `ALL` mode.
+- TBA seasonal bucket.
+- Relation scanning.
+- Franchise auditing.
+- Plan to Watch actions.
+- AniList-powered metadata enrichment.
+- Render deployment.
+- Supabase PostgreSQL database.
+
+Manga support exists partially at the model/admin level and is the next major module planned for development.
 
 ## Main Features
 
@@ -24,9 +41,9 @@ It includes:
 - Backlog clear ratio.
 - Latest sync logs.
 - Episode signals for active watching entries.
-- Rewatch episode signals shown after regular watching items.
+- Rewatch episode signals.
 - Broadcast watchlist for Plan to Watch anime that are currently airing.
-- Sequel radar based on MAL relations.
+- Sequel Radar based on MyAnimeList relations.
 - Manual resync flow for MAL, manual tracked entries, and AniList airing data.
 
 ### Episode Signals
@@ -40,7 +57,19 @@ They help detect:
 - Finished anime that still have unseen episodes.
 - Rewatch entries with pending episodes.
 
-Rewatch entries are included, but sorted after regular watching signals.
+Rewatch entries are included in the dashboard and Watching archive.
+
+### Sequel Radar
+
+Sequel Radar uses imported MyAnimeList relations to recommend relevant next entries.
+
+It prioritizes:
+
+1. Currently watching anime.
+2. Rewatching anime.
+3. Completed anime.
+
+If an anime is being rewatched, completed sequels may still appear as natural rewatch-next candidates.
 
 ### Anime Archive
 
@@ -61,6 +90,8 @@ The archive also includes filters by airing status:
 - Finished
 - Airing
 - Queued
+
+The Watching archive also includes rewatching entries.
 
 ### Relation Scan
 
@@ -122,15 +153,18 @@ Manual rescue is used for edge cases where a MAL entry needs to be tracked local
 
 Seasonal Board is a LiveChart-style personal seasonal anime view powered by AniList data.
 
-It currently supports:
+It supports:
 
-- Viewing anime by season and year.
+- Viewing anime by specific season and year.
+- Viewing all seasons for a selected year using Season `ALL`.
 - Filtering by format.
 - Filtering by local status.
+- Sorting by countdown or title.
 - Comparing AniList seasonal entries against the local MAL archive.
-- Showing whether an anime is local, not local, watching, completed, or Plan to Watch.
+- Showing whether an anime is local, not local, watching, rewatching, completed, or Plan to Watch.
 - Adding seasonal anime directly to the official MyAnimeList Plan to Watch list.
 - Syncing local data after adding an anime to MAL.
+- Tracking announced anime without a confirmed season through a provisional TBA yearly bucket.
 
 This makes Seasonal Board useful as a personal discovery and planning tool.
 
@@ -139,12 +173,17 @@ This makes Seasonal Board useful as a personal discovery and planning tool.
 - Python
 - Django
 - PostgreSQL
+- Supabase PostgreSQL
+- Render
 - MyAnimeList API v2
 - AniList GraphQL API
 - HTML
 - CSS
 - python-dotenv
 - requests
+- dj-database-url
+- gunicorn
+- WhiteNoise
 
 ## Project Structure
 
@@ -172,6 +211,8 @@ mal-insight-lab/
 
 Create a `.env` file in the project root.
 
+### Local PostgreSQL setup
+
 ```env
 SECRET_KEY=your-django-secret-key
 DEBUG=True
@@ -183,6 +224,34 @@ DB_HOST=localhost
 DB_PORT=5432
 
 MAL_ACCESS_TOKEN=your-mal-access-token
+```
+
+### Supabase / production-style local setup
+
+When working locally against Supabase, use:
+
+```env
+SECRET_KEY=your-django-secret-key
+DEBUG=True
+
+DATABASE_URL=postgresql://...
+
+MAL_ACCESS_TOKEN=your-mal-access-token
+```
+
+When `DATABASE_URL` is present, Django uses it instead of the local `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, and `DB_PORT` variables.
+
+### Render deployment variables
+
+Render requires:
+
+```env
+SECRET_KEY=your-production-secret-key
+DEBUG=False
+DATABASE_URL=postgresql://...
+MAL_ACCESS_TOKEN=your-mal-access-token
+ALLOWED_HOSTS=your-app.onrender.com
+CSRF_TRUSTED_ORIGINS=https://your-app.onrender.com
 ```
 
 Do not commit `.env`, access tokens, raw API responses, local databases, or virtual environments.
@@ -229,6 +298,28 @@ Open:
 http://127.0.0.1:8000/
 ```
 
+## Deployment
+
+The project is deployed on Render as a Python web service.
+
+Recommended Render commands:
+
+### Build Command
+
+```bash
+pip install -r requirements.txt && python manage.py collectstatic --noinput
+```
+
+### Start Command
+
+```bash
+python manage.py migrate && gunicorn config.wsgi:application
+```
+
+The production database is hosted on Supabase PostgreSQL.
+
+For heavy sync jobs, it is recommended to run local management commands while pointing local `.env` to the Supabase `DATABASE_URL`, instead of running large sync operations from Render Free.
+
 ## Useful Commands
 
 ### Sync anime from MyAnimeList
@@ -273,46 +364,98 @@ python manage.py rescue_anime_entry 46488 --status watching --episodes-watched 1
 python manage.py sync_seasonal_anime SUMMER 2026
 ```
 
+### Sync multiple seasonal years from local against Supabase
+
+```bash
+for year in 2023 2024 2025 2026 2027; do
+  for season in WINTER SPRING SUMMER FALL; do
+    echo "Syncing $season $year..."
+    python manage.py sync_seasonal_anime "$season" "$year"
+    sleep 3
+  done
+done
+```
+
+### Sync provisional TBA seasonal bucket
+
+```bash
+python manage.py shell -c "from mal_data.services.seasonal_sync import sync_tba_upcoming_anime; print(sync_tba_upcoming_anime(2027))"
+```
+
 ## Data Sources
 
 MAL Insight Lab uses MyAnimeList as the main source for personal list data.
 
 AniList is used as an external metadata source for:
 
-- Airing information
-- Next episode data
-- Estimated aired episodes
-- Streaming links
-- Native titles
-- Seasonal anime data
-- Search support
+- Airing information.
+- Next episode data.
+- Estimated aired episodes.
+- Streaming links.
+- Native titles.
+- Seasonal anime data.
+- Search support.
+- TBA upcoming anime support.
 
 AniList is not used as the personal list source.
 
+## Local and Production Workflow
+
+The project can be used in two local modes.
+
+### Local development mode
+
+Use local PostgreSQL when testing risky changes, model changes, migrations, or experimental development.
+
+```env
+# DATABASE_URL disabled
+DB_NAME=mal_insight_lab
+DB_USER=mal_user
+DB_PASSWORD=your-db-password
+DB_HOST=localhost
+DB_PORT=5432
+```
+
+### Production data mode
+
+Use Supabase `DATABASE_URL` locally when running heavy sync jobs or rebuilding production data.
+
+```env
+DATABASE_URL=postgresql://...
+```
+
+In this mode, local commands write directly to the production Supabase database used by Render.
+
+General rule:
+
+- Code changes: local development → commit → push → Render deploy.
+- Heavy data sync: local terminal → Supabase database → visible in Render.
+- Risky schema changes: test locally first, then deploy.
+
 ## Current Limitations
 
-- Manga support is not fully implemented yet.
-- Seasonal Board currently works by specific season and year; yearly ALL-season views are planned next.
-- Seasonal sorting by countdown/title is planned.
+- Manga Mode is not fully implemented yet.
+- Heavy sync actions may timeout or be killed on Render Free, so large sync jobs should be run locally against Supabase.
+- Manual Resync is useful but may be too heavy for production usage on the free tier.
 - Some MyAnimeList API edge cases may still require manual rescue.
 - Streaming availability depends on what AniList exposes through external links.
-- This is a local personal dashboard, not a deployed production app.
+- MAL access tokens may expire and currently need to be refreshed manually.
+- Seasonal entries without MAL IDs cannot be added to Plan to Watch until a MAL ID is available or manually rescued.
 
 ## Roadmap
 
 Planned next steps:
 
-- Add Season `ALL` mode for Seasonal Board.
-- Add contextual Seasonal Board sync:
-  - Single season sync when a specific season is selected.
-  - Full year sync when Season is set to `ALL`.
-- Add Seasonal sorting by countdown and title.
-- Improve Seasonal discovery filters.
-- Add a dedicated Episode Signals page.
-- Expand manga support.
+- Build Manga Mode as a separate archive/world.
+- Add Manga dashboard integration.
+- Add Reading / Plan to Read / Completed manga views.
+- Add manga sync from MyAnimeList.
+- Explore Chapter Signals for currently reading manga.
 - Build Anime ↔ Manga bridge views.
-- Improve admin styling or add internal navigation.
-- Add richer filtering for archives, relations, and seasonal views.
+- Add Calendar Hub for anime episodes, manga releases, and news events.
+- Add lightweight news/embed module.
+- Improve production-safe background jobs for heavy sync operations.
+- Improve Seasonal MAL ID rescue for entries missing MyAnimeList IDs.
 
 ## Security Notes
 
@@ -325,6 +468,7 @@ Never commit:
 - raw API dumps
 - local virtual environments
 - private credentials
+- collected static output
 
 ## License
 
