@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 from .web import library as library_views
 from .web import search as search_views
+from .web import seasonal as seasonal_views
 
 app_name = "mal_insights"
 
@@ -42,17 +43,17 @@ urlpatterns = [
     ),
     path(
         "seasonal/",
-        views.seasonal_board,
+        seasonal_views.seasonal_board,
         name="seasonal_board",
     ),
     path(
         "seasonal/sync/",
-        views.sync_seasonal_board_view,
+        seasonal_views.sync_seasonal_board_view,
         name="sync_seasonal_board",
     ),
     path(
         "seasonal/add-to-plan/",
-        views.add_seasonal_to_plan_view,
+        seasonal_views.add_seasonal_to_plan_view,
         name="add_seasonal_to_plan",
     ),
 ]
