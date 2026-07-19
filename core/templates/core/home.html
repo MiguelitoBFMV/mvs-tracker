@@ -1,38 +1,210 @@
+{% load static %}
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+
     <meta
         name="viewport"
         content="width=device-width, initial-scale=1.0"
     >
+
     <title>MVS Tracker</title>
+
+    <link
+        rel="stylesheet"
+        href="{% static 'core/home.css' %}"
+    >
 </head>
+
 <body>
-    <header>
-        <h1>MVS Tracker</h1>
-        <p>Tu plataforma personal de progreso y actividad.</p>
-    </header>
+    <main class="platform">
+        <header class="platform-header">
+            <p class="platform-eyebrow">
+                Personal Media Platform
+            </p>
 
-    <main>
-        <section>
-            <h2>Módulos</h2>
+            <h1 class="platform-title">
+                MVS Tracker
+            </h1>
 
-            <article>
-                <h3>MAL Insights</h3>
-                <p>Anime, manga, progreso y análisis.</p>
+            <p class="platform-description">
+                Una plataforma personal para organizar lo que quiero
+                consumir, registrar lo que realmente hago y analizar
+                cómo avanzo en juegos, anime y manga.
+            </p>
+        </header>
+
+        <section
+            class="module-grid"
+            aria-labelledby="modules-title"
+        >
+            <h2 id="modules-title" hidden>
+                Módulos de MVS Tracker
+            </h2>
+
+            <a
+                class="module-card module-card--anime"
+                href="/anime/"
+            >
+                <article class="module-card-content">
+                    <header class="module-card-top">
+                        <span
+                            class="module-icon"
+                            aria-hidden="true"
+                        >
+                            📺
+                        </span>
+
+                        <span class="module-status">
+                            Disponible
+                        </span>
+                    </header>
+
+                    <section>
+                        <p class="module-category">
+                            Anime y manga
+                        </p>
+
+                        <h2 class="module-title">
+                            MAL Insights
+                        </h2>
+
+                        <p class="module-description">
+                            Biblioteca, progreso, seasonal, relaciones
+                            y análisis para ayudarte a limpiar tu backlog.
+                        </p>
+                    </section>
+
+                    <footer class="module-footer">
+                        <span class="module-footer-text">
+                            Conectado con MyAnimeList
+                        </span>
+
+                        <span class="module-action">
+                            Entrar →
+                        </span>
+                    </footer>
+                </article>
+            </a>
+
+            <article
+                class="
+                    module-card
+                    module-card--games
+                    module-card--disabled
+                "
+            >
+                <div class="module-card-content">
+                    <header class="module-card-top">
+                        <span
+                            class="module-icon"
+                            aria-hidden="true"
+                        >
+                            🎮
+                        </span>
+
+                        <span
+                            class="
+                                module-status
+                                module-status--soon
+                            "
+                        >
+                            Próximamente
+                        </span>
+                    </header>
+
+                    <section>
+                        <p class="module-category">
+                            Videojuegos
+                        </p>
+
+                        <h2 class="module-title">
+                            Game Kiroku
+                        </h2>
+
+                        <p class="module-description">
+                            Biblioteca, wishlist, playthroughs,
+                            plataformas, idiomas, progreso y platinos.
+                        </p>
+                    </section>
+
+                    <footer class="module-footer">
+                        <span class="module-footer-text">
+                            Metadatos importados desde IGDB
+                        </span>
+
+                        <span class="module-action">
+                            En construcción
+                        </span>
+                    </footer>
+                </div>
             </article>
 
-            <article>
-                <h3>Game Kiroku</h3>
-                <p>Biblioteca y seguimiento de videojuegos.</p>
-            </article>
+            <article
+                class="
+                    module-card
+                    module-card--activity
+                    module-card--disabled
+                "
+            >
+                <div class="module-card-content">
+                    <header class="module-card-top">
+                        <span
+                            class="module-icon"
+                            aria-hidden="true"
+                        >
+                            📅
+                        </span>
 
-            <article>
-                <h3>Registro diario</h3>
-                <p>Sesiones, calendario y progreso real.</p>
+                        <span
+                            class="
+                                module-status
+                                module-status--soon
+                            "
+                        >
+                            Próximamente
+                        </span>
+                    </header>
+
+                    <section>
+                        <p class="module-category">
+                            Actividad real
+                        </p>
+
+                        <h2 class="module-title">
+                            Registro diario
+                        </h2>
+
+                        <p class="module-description">
+                            Sesiones, calendario y análisis para
+                            comprobar cuánto avanzas realmente cada día.
+                        </p>
+                    </section>
+
+                    <footer class="module-footer">
+                        <span class="module-footer-text">
+                            Juegos, anime y manga
+                        </span>
+
+                        <span class="module-action">
+                            En definición
+                        </span>
+                    </footer>
+                </div>
             </article>
         </section>
+
+        <footer class="platform-footer">
+            <span>
+                Una sola plataforma. Tres módulos conectados.
+            </span>
+
+            <span>
+                MVS Tracker · Localhost
+            </span>
+        </footer>
     </main>
 </body>
 </html>
