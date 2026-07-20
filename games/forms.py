@@ -228,4 +228,106 @@ class PlaythroughOwnerForm(forms.ModelForm):
             )
 
         return cleaned_data
+
+
+class NewPlaythroughForm(forms.ModelForm):
+    access = GameAccessChoiceField(
+        queryset=GameAccess.objects.none(),
+        required=True,
+        label="Platform & Store",
+        widget=forms.Select(
+            attrs={
+                "class": "detail-owner-control",
+            }
+        ),
+    )
+
+    class Meta:
+        model = Playthrough
+        fields = (
+            "access",
+            "text_language",
+            "progress_note",
+            "started_on",
+            "notes",
+        )
+        labels = {
+            "text_language": "Text Language",
+            "progress_note": "Initial Progress",
+            "started_on": "Started On",
+            "notes": "Playthrough Notes",
+        }
+        widgets = {
+            "text_language": forms.Select(
+                attrs={
+                    "class": "detail-owner-control",
+                }
+            ),
+            "progress_note": forms.TextInput(
+                attrs={
+                    "class": "detail-owner-control",
+                    "placeholder": (
+                        "Chapter, percentage or starting point..."
+                    ),
+                }
+            ),
+            "started_on": forms.DateInput(
+                format="%Y-%m-%d",
+                attrs={
+                    "class": "detail-owner-control",
+                    "type": "date",
+                },
+            ),
+            "notes": forms.Textarea(
+                attrs={
+                    "class": (
+                        "detail-owner-control "
+                        "detail-owner-textarea"
+                    ),
+                    "rows": 3,
+                    "placeholder": (
+                        "Language goal, replay context "
+                        "or initial notes..."
+                    ),
+                }
+            ),
+        }
+
+    def __init__(
+        self,
+        *args,
+        library_entry,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+
+        self.library_entry = library_entry
+
+        self.fields["access"].queryset = (
+            GameAccess.objects
+            .filter(
+                library_entry=library_entry,
+                access_type=GameAccess.AccessType.OWNED,
+            )
+            .order_by(
+                "platform_name",
+                "store",
+            )
+        )
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if (
+            self.library_entry.status
+            == LibraryEntry.Status.MULTIPLAYER
+        ):
+            raise forms.ValidationError(
+                (
+                    "Persistent multiplayer games "
+                    "do not use playthroughs."
+                )
+            )
+
+        return cleaned_data
     

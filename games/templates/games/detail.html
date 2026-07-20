@@ -461,6 +461,136 @@
         </section>
     </div>
 
+    {% if user.is_authenticated and entry.status != "multiplayer" %}
+        <section class="dashboard-panel new-playthrough-panel">
+            <header class="panel-header">
+                <div>
+                    <p class="panel-kicker">
+                        New Run
+                    </p>
+
+                    <h2>Start New Playthrough</h2>
+                </div>
+
+                <span class="owner-only-badge">
+                    Owner
+                </span>
+            </header>
+
+            <details
+                class="new-playthrough-editor"
+                {% if new_playthrough_form.errors %}
+                    open
+                {% endif %}
+            >
+                <summary>
+                    Create Playthrough
+                </summary>
+
+                <form
+                    method="post"
+                    action="{% url 'games:create_playthrough' game.slug %}"
+                    class="new-playthrough-form"
+                >
+                    {% csrf_token %}
+
+                    {% if new_playthrough_form.non_field_errors %}
+                        <div class="detail-form-error detail-form-error--wide">
+                            {% for error in new_playthrough_form.non_field_errors %}
+                                <p>{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <div class="playthrough-editor-field">
+                        <label for="{{ new_playthrough_form.access.id_for_label }}">
+                            {{ new_playthrough_form.access.label }}
+                        </label>
+
+                        {{ new_playthrough_form.access }}
+
+                        {% for error in new_playthrough_form.access.errors %}
+                            <p class="detail-form-error">
+                                {{ error }}
+                            </p>
+                        {% endfor %}
+                    </div>
+
+                    <div class="playthrough-editor-field">
+                        <label for="{{ new_playthrough_form.text_language.id_for_label }}">
+                            {{ new_playthrough_form.text_language.label }}
+                        </label>
+
+                        {{ new_playthrough_form.text_language }}
+
+                        {% for error in new_playthrough_form.text_language.errors %}
+                            <p class="detail-form-error">
+                                {{ error }}
+                            </p>
+                        {% endfor %}
+                    </div>
+
+                    <div class="playthrough-editor-field">
+                        <label for="{{ new_playthrough_form.progress_note.id_for_label }}">
+                            {{ new_playthrough_form.progress_note.label }}
+                        </label>
+
+                        {{ new_playthrough_form.progress_note }}
+
+                        {% for error in new_playthrough_form.progress_note.errors %}
+                            <p class="detail-form-error">
+                                {{ error }}
+                            </p>
+                        {% endfor %}
+                    </div>
+
+                    <div class="playthrough-editor-field">
+                        <label for="{{ new_playthrough_form.started_on.id_for_label }}">
+                            {{ new_playthrough_form.started_on.label }}
+                        </label>
+
+                        {{ new_playthrough_form.started_on }}
+
+                        <small>
+                            Leave blank to use today's date.
+                        </small>
+
+                        {% for error in new_playthrough_form.started_on.errors %}
+                            <p class="detail-form-error">
+                                {{ error }}
+                            </p>
+                        {% endfor %}
+                    </div>
+
+                    <div
+                        class="
+                            playthrough-editor-field
+                            playthrough-editor-field--notes
+                        "
+                    >
+                        <label for="{{ new_playthrough_form.notes.id_for_label }}">
+                            {{ new_playthrough_form.notes.label }}
+                        </label>
+
+                        {{ new_playthrough_form.notes }}
+
+                        {% for error in new_playthrough_form.notes.errors %}
+                            <p class="detail-form-error">
+                                {{ error }}
+                            </p>
+                        {% endfor %}
+                    </div>
+
+                    <div class="playthrough-editor-actions">
+                        <button type="submit">
+                            Start Playthrough
+                        </button>
+                    </div>
+                </form>
+            </details>
+        </section>
+    {% endif %}
+
     <section class="dashboard-panel detail-playthrough-panel">
         <header class="panel-header">
             <div>

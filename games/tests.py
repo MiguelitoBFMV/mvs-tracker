@@ -1318,3 +1318,475 @@ class GameKirokuPlaythroughEditorTests(TestCase):
             Playthrough.Status.PLAYING,
         )
 
+class GameKirokuNewPlaythroughTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = get_user_model().objects.create_user(
+            username="new-playthrough-owner",
+            password="test-password",
+        )
+
+        cls.game = Game.objects.create(
+            title="New Playthrough Game",
+        )
+
+        cls.entry = LibraryEntry.objects.create(
+            game=cls.game,
+            status=LibraryEntry.Status.COMPLETED,
+        )
+
+        cls.access = GameAccess.objects.create(
+            library_entry=cls.entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PLAYSTATION_5,
+            store=GameAccess.Store.PLAYSTATION_STORE,
+        )
+
+        cls.completed_playthrough = (
+            Playthrough.objects.create(
+                library_entry=cls.entry,
+                access=cls.access,
+                number=1,
+                status=Playthrough.Status.COMPLETED,
+                text_language=(
+                    Playthrough.TextLanguage.ENGLISH
+                ),
+                progress_note="Main Story completed",
+                finished_on=date(2026, 7, 1),
+            )
+        )
+
+    def create_url(self, game=None):
+        selected_game = game or self.game
+
+        return reverse(
+            "games:create_playthrough",
+            kwargs={
+                "slug": selected_game.slug,
+            },
+        )
+
+    def form_data(
+        self,
+        *,
+        access=None,
+        started_on="",
+        **overrides,
+    ):
+        selected_access = access or self.access
+
+        data = {
+            "new-playthrough-access": str(
+                selected_access.pk
+            ),
+            "new-playthrough-text_language": (
+                Playthrough.TextLanguage.JAPANESE
+            ),
+            "new-playthrough-progress_note": (
+                "Fresh start"
+            ),
+            "new-playthrough-started_on": (
+                started_on
+            ),
+            "new-playthrough-notes": (
+                "Japanese replay."
+            ),
+        }
+
+        data.update(overrides)
+
+        return data
+
+    def test_new_playthrough_form_is_hidden_from_anonymous_users(
+        self,
+    ):
+        response = self.client.get(
+            self.game.get_absolute_url()
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(
+            response,
+            'id="id_new-playthrough-access"',
+        )
+        self.assertNotContains(
+            response,
+            "Start Playthrough",
+        )
+
+    def test_new_playthrough_form_is_visible_to_owner(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            self.game.get_absolute_url()
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'id="id_new-playthrough-access"',
+        )
+        self.assertContains(
+            response,
+            "Start New Playthrough",
+        )
+        self.assertContains(
+            response,
+            "Start Playthrough",
+        )
+
+    def test_multiplayer_does_not_display_creation_form(
+        self,
+    ):
+        multiplayer_game = Game.objects.create(
+            title="Multiplayer Without Runs",
+        )
+
+        LibraryEntry.objects.create(
+            game=multiplayer_game,
+            status=LibraryEntry.Status.MULTIPLAYER,
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            multiplayer_game.get_absolute_url()
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(
+            response,
+            'id="id_new-playthrough-access"',
+        )
+        self.assertNotContains(
+            response,
+            "Start Playthrough",
+        )
+
+    def test_anonymous_creation_redirects_to_login(
+        self,
+    ):
+        response = self.client.post(
+            self.create_url(),
+            self.form_data(),
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            reverse("login"),
+            response.url,
+        )
+
+        self.assertEqual(
+            self.entry.playthroughs.count(),
+            1,
+        )
+
+    def test_authenticated_get_to_creation_route_returns_405(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            self.create_url()
+        )
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_owner_can_start_next_numbered_playthrough(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.create_url(),
+            self.form_data(),
+        )
+
+        self.assertRedirects(
+            response,
+            self.game.get_absolute_url(),
+        )
+
+        self.entry.refresh_from_db()
+
+        created_playthrough = (
+            self.entry.playthroughs.get(number=2)
+        )
+
+        self.assertEqual(
+            created_playthrough.status,
+            Playthrough.Status.PLAYING,
+        )
+        self.assertEqual(
+            created_playthrough.access,
+            self.access,
+        )
+        self.assertEqual(
+            created_playthrough.text_language,
+            Playthrough.TextLanguage.JAPANESE,
+        )
+        self.assertEqual(
+            created_playthrough.progress_note,
+            "Fresh start",
+        )
+        self.assertEqual(
+            created_playthrough.started_on,
+            timezone.localdate(),
+        )
+        self.assertEqual(
+            created_playthrough.notes,
+            "Japanese replay.",
+        )
+        self.assertEqual(
+            self.entry.status,
+            LibraryEntry.Status.PLAYING,
+        )
+
+        detail_response = self.client.get(
+            self.game.get_absolute_url()
+        )
+
+        self.assertContains(
+            detail_response,
+            "Replaying",
+        )
+
+    def test_creation_uses_explicit_started_date(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.create_url(),
+            self.form_data(
+                started_on="2026-07-15",
+            ),
+        )
+
+        self.assertRedirects(
+            response,
+            self.game.get_absolute_url(),
+        )
+
+        created_playthrough = (
+            self.entry.playthroughs.get(number=2)
+        )
+
+        self.assertEqual(
+            created_playthrough.started_on,
+            date(2026, 7, 15),
+        )
+
+    def test_starting_new_run_pauses_previous_active_run(
+        self,
+    ):
+        active_playthrough = (
+            Playthrough.objects.create(
+                library_entry=self.entry,
+                access=self.access,
+                number=2,
+                status=Playthrough.Status.PLAYING,
+                text_language=(
+                    Playthrough.TextLanguage.ENGLISH
+                ),
+            )
+        )
+
+        self.entry.status = (
+            LibraryEntry.Status.PLAYING
+        )
+        self.entry.save(
+            update_fields=["status"]
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.create_url(),
+            self.form_data(),
+        )
+
+        self.assertRedirects(
+            response,
+            self.game.get_absolute_url(),
+        )
+
+        active_playthrough.refresh_from_db()
+        self.entry.refresh_from_db()
+
+        new_playthrough = (
+            self.entry.playthroughs.get(number=3)
+        )
+
+        self.assertEqual(
+            active_playthrough.status,
+            Playthrough.Status.PAUSED,
+        )
+        self.assertEqual(
+            new_playthrough.status,
+            Playthrough.Status.PLAYING,
+        )
+        self.assertEqual(
+            self.entry.status,
+            LibraryEntry.Status.PLAYING,
+        )
+
+    def test_access_selector_only_contains_owned_accesses_for_entry(
+        self,
+    ):
+        wishlist_access = GameAccess.objects.create(
+            library_entry=self.entry,
+            access_type=GameAccess.AccessType.WISHLIST,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+
+        other_game = Game.objects.create(
+            title="Other New Run Game",
+        )
+
+        other_entry = LibraryEntry.objects.create(
+            game=other_game,
+            status=LibraryEntry.Status.PLAN_TO_PLAY,
+        )
+
+        other_access = GameAccess.objects.create(
+            library_entry=other_entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            self.game.get_absolute_url()
+        )
+
+        access_queryset = (
+            response.context[
+                "new_playthrough_form"
+            ]
+            .fields["access"]
+            .queryset
+        )
+
+        self.assertIn(
+            self.access,
+            access_queryset,
+        )
+        self.assertNotIn(
+            wishlist_access,
+            access_queryset,
+        )
+        self.assertNotIn(
+            other_access,
+            access_queryset,
+        )
+
+    def test_creation_rejects_access_from_another_game(
+        self,
+    ):
+        other_game = Game.objects.create(
+            title="Foreign Access Game",
+        )
+
+        other_entry = LibraryEntry.objects.create(
+            game=other_game,
+            status=LibraryEntry.Status.PLAN_TO_PLAY,
+        )
+
+        other_access = GameAccess.objects.create(
+            library_entry=other_entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.create_url(),
+            self.form_data(
+                access=other_access,
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        form = response.context[
+            "new_playthrough_form"
+        ]
+
+        access_errors = (
+            form.errors
+            .as_data()
+            .get("access", [])
+        )
+
+        self.assertTrue(access_errors)
+        self.assertEqual(
+            access_errors[0].code,
+            "invalid_choice",
+        )
+        self.assertEqual(
+            self.entry.playthroughs.count(),
+            1,
+        )
+
+    def test_direct_multiplayer_creation_is_rejected(
+        self,
+    ):
+        multiplayer_game = Game.objects.create(
+            title="Protected Multiplayer Game",
+        )
+
+        multiplayer_entry = (
+            LibraryEntry.objects.create(
+                game=multiplayer_game,
+                status=(
+                    LibraryEntry.Status.MULTIPLAYER
+                ),
+            )
+        )
+
+        multiplayer_access = (
+            GameAccess.objects.create(
+                library_entry=multiplayer_entry,
+                access_type=(
+                    GameAccess.AccessType.OWNED
+                ),
+                platform_name=(
+                    GameAccess.Platform.PC
+                ),
+                store=GameAccess.Store.STEAM,
+            )
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.create_url(
+                game=multiplayer_game,
+            ),
+            self.form_data(
+                access=multiplayer_access,
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        form = response.context[
+            "new_playthrough_form"
+        ]
+
+        self.assertTrue(
+            form.non_field_errors()
+        )
+        self.assertEqual(
+            multiplayer_entry.playthroughs.count(),
+            0,
+        )

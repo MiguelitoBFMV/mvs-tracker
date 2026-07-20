@@ -1719,3 +1719,67 @@ button {
         width: 100%;
     }
 }
+
+.new-playthrough-panel {
+    margin-top: 18px;
+}
+
+.new-playthrough-editor {
+    border-top: 1px solid var(--border);
+}
+
+.new-playthrough-editor summary {
+    padding: 15px 0 2px;
+    color: #fca5a5;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.new-playthrough-editor summary:hover {
+    color: #fecaca;
+}
+
+.new-playthrough-form {
+    display: grid;
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(5, 8, 15, 0.6);
+}
+
+.new-playthrough-form
+.playthrough-editor-field--notes {
+    grid-column: 1 / -1;
+}
+
+.new-playthrough-form
+.playthrough-editor-actions {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 1000px) {
+    .new-playthrough-form {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 620px) {
+    .new-playthrough-form {
+        grid-template-columns: 1fr;
+    }
+
+    .new-playthrough-form
+    .playthrough-editor-field--notes,
+    .new-playthrough-form
+    .playthrough-editor-actions {
+        grid-column: auto;
+    }
+}

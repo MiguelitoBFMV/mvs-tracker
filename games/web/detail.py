@@ -9,13 +9,17 @@ from django.http import HttpResponseBadRequest
 
 from games.forms import (
     LibraryEntryOwnerForm,
+    NewPlaythroughForm,
     PlaythroughOwnerForm,
 )
 from games.models import (
     GameAccess,
     LibraryEntry,
     Playthrough)
-from games.services.playthrough_state import change_playthrough_state
+from games.services.playthrough_state import (
+    change_playthrough_state,
+    start_new_playthrough,
+)
 
 
 def _detail_entries():
@@ -69,6 +73,7 @@ def _build_detail_context(
     entry,
     owner_form=None,
     playthrough_form=None,
+    new_playthrough_form=None,
 ):
     current_playthrough = next(
         (
@@ -133,6 +138,12 @@ def _build_detail_context(
                 prefix=f"playthrough-{playthrough.pk}",
             )
 
+    if new_playthrough_form is None:
+        new_playthrough_form = NewPlaythroughForm(
+            library_entry=entry,
+            prefix="new-playthrough",
+        )
+
     return {
         "active_page": "library",
         "entry": entry,
@@ -141,6 +152,7 @@ def _build_detail_context(
         "owned_accesses": owned_accesses,
         "wishlist_accesses": wishlist_accesses,
         "owner_form": owner_form,
+        "new_playthrough_form": new_playthrough_form,
     }
 
 
@@ -260,5 +272,54 @@ def update_playthrough_state(
 
     return redirect(
         entry.game.get_absolute_url()
+    )
+
+@login_required
+@require_POST
+def create_playthrough(
+    request,
+    slug,
+):
+    entry = _get_detail_entry(slug)
+
+    form = NewPlaythroughForm(
+        request.POST,
+        library_entry=entry,
+        prefix="new-playthrough",
+    )
+
+    if form.is_valid():
+        try:
+            start_new_playthrough(
+                library_entry=entry,
+                access=form.cleaned_data["access"],
+                text_language=(
+                    form.cleaned_data["text_language"]
+                ),
+                progress_note=(
+                    form.cleaned_data["progress_note"]
+                ),
+                started_on=(
+                    form.cleaned_data["started_on"]
+                ),
+                notes=form.cleaned_data["notes"],
+            )
+        except ValueError as error:
+            form.add_error(
+                None,
+                str(error),
+            )
+        else:
+            return redirect(
+                entry.game.get_absolute_url()
+            )
+
+    return render(
+        request,
+        "games/detail.html",
+        _build_detail_context(
+            entry,
+            new_playthrough_form=form,
+        ),
     )
 

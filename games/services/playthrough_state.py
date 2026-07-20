@@ -1,7 +1,12 @@
 from django.db import transaction
 from django.utils import timezone
+from django.db.models import Max
 
-from games.models import LibraryEntry, Playthrough
+from games.models import (
+    GameAccess,
+    LibraryEntry,
+    Playthrough,
+)
 
 
 TRANSITIONS = {
@@ -124,5 +129,87 @@ def change_playthrough_state(
         library_entry,
         status_map[target_status],
     )
+
+    return playthrough
+
+@transaction.atomic
+def start_new_playthrough(
+    *,
+    library_entry,
+    access,
+    text_language,
+    progress_note="",
+    started_on=None,
+    notes="",
+):
+    locked_entry = (
+        LibraryEntry.objects
+        .select_for_update()
+        .get(pk=library_entry.pk)
+    )
+
+    if (
+        locked_entry.status
+        == LibraryEntry.Status.MULTIPLAYER
+    ):
+        raise ValueError(
+            (
+                "Persistent multiplayer games "
+                "do not use playthroughs."
+            )
+        )
+
+    if (
+        access.library_entry_id
+        != locked_entry.pk
+        or access.access_type
+        != GameAccess.AccessType.OWNED
+    ):
+        raise ValueError(
+            (
+                "The selected access does not belong "
+                "to this library entry."
+            )
+        )
+
+    (
+        Playthrough.objects
+        .filter(
+            library_entry=locked_entry,
+            status=Playthrough.Status.PLAYING,
+        )
+        .update(
+            status=Playthrough.Status.PAUSED,
+        )
+    )
+
+    highest_number = (
+        Playthrough.objects
+        .filter(library_entry=locked_entry)
+        .aggregate(
+            highest=Max("number")
+        )["highest"]
+        or 0
+    )
+
+    playthrough = Playthrough(
+        library_entry=locked_entry,
+        access=access,
+        number=highest_number + 1,
+        status=Playthrough.Status.PLAYING,
+        text_language=text_language,
+        progress_note=progress_note,
+        started_on=(
+            started_on or timezone.localdate()
+        ),
+        notes=notes,
+    )
+
+    playthrough.full_clean()
+    playthrough.save()
+
+    locked_entry.status = LibraryEntry.Status.PLAYING
+    locked_entry.full_clean()
+    locked_entry.save()
 
     return playthrough
