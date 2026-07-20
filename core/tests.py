@@ -44,17 +44,73 @@ class PlatformAccessTests(TestCase):
             response,
             "test-owner",
         )
-    
-    def test_home_links_to_game_kiroku(self):
+
+    def test_home_links_to_available_modules(self):
         response = self.client.get(
             reverse("core:home")
         )
 
         self.assertContains(
             response,
-            reverse("games:dashboard"),
+            reverse("mal_insights:dashboard"),
         )
         self.assertContains(
             response,
+            reverse("games:dashboard"),
+        )
+
+    def test_home_displays_all_five_modules(self):
+        response = self.client.get(
+            reverse("core:home")
+        )
+
+        expected_modules = (
+            "MAL Insights",
             "Game Kiroku",
+            "Watchroom",
+            "Music",
+            "Hibi Log",
+        )
+
+        for module_name in expected_modules:
+            with self.subTest(module_name=module_name):
+                self.assertContains(
+                    response,
+                    module_name,
+                )
+
+    def test_hibi_log_is_presented_as_cross_module_hub(self):
+        response = self.client.get(
+            reverse("core:home")
+        )
+
+        self.assertContains(
+            response,
+            "Daily Activity Hub",
+        )
+        self.assertContains(
+            response,
+            "Connected to every tracking module",
+        )
+        self.assertContains(
+            response,
+            "日々ログ",
+        )
+
+    def test_planned_modules_are_not_links(self):
+        response = self.client.get(
+            reverse("core:home")
+        )
+
+        self.assertNotContains(
+            response,
+            'href="/watchroom/"',
+        )
+        self.assertNotContains(
+            response,
+            'href="/music/"',
+        )
+        self.assertNotContains(
+            response,
+            'href="/activity/"',
         )
