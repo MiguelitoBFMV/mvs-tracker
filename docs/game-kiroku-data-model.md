@@ -597,3 +597,26 @@ python manage.py migrate
 ```
 
 La primera migración debe crearse únicamente después de revisar y aprobar los campos, relaciones, restricciones y nombres definitivos.
+
+
+## Owner controls
+
+Game Kiroku exposes public read-only pages while authenticated owner
+sessions can manage library data directly from game detail pages.
+
+Supported owner operations:
+
+- Edit library notes, manual main-story duration and platinum status.
+- Pause, resume, complete and drop playthroughs.
+- Edit and create playthroughs.
+- Create, edit and delete platform/store accesses.
+- Start a new playthrough with automatic numbering.
+- Automatically synchronize playthrough and library-entry states.
+
+### Historical integrity
+
+A `GameAccess` referenced by a playthrough cannot be deleted.
+
+Its access type, platform and store are also locked because changing
+them would rewrite the historical platform information of existing
+playthroughs. Only its notes remain editable.
