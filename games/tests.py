@@ -1,5 +1,5 @@
-from datetime import date
 from decimal import Decimal
+from datetime import date
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
@@ -70,28 +70,25 @@ class GameKirokuModelTests(TestCase):
         GameAccess.objects.create(
             library_entry=self.entry,
             access_type=GameAccess.AccessType.OWNED,
-            platform_family=GameAccess.PlatformFamily.PC,
-            platform_name="PC",
-            store="Steam",
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
         )
         GameAccess.objects.create(
             library_entry=self.entry,
             access_type=GameAccess.AccessType.WISHLIST,
-            platform_family=GameAccess.PlatformFamily.PLAYSTATION,
-            platform_name="PS5",
-            store="PlayStation Store",
+            platform_name=GameAccess.Platform.PLAYSTATION_5,
+            store=GameAccess.Store.PLAYSTATION_STORE,
         )
 
         self.assertTrue(self.entry.is_owned)
         self.assertTrue(self.entry.is_wishlisted)
 
-    def test_wishlist_access_rejects_acquisition_date(self):
+    def test_platform_rejects_values_outside_choices(self):
         access = GameAccess(
             library_entry=self.entry,
-            access_type=GameAccess.AccessType.WISHLIST,
-            platform_family=GameAccess.PlatformFamily.PLAYSTATION,
-            platform_name="PS5",
-            acquired_on=date(2026, 7, 20),
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name="playstation_4",
+            store=GameAccess.Store.PLAYSTATION_STORE,
         )
 
         with self.assertRaises(ValidationError):
@@ -121,9 +118,8 @@ class GameKirokuModelTests(TestCase):
         other_access = GameAccess.objects.create(
             library_entry=other_entry,
             access_type=GameAccess.AccessType.OWNED,
-            platform_family=GameAccess.PlatformFamily.PC,
-            platform_name="PC",
-            store="Steam",
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
         )
 
         playthrough = Playthrough(
@@ -136,3 +132,94 @@ class GameKirokuModelTests(TestCase):
 
         with self.assertRaises(ValidationError):
             playthrough.full_clean()
+
+    def test_playing_game_with_completed_history_counts_as_completed(
+        self,
+    ):
+        GameAccess.objects.create(
+            library_entry=self.entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+        Playthrough.objects.create(
+            library_entry=self.entry,
+            number=1,
+            status=Playthrough.Status.COMPLETED,
+            text_language=Playthrough.TextLanguage.ENGLISH,
+        )
+        Playthrough.objects.create(
+            library_entry=self.entry,
+            number=2,
+            status=Playthrough.Status.PLAYING,
+            text_language=Playthrough.TextLanguage.JAPANESE,
+        )
+
+        response = self.client.get(
+            reverse("games:dashboard")
+        )
+
+        self.assertEqual(
+            response.context["completed_count"],
+            1,
+        )
+
+        active_entry = response.context[
+            "active_entries"
+        ][0]
+
+        self.assertTrue(
+            active_entry.has_completed_history
+        )
+
+    def test_multiplayer_is_excluded_from_completion_ratio(
+        self,
+    ):
+        GameAccess.objects.create(
+            library_entry=self.entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+
+        Playthrough.objects.create(
+            library_entry=self.entry,
+            number=1,
+            status=Playthrough.Status.COMPLETED,
+            text_language=Playthrough.TextLanguage.ENGLISH,
+        )
+
+        multiplayer_game = Game.objects.create(
+            title="Rocket League",
+        )
+        multiplayer_entry = LibraryEntry.objects.create(
+            game=multiplayer_game,
+            status=LibraryEntry.Status.MULTIPLAYER,
+        )
+        GameAccess.objects.create(
+            library_entry=multiplayer_entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.EPIC_GAMES,
+        )
+
+        response = self.client.get(
+            reverse("games:dashboard")
+        )
+
+        self.assertEqual(
+            response.context["owned_count"],
+            2,
+        )
+        self.assertEqual(
+            response.context["completable_owned_count"],
+            1,
+        )
+        self.assertEqual(
+            response.context["completed_count"],
+            1,
+        )
+        self.assertEqual(
+            response.context["completion_ratio"],
+            100,
+        )

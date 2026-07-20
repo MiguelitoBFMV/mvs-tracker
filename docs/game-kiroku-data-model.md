@@ -268,10 +268,8 @@ other
 |---|---|---:|---|
 | `library_entry` | `ForeignKey` | Sí | Entrada personal asociada. |
 | `access_type` | `CharField` | Sí | `owned` o `wishlist`. |
-| `platform_family` | `CharField` | Sí | Familia principal de plataforma. |
 | `platform_name` | `CharField` | No | PS5, PC, Switch, Xbox Series, etc. |
 | `store` | `CharField` | No | Steam, Epic, PS Store u otra tienda. |
-| `acquired_on` | `DateField` | No | Fecha de adquisición. |
 | `notes` | `TextField` | No | Información adicional. |
 | `created_at` | `DateTimeField` | Sí | Fecha de registro. |
 | `updated_at` | `DateTimeField` | Sí | Último cambio. |
@@ -279,7 +277,6 @@ other
 ### Reglas
 
 - Un acceso debe pertenecer a una `LibraryEntry`.
-- `acquired_on` normalmente se usa con `owned`.
 - El MVP no distinguirá compra física, digital o suscripción.
 - Un juego puede tener múltiples accesos.
 - Debe evitarse duplicar exactamente la misma combinación de:
@@ -287,7 +284,6 @@ other
 ```text
 library_entry
 access_type
-platform_family
 platform_name
 store
 ```
@@ -407,7 +403,6 @@ Algunas reglas requieren `clean()` o validación de formulario:
 
 - `finished_on >= started_on`.
 - El `access` de un playthrough pertenece a la misma `LibraryEntry`.
-- `acquired_on` tiene sentido para accesos `owned`.
 - Los estados y fechas de un playthrough son coherentes.
 - Una entrada sin estado debe tener al menos un acceso de wishlist.
 

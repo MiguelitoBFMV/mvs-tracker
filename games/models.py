@@ -252,11 +252,24 @@ class GameAccess(models.Model):
         OWNED = "owned", "Propio"
         WISHLIST = "wishlist", "Wishlist"
 
-    class PlatformFamily(models.TextChoices):
-        PLAYSTATION = "playstation", "PlayStation"
+    class Platform(models.TextChoices):
         PC = "pc", "PC"
-        NINTENDO = "nintendo", "Nintendo"
-        XBOX = "xbox", "Xbox"
+        PLAYSTATION_5 = "ps5", "PlayStation 5"
+        NINTENDO_SWITCH_2 = "switch_2", "Nintendo Switch 2"
+        OTHER = "other", "Otra"
+
+    class Store(models.TextChoices):
+        STEAM = "steam", "Steam"
+        EPIC_GAMES = "epic_games", "Epic Games Store"
+        PLAYSTATION_STORE = (
+            "playstation_store",
+            "PlayStation Store",
+        )
+        NINTENDO_ESHOP = (
+            "nintendo_eshop",
+            "Nintendo eShop",
+        )
+        GOG = "gog", "GOG"
         OTHER = "other", "Otra"
 
     library_entry = models.ForeignKey(
@@ -269,24 +282,17 @@ class GameAccess(models.Model):
         choices=AccessType.choices,
         db_index=True,
     )
-    platform_family = models.CharField(
-        max_length=20,
-        choices=PlatformFamily.choices,
+    platform_name = models.CharField(
+        "platform",
+        max_length=30,
+        choices=Platform.choices,
         db_index=True,
     )
-    platform_name = models.CharField(
-        max_length=100,
-        blank=True,
-        default="",
-    )
     store = models.CharField(
-        max_length=100,
+        max_length=30,
+        choices=Store.choices,
         blank=True,
         default="",
-    )
-    acquired_on = models.DateField(
-        null=True,
-        blank=True,
     )
     notes = models.TextField(
         blank=True,
@@ -300,7 +306,6 @@ class GameAccess(models.Model):
 
     class Meta:
         ordering = [
-            "platform_family",
             "platform_name",
             "store",
         ]
@@ -309,7 +314,6 @@ class GameAccess(models.Model):
                 fields=[
                     "library_entry",
                     "access_type",
-                    "platform_family",
                     "platform_name",
                     "store",
                 ],
@@ -317,30 +321,18 @@ class GameAccess(models.Model):
             ),
         ]
 
-    def clean(self):
-        super().clean()
-
-        if (
-            self.access_type == self.AccessType.WISHLIST
-            and self.acquired_on is not None
-        ):
-            raise ValidationError(
-                {
-                    "acquired_on": (
-                        "Un acceso de wishlist no puede tener "
-                        "fecha de adquisición."
-                    ),
-                }
-            )
-
     def __str__(self):
-        platform = self.platform_name or self.get_platform_family_display()
-        store = f" · {self.store}" if self.store else ""
+        store = (
+            f" · {self.get_store_display()}"
+            if self.store
+            else ""
+        )
 
         return (
             f"{self.library_entry.game.title} · "
             f"{self.get_access_type_display()} · "
-            f"{platform}{store}"
+            f"{self.get_platform_name_display()}"
+            f"{store}"
         )
 
 

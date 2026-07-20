@@ -14,10 +14,8 @@ class GameAccessInline(admin.TabularInline):
     extra = 0
     fields = (
         "access_type",
-        "platform_family",
         "platform_name",
         "store",
-        "acquired_on",
     )
 
 
@@ -155,23 +153,23 @@ class GameAccessAdmin(admin.ModelAdmin):
     list_display = (
         "library_entry",
         "access_type",
-        "platform_family",
         "platform_name",
         "store",
-        "acquired_on",
     )
     list_filter = (
         "access_type",
-        "platform_family",
+        "platform_name",
         "store",
     )
     search_fields = (
         "library_entry__game__title",
-        "platform_name",
-        "store",
     )
     list_select_related = (
         "library_entry__game",
+    )
+    readonly_fields = (
+        "created_at",
+        "updated_at",
     )
 
 
