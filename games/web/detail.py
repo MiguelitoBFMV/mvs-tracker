@@ -1,20 +1,35 @@
+from django.contrib.auth.decorators import login_required
 from django.db.models import Exists, OuterRef, Prefetch
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import (
+    get_object_or_404,
+    redirect,
+    render)
+from django.views.decorators.http import require_POST
+from django.http import HttpResponseBadRequest
 
+from games.forms import (
+    GameAccessOwnerForm,
+    LibraryEntryOwnerForm,
+    NewPlaythroughForm,
+    PlaythroughOwnerForm,
+)
 from games.models import (
     GameAccess,
     LibraryEntry,
-    Playthrough,
+    Playthrough)
+from games.services.playthrough_state import (
+    change_playthrough_state,
+    start_new_playthrough,
 )
 
 
-def detail(request, slug):
+def _detail_entries():
     completed_playthroughs = Playthrough.objects.filter(
         library_entry=OuterRef("pk"),
         status=Playthrough.Status.COMPLETED,
     )
 
-    entries = (
+    return (
         LibraryEntry.objects
         .select_related(
             "game",
@@ -47,43 +62,405 @@ def detail(request, slug):
         )
     )
 
-    entry = get_object_or_404(
-        entries,
+
+def _get_detail_entry(slug):
+    return get_object_or_404(
+        _detail_entries(),
         game__slug=slug,
     )
 
-    active_playthrough = next(
+
+def _build_detail_context(
+    entry,
+    owner_form=None,
+    playthrough_form=None,
+    new_playthrough_form=None,
+    new_access_form=None,
+    access_form=None,
+    access_action_error=None,
+    access_action_id=None,
+):
+    current_playthrough = next(
         (
             playthrough
             for playthrough in entry.detail_playthroughs
-            if playthrough.status == Playthrough.Status.PLAYING
+            if (
+                playthrough.status
+                == Playthrough.Status.PLAYING
+            )
         ),
         None,
     )
 
+    if current_playthrough is None:
+        current_playthrough = next(
+            (
+                playthrough
+                for playthrough
+                in entry.detail_playthroughs
+                if (
+                    playthrough.status
+                    == Playthrough.Status.PAUSED
+                )
+            ),
+            None,
+        )
+
     owned_accesses = [
         access
         for access in entry.detail_accesses
-        if access.access_type == GameAccess.AccessType.OWNED
+        if (
+            access.access_type
+            == GameAccess.AccessType.OWNED
+        )
     ]
 
     wishlist_accesses = [
         access
         for access in entry.detail_accesses
-        if access.access_type == GameAccess.AccessType.WISHLIST
+        if (
+            access.access_type
+            == GameAccess.AccessType.WISHLIST
+        )
     ]
 
-    context = {
+    if owner_form is None:
+        owner_form = LibraryEntryOwnerForm(
+            instance=entry,
+        )
+
+    for playthrough in entry.detail_playthroughs:
+        if (
+            playthrough_form is not None
+            and playthrough.pk
+            == playthrough_form.instance.pk
+        ):
+            playthrough.owner_form = playthrough_form
+        else:
+            playthrough.owner_form = PlaythroughOwnerForm(
+                instance=playthrough,
+                library_entry=entry,
+                prefix=f"playthrough-{playthrough.pk}",
+            )
+
+    if new_playthrough_form is None:
+        new_playthrough_form = NewPlaythroughForm(
+            library_entry=entry,
+            prefix="new-playthrough",
+        )
+
+    if new_access_form is None:
+        new_access_form = GameAccessOwnerForm(
+            library_entry=entry,
+            prefix="new-access",
+        )
+
+    for access in entry.detail_accesses:
+        if (
+            access_form is not None
+            and access.pk == access_form.instance.pk
+        ):
+            access.owner_form = access_form
+        else:
+            access.owner_form = GameAccessOwnerForm(
+                instance=access,
+                library_entry=entry,
+                prefix=f"access-{access.pk}",
+            )
+
+    return {
         "active_page": "library",
         "entry": entry,
         "game": entry.game,
-        "active_playthrough": active_playthrough,
+        "current_playthrough": current_playthrough,
         "owned_accesses": owned_accesses,
         "wishlist_accesses": wishlist_accesses,
+        "owner_form": owner_form,
+        "new_playthrough_form": new_playthrough_form,
+        "new_access_form": new_access_form,
+        "access_action_error": access_action_error,
+        "access_action_id": access_action_id,
     }
+
+
+def detail(request, slug):
+    entry = _get_detail_entry(slug)
 
     return render(
         request,
         "games/detail.html",
-        context,
+        _build_detail_context(entry),
     )
+
+
+@login_required
+@require_POST
+def update_entry(request, slug):
+    entry = _get_detail_entry(slug)
+
+    form = LibraryEntryOwnerForm(
+        request.POST,
+        instance=entry,
+    )
+
+    if form.is_valid():
+        form.save()
+
+        return redirect(
+            entry.game.get_absolute_url()
+        )
+
+    return render(
+        request,
+        "games/detail.html",
+        _build_detail_context(
+            entry,
+            owner_form=form,
+        ),
+    )
+
+
+@login_required
+@require_POST
+def update_playthrough(
+    request,
+    slug,
+    playthrough_id,
+):
+    entry = _get_detail_entry(slug)
+
+    playthrough = get_object_or_404(
+        Playthrough.objects.select_related(
+            "library_entry",
+            "access",
+        ),
+        pk=playthrough_id,
+        library_entry=entry,
+    )
+
+    form = PlaythroughOwnerForm(
+        request.POST,
+        instance=playthrough,
+        library_entry=entry,
+        prefix=f"playthrough-{playthrough.pk}",
+    )
+
+    if form.is_valid():
+        form.save()
+
+        return redirect(
+            entry.game.get_absolute_url()
+        )
+
+    return render(
+        request,
+        "games/detail.html",
+        _build_detail_context(
+            entry,
+            playthrough_form=form,
+        ),
+    )
+
+
+@login_required
+@require_POST
+def update_playthrough_state(
+    request,
+    slug,
+    playthrough_id,
+):
+    entry = get_object_or_404(
+        LibraryEntry.objects.select_related("game"),
+        game__slug=slug,
+    )
+
+    playthrough = get_object_or_404(
+        Playthrough.objects.select_related(
+            "library_entry",
+        ),
+        pk=playthrough_id,
+        library_entry=entry,
+    )
+
+    action = request.POST.get(
+        "action",
+        "",
+    )
+
+    try:
+        change_playthrough_state(
+            playthrough=playthrough,
+            action=action,
+        )
+    except ValueError as error:
+        return HttpResponseBadRequest(
+            str(error)
+        )
+
+    return redirect(
+        entry.game.get_absolute_url()
+    )
+
+@login_required
+@require_POST
+def create_playthrough(
+    request,
+    slug,
+):
+    entry = _get_detail_entry(slug)
+
+    form = NewPlaythroughForm(
+        request.POST,
+        library_entry=entry,
+        prefix="new-playthrough",
+    )
+
+    if form.is_valid():
+        try:
+            start_new_playthrough(
+                library_entry=entry,
+                access=form.cleaned_data["access"],
+                text_language=(
+                    form.cleaned_data["text_language"]
+                ),
+                progress_note=(
+                    form.cleaned_data["progress_note"]
+                ),
+                started_on=(
+                    form.cleaned_data["started_on"]
+                ),
+                notes=form.cleaned_data["notes"],
+            )
+        except ValueError as error:
+            form.add_error(
+                None,
+                str(error),
+            )
+        else:
+            return redirect(
+                entry.game.get_absolute_url()
+            )
+
+    return render(
+        request,
+        "games/detail.html",
+        _build_detail_context(
+            entry,
+            new_playthrough_form=form,
+        ),
+    )
+
+
+@login_required
+@require_POST
+def create_access(
+    request,
+    slug,
+):
+    entry = _get_detail_entry(slug)
+
+    form = GameAccessOwnerForm(
+        request.POST,
+        library_entry=entry,
+        prefix="new-access",
+    )
+
+    if form.is_valid():
+        access = form.save(commit=False)
+        access.library_entry = entry
+        access.save()
+
+        return redirect(
+            entry.game.get_absolute_url()
+        )
+
+    return render(
+        request,
+        "games/detail.html",
+        _build_detail_context(
+            entry,
+            new_access_form=form,
+        ),
+    )
+
+
+@login_required
+@require_POST
+def update_access(
+    request,
+    slug,
+    access_id,
+):
+    entry = _get_detail_entry(slug)
+
+    access = get_object_or_404(
+        GameAccess,
+        pk=access_id,
+        library_entry=entry,
+    )
+
+    form = GameAccessOwnerForm(
+        request.POST,
+        instance=access,
+        library_entry=entry,
+        prefix=f"access-{access.pk}",
+    )
+
+    if form.is_valid():
+        form.save()
+
+        return redirect(
+            entry.game.get_absolute_url()
+        )
+
+    return render(
+        request,
+        "games/detail.html",
+        _build_detail_context(
+            entry,
+            access_form=form,
+        ),
+    )
+
+
+@login_required
+@require_POST
+def delete_access(
+    request,
+    slug,
+    access_id,
+):
+    entry = _get_detail_entry(slug)
+
+    access = get_object_or_404(
+        GameAccess,
+        pk=access_id,
+        library_entry=entry,
+    )
+
+    access_is_in_use = Playthrough.objects.filter(
+        access=access,
+    ).exists()
+
+    if access_is_in_use:
+        return render(
+            request,
+            "games/detail.html",
+            _build_detail_context(
+                entry,
+                access_action_error=(
+                    "This access is used by one or more "
+                    "playthroughs and cannot be deleted."
+                ),
+                access_action_id=access.pk,
+            ),
+            status=409,
+        )
+
+    access.delete()
+
+    return redirect(
+        entry.game.get_absolute_url()
+    )
+
+

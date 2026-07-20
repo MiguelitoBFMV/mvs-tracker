@@ -23,4 +23,57 @@ urlpatterns = [
         detail_views.detail,
         name="detail",
     ),
+    path(
+        "library/<slug:slug>/update/",
+        detail_views.update_entry,
+        name="update_entry",
+    ),
+    path(
+        (
+            "library/<slug:slug>/"
+            "playthroughs/<int:playthrough_id>/action/"
+        ),
+        detail_views.update_playthrough_state,
+        name="update_playthrough_state",
+    ),
+    path(
+        (
+            "library/<slug:slug>/"
+            "playthroughs/<int:playthrough_id>/update/"
+        ),
+        detail_views.update_playthrough,
+        name="update_playthrough",
+    ),
+    path(
+        (
+            "library/<slug:slug>/"
+            "playthroughs/create/"
+        ),
+        detail_views.create_playthrough,
+        name="create_playthrough",
+    ),
+    path(
+        (
+            "library/<slug:slug>/"
+            "accesses/create/"
+        ),
+        detail_views.create_access,
+        name="create_access",
+    ),
+    path(
+        (
+            "library/<slug:slug>/"
+            "accesses/<int:access_id>/update/"
+        ),
+        detail_views.update_access,
+        name="update_access",
+    ),
+    path(
+        (
+            "library/<slug:slug>/"
+            "accesses/<int:access_id>/delete/"
+        ),
+        detail_views.delete_access,
+        name="delete_access",
+    ),
 ]
