@@ -132,3 +132,94 @@ class GameKirokuModelTests(TestCase):
 
         with self.assertRaises(ValidationError):
             playthrough.full_clean()
+
+    def test_playing_game_with_completed_history_counts_as_completed(
+        self,
+    ):
+        GameAccess.objects.create(
+            library_entry=self.entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+        Playthrough.objects.create(
+            library_entry=self.entry,
+            number=1,
+            status=Playthrough.Status.COMPLETED,
+            text_language=Playthrough.TextLanguage.ENGLISH,
+        )
+        Playthrough.objects.create(
+            library_entry=self.entry,
+            number=2,
+            status=Playthrough.Status.PLAYING,
+            text_language=Playthrough.TextLanguage.JAPANESE,
+        )
+
+        response = self.client.get(
+            reverse("games:dashboard")
+        )
+
+        self.assertEqual(
+            response.context["completed_count"],
+            1,
+        )
+
+        active_entry = response.context[
+            "active_entries"
+        ][0]
+
+        self.assertTrue(
+            active_entry.has_completed_history
+        )
+
+    def test_multiplayer_is_excluded_from_completion_ratio(
+        self,
+    ):
+        GameAccess.objects.create(
+            library_entry=self.entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+
+        Playthrough.objects.create(
+            library_entry=self.entry,
+            number=1,
+            status=Playthrough.Status.COMPLETED,
+            text_language=Playthrough.TextLanguage.ENGLISH,
+        )
+
+        multiplayer_game = Game.objects.create(
+            title="Rocket League",
+        )
+        multiplayer_entry = LibraryEntry.objects.create(
+            game=multiplayer_game,
+            status=LibraryEntry.Status.MULTIPLAYER,
+        )
+        GameAccess.objects.create(
+            library_entry=multiplayer_entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.EPIC_GAMES,
+        )
+
+        response = self.client.get(
+            reverse("games:dashboard")
+        )
+
+        self.assertEqual(
+            response.context["owned_count"],
+            2,
+        )
+        self.assertEqual(
+            response.context["completable_owned_count"],
+            1,
+        )
+        self.assertEqual(
+            response.context["completed_count"],
+            1,
+        )
+        self.assertEqual(
+            response.context["completion_ratio"],
+            100,
+        )
