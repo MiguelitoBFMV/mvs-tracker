@@ -168,6 +168,104 @@
         </article>
     </section>
 
+    {% if user.is_authenticated %}
+        <section
+            class="dashboard-panel detail-owner-panel"
+            aria-labelledby="owner-controls-title"
+        >
+            <header class="panel-header">
+                <div>
+                    <p class="panel-kicker">
+                        Owner Controls
+                    </p>
+
+                    <h2 id="owner-controls-title">
+                        Edit Library Entry
+                    </h2>
+                </div>
+
+                <span class="owner-only-badge">
+                    Private
+                </span>
+            </header>
+
+            <form
+                method="post"
+                action="{% url 'games:update_entry' game.slug %}"
+                class="detail-owner-form"
+            >
+                {% csrf_token %}
+
+                {% if owner_form.non_field_errors %}
+                    <div class="detail-form-error detail-form-error--wide">
+                        {% for error in owner_form.non_field_errors %}
+                            <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="detail-owner-field">
+                    <label
+                        for="{{ owner_form.main_story_hours_override.id_for_label }}"
+                    >
+                        {{ owner_form.main_story_hours_override.label }}
+                    </label>
+
+                    {{ owner_form.main_story_hours_override }}
+
+                    <small>
+                        Leave blank to use the future IGDB estimate.
+                    </small>
+
+                    {% for error in owner_form.main_story_hours_override.errors %}
+                        <p class="detail-form-error">
+                            {{ error }}
+                        </p>
+                    {% endfor %}
+                </div>
+
+                <div class="detail-owner-field detail-owner-field--check">
+                    <label
+                        class="detail-owner-check"
+                        for="{{ owner_form.has_platinum.id_for_label }}"
+                    >
+                        {{ owner_form.has_platinum }}
+
+                        <span>
+                            {{ owner_form.has_platinum.label }}
+                        </span>
+                    </label>
+
+                    {% for error in owner_form.has_platinum.errors %}
+                        <p class="detail-form-error">
+                            {{ error }}
+                        </p>
+                    {% endfor %}
+                </div>
+
+                <div class="detail-owner-field detail-owner-field--notes">
+                    <label for="{{ owner_form.notes.id_for_label }}">
+                        {{ owner_form.notes.label }}
+                    </label>
+
+                    {{ owner_form.notes }}
+
+                    {% for error in owner_form.notes.errors %}
+                        <p class="detail-form-error">
+                            {{ error }}
+                        </p>
+                    {% endfor %}
+                </div>
+
+                <div class="detail-owner-actions">
+                    <button type="submit">
+                        Save Library Entry
+                    </button>
+                </div>
+            </form>
+        </section>
+    {% endif %}
+
     <div class="game-detail-grid">
         <section class="dashboard-panel detail-access-panel">
             <header class="panel-header">
@@ -266,40 +364,89 @@
                 </div>
             </header>
 
-            {% if active_playthrough %}
+            {% if current_playthrough %}
                 <article class="current-playthrough-card">
                     <span class="playthrough-number">
-                        {{ active_playthrough.number|stringformat:"02d" }}
+                        {{ current_playthrough.number|stringformat:"02d" }}
                     </span>
 
                     <div>
                         <h3>
-                            Playthrough {{ active_playthrough.number }}
+                            Playthrough {{ current_playthrough.number }}
                         </h3>
 
                         <p>
-                            {{ active_playthrough.get_text_language_display }}
+                            {{ current_playthrough.get_text_language_display }}
                             ·
-                            {{ active_playthrough.get_status_display }}
+                            {{ current_playthrough.get_status_display }}
                         </p>
 
-                        {% if active_playthrough.access %}
+                        {% if current_playthrough.access %}
                             <p>
-                                {{ active_playthrough.access.get_platform_name_display }}
+                                {{ current_playthrough.access.get_platform_name_display }}
 
-                                {% if active_playthrough.access.store %}
+                                {% if current_playthrough.access.store %}
                                     ·
-                                    {{ active_playthrough.access.get_store_display }}
+                                    {{ current_playthrough.access.get_store_display }}
                                 {% endif %}
                             </p>
                         {% endif %}
 
-                        {% if active_playthrough.progress_note %}
+                        {% if current_playthrough.progress_note %}
                             <strong class="current-progress-note">
-                                {{ active_playthrough.progress_note }}
+                                {{ current_playthrough.progress_note }}
                             </strong>
                         {% endif %}
                     </div>
+
+                    {% if user.is_authenticated %}
+                        <form
+                            method="post"
+                            action="{% url 'games:update_playthrough_state' game.slug current_playthrough.pk %}"
+                            class="playthrough-action-form"
+                        >
+                            {% csrf_token %}
+
+                            {% if current_playthrough.status == "playing" %}
+                                <button
+                                    type="submit"
+                                    name="action"
+                                    value="pause"
+                                >
+                                    Pause
+                                </button>
+                            {% elif current_playthrough.status == "paused" %}
+                                <button
+                                    type="submit"
+                                    name="action"
+                                    value="resume"
+                                    class="playthrough-action--resume"
+                                >
+                                    Resume
+                                </button>
+                            {% endif %}
+
+                            {% if current_playthrough.status == "playing" or current_playthrough.status == "paused" %}
+                                <button
+                                    type="submit"
+                                    name="action"
+                                    value="complete"
+                                    class="playthrough-action--complete"
+                                >
+                                    Complete
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    name="action"
+                                    value="drop"
+                                    class="playthrough-action--danger"
+                                >
+                                    Drop
+                                </button>
+                            {% endif %}
+                        </form>
+                    {% endif %}
                 </article>
             {% elif entry.status == "multiplayer" %}
                 <p class="empty-state">

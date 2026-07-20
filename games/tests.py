@@ -4,6 +4,8 @@ from datetime import date
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
+from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 from games.models import (
     Game,
@@ -425,8 +427,504 @@ class GameKirokuDetailTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Not Applicable")
         self.assertContains(
             response,
-            "Persistent multiplayer games do not require a traditional playthrough.",
+            "Not Applicable",
         )
+        self.assertContains(
+            response,
+            "Persistent multiplayer games do not require",
+        )
+        self.assertContains(
+            response,
+            "playthrough.",
+        )
+
+class GameKirokuOwnerControlsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = get_user_model().objects.create_user(
+            username="game-owner",
+            password="test-password",
+        )
+
+        cls.game = Game.objects.create(
+            title="Owner Controls Game",
+        )
+
+        cls.entry = LibraryEntry.objects.create(
+            game=cls.game,
+            status=LibraryEntry.Status.PLAYING,
+        )
+
+    def test_owner_controls_are_hidden_from_anonymous_users(self):
+        response = self.client.get(
+            self.game.get_absolute_url()
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(
+            response,
+            'id="owner-controls-title"',
+        )
+        self.assertNotContains(
+            response,
+            "Save Library Entry",
+        )
+
+    def test_owner_controls_are_visible_to_authenticated_owner(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            self.game.get_absolute_url()
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'id="owner-controls-title"',
+        )
+        self.assertContains(
+            response,
+            "Edit Library Entry",
+        )
+        self.assertContains(
+            response,
+            "Save Library Entry",
+        )
+
+    def test_anonymous_update_redirects_to_login(self):
+        update_url = reverse(
+            "games:update_entry",
+            kwargs={
+                "slug": self.game.slug,
+            },
+        )
+
+        response = self.client.post(
+            update_url,
+            {
+                "has_platinum": "on",
+                "main_story_hours_override": "18.5",
+                "notes": "Unauthorized update",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            reverse("login"),
+            response.url,
+        )
+
+        self.entry.refresh_from_db()
+
+        self.assertFalse(self.entry.has_platinum)
+        self.assertIsNone(
+            self.entry.main_story_hours_override
+        )
+        self.assertEqual(self.entry.notes, "")
+
+    def test_authenticated_get_to_update_route_returns_405(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse(
+                "games:update_entry",
+                kwargs={
+                    "slug": self.game.slug,
+                },
+            )
+        )
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_authenticated_owner_can_update_library_entry(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse(
+                "games:update_entry",
+                kwargs={
+                    "slug": self.game.slug,
+                },
+            ),
+            {
+                "has_platinum": "on",
+                "main_story_hours_override": "18.5",
+                "notes": "Priority replay candidate.",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.game.get_absolute_url(),
+        )
+
+        self.entry.refresh_from_db()
+
+        self.assertTrue(self.entry.has_platinum)
+        self.assertEqual(
+            self.entry.main_story_hours_override,
+            Decimal("18.5"),
+        )
+        self.assertEqual(
+            self.entry.notes,
+            "Priority replay candidate.",
+        )
+
+    def test_multiplayer_rejects_manual_main_story_duration(self):
+        multiplayer_game = Game.objects.create(
+            title="Persistent Multiplayer Game",
+        )
+
+        multiplayer_entry = LibraryEntry.objects.create(
+            game=multiplayer_game,
+            status=LibraryEntry.Status.MULTIPLAYER,
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse(
+                "games:update_entry",
+                kwargs={
+                    "slug": multiplayer_game.slug,
+                },
+            ),
+            {
+                "main_story_hours_override": "5",
+                "notes": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            (
+                "Persistent multiplayer games do not use "
+                "a main-story duration."
+            ),
+        )
+
+        multiplayer_entry.refresh_from_db()
+
+        self.assertIsNone(
+            multiplayer_entry.main_story_hours_override
+        )
+
+class GameKirokuPlaythroughActionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = get_user_model().objects.create_user(
+            username="playthrough-owner",
+            password="test-password",
+        )
+
+        cls.game = Game.objects.create(
+            title="Playthrough Action Game",
+        )
+
+        cls.entry = LibraryEntry.objects.create(
+            game=cls.game,
+            status=LibraryEntry.Status.PLAYING,
+        )
+
+        cls.access = GameAccess.objects.create(
+            library_entry=cls.entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+
+        cls.playthrough = Playthrough.objects.create(
+            library_entry=cls.entry,
+            access=cls.access,
+            number=1,
+            status=Playthrough.Status.PLAYING,
+            text_language=Playthrough.TextLanguage.ENGLISH,
+            progress_note="In progress",
+        )
+
+    def action_url(self, playthrough=None):
+        selected_playthrough = (
+            playthrough or self.playthrough
+        )
+
+        return reverse(
+            "games:update_playthrough_state",
+            kwargs={
+                "slug": self.game.slug,
+                "playthrough_id": (
+                    selected_playthrough.pk
+                ),
+            },
+        )
+
+    def test_anonymous_action_redirects_to_login(self):
+        response = self.client.post(
+            self.action_url(),
+            {
+                "action": "pause",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            reverse("login"),
+            response.url,
+        )
+
+        self.playthrough.refresh_from_db()
+        self.entry.refresh_from_db()
+
+        self.assertEqual(
+            self.playthrough.status,
+            Playthrough.Status.PLAYING,
+        )
+        self.assertEqual(
+            self.entry.status,
+            LibraryEntry.Status.PLAYING,
+        )
+
+    def test_authenticated_get_to_action_route_returns_405(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            self.action_url()
+        )
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_pause_synchronizes_playthrough_and_library_entry(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.action_url(),
+            {
+                "action": "pause",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.game.get_absolute_url(),
+        )
+
+        self.playthrough.refresh_from_db()
+        self.entry.refresh_from_db()
+
+        self.assertEqual(
+            self.playthrough.status,
+            Playthrough.Status.PAUSED,
+        )
+        self.assertEqual(
+            self.entry.status,
+            LibraryEntry.Status.PAUSED,
+        )
+
+    def test_resume_pauses_another_active_playthrough(self):
+        self.playthrough.status = (
+            Playthrough.Status.PAUSED
+        )
+        self.playthrough.save(
+            update_fields=["status"]
+        )
+
+        self.entry.status = LibraryEntry.Status.PAUSED
+        self.entry.save(
+            update_fields=["status"]
+        )
+
+        other_playthrough = Playthrough.objects.create(
+            library_entry=self.entry,
+            access=self.access,
+            number=2,
+            status=Playthrough.Status.PLAYING,
+            text_language=(
+                Playthrough.TextLanguage.JAPANESE
+            ),
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.action_url(),
+            {
+                "action": "resume",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.game.get_absolute_url(),
+        )
+
+        self.playthrough.refresh_from_db()
+        other_playthrough.refresh_from_db()
+        self.entry.refresh_from_db()
+
+        self.assertEqual(
+            self.playthrough.status,
+            Playthrough.Status.PLAYING,
+        )
+        self.assertEqual(
+            other_playthrough.status,
+            Playthrough.Status.PAUSED,
+        )
+        self.assertEqual(
+            self.entry.status,
+            LibraryEntry.Status.PLAYING,
+        )
+        self.assertIsNotNone(
+            self.playthrough.started_on
+        )
+
+    def test_complete_sets_finished_date_and_completed_status(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.action_url(),
+            {
+                "action": "complete",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.game.get_absolute_url(),
+        )
+
+        self.playthrough.refresh_from_db()
+        self.entry.refresh_from_db()
+
+        self.assertEqual(
+            self.playthrough.status,
+            Playthrough.Status.COMPLETED,
+        )
+        self.assertEqual(
+            self.playthrough.finished_on,
+            timezone.localdate(),
+        )
+        self.assertEqual(
+            self.entry.status,
+            LibraryEntry.Status.COMPLETED,
+        )
+
+    def test_drop_synchronizes_playthrough_and_library_entry(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.action_url(),
+            {
+                "action": "drop",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.game.get_absolute_url(),
+        )
+
+        self.playthrough.refresh_from_db()
+        self.entry.refresh_from_db()
+
+        self.assertEqual(
+            self.playthrough.status,
+            Playthrough.Status.DROPPED,
+        )
+        self.assertEqual(
+            self.entry.status,
+            LibraryEntry.Status.DROPPED,
+        )
+
+    def test_invalid_transition_returns_400_without_changes(self):
+        self.playthrough.status = (
+            Playthrough.Status.COMPLETED
+        )
+        self.playthrough.save(
+            update_fields=["status"]
+        )
+
+        self.entry.status = (
+            LibraryEntry.Status.COMPLETED
+        )
+        self.entry.save(
+            update_fields=["status"]
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.action_url(),
+            {
+                "action": "pause",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        self.playthrough.refresh_from_db()
+        self.entry.refresh_from_db()
+
+        self.assertEqual(
+            self.playthrough.status,
+            Playthrough.Status.COMPLETED,
+        )
+        self.assertEqual(
+            self.entry.status,
+            LibraryEntry.Status.COMPLETED,
+        )
+
+    def test_action_rejects_playthrough_from_another_entry(self):
+        other_game = Game.objects.create(
+            title="Different Game",
+        )
+
+        other_entry = LibraryEntry.objects.create(
+            game=other_game,
+            status=LibraryEntry.Status.PLAYING,
+        )
+
+        other_access = GameAccess.objects.create(
+            library_entry=other_entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+
+        other_playthrough = Playthrough.objects.create(
+            library_entry=other_entry,
+            access=other_access,
+            number=1,
+            status=Playthrough.Status.PLAYING,
+            text_language=(
+                Playthrough.TextLanguage.ENGLISH
+            ),
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse(
+                "games:update_playthrough_state",
+                kwargs={
+                    "slug": self.game.slug,
+                    "playthrough_id": (
+                        other_playthrough.pk
+                    ),
+                },
+            ),
+            {
+                "action": "pause",
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        other_playthrough.refresh_from_db()
+
+        self.assertEqual(
+            other_playthrough.status,
+            Playthrough.Status.PLAYING,
+        )
+
