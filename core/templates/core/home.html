@@ -1,138 +1,83 @@
 {% load static %}
 
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MVS Tracker</title>
-
-    <link
-        rel="stylesheet"
-        href="{% static 'core/home.css' %}"
-    >
+    <link rel="stylesheet" href="{% static 'core/home.css' %}">
 </head>
 
 <body>
     <main class="platform">
         <header class="platform-header">
-            <p class="platform-eyebrow">
-                Personal Media Platform
-            </p>
+            <p class="platform-eyebrow">Personal Media Platform</p>
 
-            <h1 class="platform-title">
-                MVS Tracker
-            </h1>
+            <h1 class="platform-title">MVS Tracker</h1>
 
             <p class="platform-description">
-                Una plataforma personal para organizar lo que quiero
-                consumir, registrar lo que realmente hago y analizar
-                cómo avanzo en juegos, anime y manga.
+                A personal platform for organizing what I want to consume,
+                tracking what I actually do and analyzing my progress across
+                anime, manga, games, series, movies and music.
             </p>
 
-            <section
-                class="platform-access"
-                aria-label="Estado de acceso"
-            >
+            <section class="platform-access" aria-label="Access status">
                 {% if user.is_authenticated %}
                     <div class="access-copy">
-                        <span class="access-label">
-                            Sesión propietaria
-                        </span>
-
-                        <strong class="access-value">
-                            {{ user.username }}
-                        </strong>
+                        <span class="access-label">Owner session</span>
+                        <strong class="access-value">{{ user.username }}</strong>
                     </div>
 
-                    <form
-                        method="post"
-                        action="{% url 'logout' %}"
-                    >
+                    <form method="post" action="{% url 'logout' %}">
                         {% csrf_token %}
-
                         <button
                             class="access-button access-button--logout"
                             type="submit"
                         >
-                            Cerrar sesión
+                            Log out
                         </button>
                     </form>
                 {% else %}
                     <div class="access-copy">
-                        <span class="access-label">
-                            Acceso público
-                        </span>
-
-                        <strong class="access-value">
-                            Modo lectura
-                        </strong>
+                        <span class="access-label">Public access</span>
+                        <strong class="access-value">Read-only mode</strong>
                     </div>
 
-                    <a
-                        class="access-button"
-                        href="{% url 'login' %}"
-                    >
-                        Iniciar sesión
+                    <a class="access-button" href="{% url 'login' %}">
+                        Sign in
                     </a>
                 {% endif %}
             </section>
         </header>
 
-        <section
-            class="module-grid"
-            aria-labelledby="modules-title"
-        >
-            <h2 id="modules-title" hidden>
-                Módulos de MVS Tracker
-            </h2>
+        <section class="module-grid" aria-labelledby="modules-title">
+            <h2 id="modules-title" hidden>MVS Tracker modules</h2>
 
             <a
                 class="module-card module-card--anime"
-                href="/anime/"
+                href="{% url 'mal_insights:dashboard' %}"
             >
                 <article class="module-card-content">
                     <header class="module-card-top">
-                        <span
-                            class="module-icon"
-                            aria-hidden="true"
-                        >
-                            📺
-                        </span>
-
-                        <span class="module-status">
-                            Disponible
-                        </span>
+                        <span class="module-icon" aria-hidden="true">📺</span>
+                        <span class="module-status">Available</span>
                     </header>
 
                     <section>
-                        <p class="module-category">
-                            Anime y manga
-                        </p>
-
-                        <h2 class="module-title">
-                            MAL Insights
-                        </h2>
-
+                        <p class="module-category">Anime & Manga</p>
+                        <h2 class="module-title">MAL Insights</h2>
                         <p class="module-description">
-                            Biblioteca, progreso, seasonal, relaciones
-                            y análisis para ayudarte a limpiar tu backlog.
+                            Library, progress, seasonal discovery,
+                            franchise relations and backlog analytics.
                         </p>
                     </section>
 
                     <footer class="module-footer">
                         <span class="module-footer-text">
-                            Conectado con MyAnimeList
+                            Connected to MyAnimeList
                         </span>
-
-                        <span class="module-action">
-                            Entrar →
-                        </span>
+                        <span class="module-action">Enter →</span>
                     </footer>
                 </article>
             </a>
@@ -143,40 +88,24 @@
             >
                 <article class="module-card-content">
                     <header class="module-card-top">
-                        <span
-                            class="module-icon"
-                            aria-hidden="true"
-                        >
-                        </span>
-
-                        <span class="module-status">
-                            Disponible
-                        </span>
+                        <span class="module-icon" aria-hidden="true">🎮</span>
+                        <span class="module-status">Available</span>
                     </header>
 
                     <section>
-                        <p class="module-category">
-                            Videojuegos
-                        </p>
-
-                        <h2 class="module-title">
-                            Game Kiroku
-                        </h2>
-
+                        <p class="module-category">Video Games</p>
+                        <h2 class="module-title">Game Kiroku</h2>
                         <p class="module-description">
-                            Biblioteca, wishlist, playthroughs,
-                            plataformas, idiomas, progreso y platinos.
+                            Library, wishlist, playthroughs, platforms,
+                            languages, progress, franchises and platinum tracking.
                         </p>
                     </section>
 
                     <footer class="module-footer">
                         <span class="module-footer-text">
-                            Biblioteca local de videojuegos
+                            Local-first game library
                         </span>
-
-                        <span class="module-action">
-                            Entrar →
-                        </span>
+                        <span class="module-action">Enter →</span>
                     </footer>
                 </article>
             </a>
@@ -184,51 +113,104 @@
             <article
                 class="
                     module-card
-                    module-card--activity
+                    module-card--watchroom
                     module-card--disabled
                 "
             >
                 <div class="module-card-content">
                     <header class="module-card-top">
-                        <span
-                            class="module-icon"
-                            aria-hidden="true"
-                        >
-                            📅
-                        </span>
-
-                        <span
-                            class="
-                                module-status
-                                module-status--soon
-                            "
-                        >
-                            Próximamente
+                        <span class="module-icon" aria-hidden="true">🎬</span>
+                        <span class="module-status module-status--soon">
+                            Coming Soon
                         </span>
                     </header>
 
                     <section>
-                        <p class="module-category">
-                            Actividad real
-                        </p>
-
-                        <h2 class="module-title">
-                            Registro diario
-                        </h2>
-
+                        <p class="module-category">Series & Movies</p>
+                        <h2 class="module-title">Watchroom</h2>
                         <p class="module-description">
-                            Sesiones, calendario y análisis para
-                            comprobar cuánto avanzas realmente cada día.
+                            Series, movies, cartoons, documentaries and
+                            live-action tracking outside the anime ecosystem.
                         </p>
                     </section>
 
                     <footer class="module-footer">
                         <span class="module-footer-text">
-                            Juegos, anime y manga
+                            Western media library
                         </span>
+                        <span class="module-action">Planned</span>
+                    </footer>
+                </div>
+            </article>
 
+            <article
+                class="
+                    module-card
+                    module-card--music
+                    module-card--disabled
+                "
+            >
+                <div class="module-card-content">
+                    <header class="module-card-top">
+                        <span class="module-icon" aria-hidden="true">🎧</span>
+                        <span class="module-status module-status--soon">
+                            Coming Soon
+                        </span>
+                    </header>
+
+                    <section>
+                        <p class="module-category">Listening & Scrobbles</p>
+                        <h2 class="module-title">Music</h2>
+                        <p class="module-description">
+                            Last.fm-powered listening history, artists,
+                            albums, tracks, rankings and listening analytics.
+                        </p>
+                    </section>
+
+                    <footer class="module-footer">
+                        <span class="module-footer-text">
+                            Last.fm data source
+                        </span>
+                        <span class="module-action">Final module</span>
+                    </footer>
+                </div>
+            </article>
+
+            <article
+                class="
+                    module-card
+                    module-card--hibi
+                    module-card--wide
+                    module-card--disabled
+                "
+            >
+                <div class="module-card-content">
+                    <header class="module-card-top">
+                        <span class="module-icon" aria-hidden="true">📅</span>
+                        <span class="module-status module-status--soon">
+                            Coming Soon
+                        </span>
+                    </header>
+
+                    <section>
+                        <p class="module-category">Daily Activity Hub</p>
+                        <h2 class="module-title">
+                            Hibi Log
+                            <span class="module-title-japanese">日々ログ</span>
+                        </h2>
+                        <p class="module-description">
+                            The cross-module activity dashboard: daily sessions,
+                            calendar history and real progress from anime, manga,
+                            games, series, movies and music.
+                        </p>
+                    </section>
+
+                    <footer class="module-footer">
+                        <span class="module-footer-text">
+                            Connected to every tracking module
+                        </span>
                         <span class="module-action">
-                            En definición
+                            Central activity layer
                         </span>
                     </footer>
                 </div>
@@ -236,13 +218,8 @@
         </section>
 
         <footer class="platform-footer">
-            <span>
-                Una sola plataforma. Tres módulos conectados.
-            </span>
-
-            <span>
-                MVS Tracker · Localhost
-            </span>
+            <span>One platform. Four trackers. One activity log.</span>
+            <span>MVS Tracker · Localhost</span>
         </footer>
     </main>
 </body>
