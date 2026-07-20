@@ -76,6 +76,9 @@ def _build_detail_context(
     playthrough_form=None,
     new_playthrough_form=None,
     new_access_form=None,
+    access_form=None,
+    access_action_error=None,
+    access_action_id=None,
 ):
     current_playthrough = next(
         (
@@ -152,6 +155,19 @@ def _build_detail_context(
             prefix="new-access",
         )
 
+    for access in entry.detail_accesses:
+        if (
+            access_form is not None
+            and access.pk == access_form.instance.pk
+        ):
+            access.owner_form = access_form
+        else:
+            access.owner_form = GameAccessOwnerForm(
+                instance=access,
+                library_entry=entry,
+                prefix=f"access-{access.pk}",
+            )
+
     return {
         "active_page": "library",
         "entry": entry,
@@ -162,6 +178,8 @@ def _build_detail_context(
         "owner_form": owner_form,
         "new_playthrough_form": new_playthrough_form,
         "new_access_form": new_access_form,
+        "access_action_error": access_action_error,
+        "access_action_id": access_action_id,
     }
 
 
@@ -364,4 +382,85 @@ def create_access(
             new_access_form=form,
         ),
     )
+
+
+@login_required
+@require_POST
+def update_access(
+    request,
+    slug,
+    access_id,
+):
+    entry = _get_detail_entry(slug)
+
+    access = get_object_or_404(
+        GameAccess,
+        pk=access_id,
+        library_entry=entry,
+    )
+
+    form = GameAccessOwnerForm(
+        request.POST,
+        instance=access,
+        library_entry=entry,
+        prefix=f"access-{access.pk}",
+    )
+
+    if form.is_valid():
+        form.save()
+
+        return redirect(
+            entry.game.get_absolute_url()
+        )
+
+    return render(
+        request,
+        "games/detail.html",
+        _build_detail_context(
+            entry,
+            access_form=form,
+        ),
+    )
+
+
+@login_required
+@require_POST
+def delete_access(
+    request,
+    slug,
+    access_id,
+):
+    entry = _get_detail_entry(slug)
+
+    access = get_object_or_404(
+        GameAccess,
+        pk=access_id,
+        library_entry=entry,
+    )
+
+    access_is_in_use = Playthrough.objects.filter(
+        access=access,
+    ).exists()
+
+    if access_is_in_use:
+        return render(
+            request,
+            "games/detail.html",
+            _build_detail_context(
+                entry,
+                access_action_error=(
+                    "This access is used by one or more "
+                    "playthroughs and cannot be deleted."
+                ),
+                access_action_id=access.pk,
+            ),
+            status=409,
+        )
+
+    access.delete()
+
+    return redirect(
+        entry.game.get_absolute_url()
+    )
+
 

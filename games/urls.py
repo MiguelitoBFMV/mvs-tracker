@@ -60,4 +60,20 @@ urlpatterns = [
         detail_views.create_access,
         name="create_access",
     ),
+    path(
+        (
+            "library/<slug:slug>/"
+            "accesses/<int:access_id>/update/"
+        ),
+        detail_views.update_access,
+        name="update_access",
+    ),
+    path(
+        (
+            "library/<slug:slug>/"
+            "accesses/<int:access_id>/delete/"
+        ),
+        detail_views.delete_access,
+        name="delete_access",
+    ),
 ]

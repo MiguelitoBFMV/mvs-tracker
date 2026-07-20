@@ -1847,3 +1847,152 @@ button {
     }
 }
 
+.access-editor {
+    margin-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.access-editor summary {
+    padding: 12px 0 2px;
+    color: #fca5a5;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.access-editor summary:hover {
+    color: #fecaca;
+}
+
+.access-editor-form {
+    display: grid;
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: rgba(5, 8, 15, 0.62);
+}
+
+.access-editor-field--notes {
+    grid-column: 1 / -1;
+}
+
+.access-editor-actions {
+    display: flex;
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+}
+
+.access-editor-save {
+    min-height: 38px;
+    padding: 0 15px;
+    border: 1px solid rgba(248, 113, 113, 0.5);
+    border-radius: 8px;
+    color: #ffffff;
+    background: rgba(185, 28, 28, 0.72);
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.access-editor-save:hover {
+    background: rgba(220, 38, 38, 0.84);
+}
+
+.access-delete-form {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-top: 10px;
+    padding: 12px 14px;
+    border: 1px solid rgba(248, 113, 113, 0.25);
+    border-radius: 10px;
+    background: rgba(69, 10, 10, 0.14);
+}
+
+.access-delete-form p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.67rem;
+    line-height: 1.5;
+}
+
+.access-delete-form button {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 0 11px;
+    border: 1px solid rgba(248, 113, 113, 0.58);
+    border-radius: 8px;
+    color: #fecaca;
+    background: rgba(127, 29, 29, 0.3);
+    font: inherit;
+    font-size: 0.66rem;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.access-delete-form button:hover {
+    background: rgba(153, 27, 27, 0.52);
+}
+
+.access-action-error {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border: 1px solid rgba(248, 113, 113, 0.38);
+    border-radius: 9px;
+    color: #fecaca;
+    background: rgba(127, 29, 29, 0.2);
+    font-size: 0.7rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+    .access-editor-form {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+    .access-editor-field--notes,
+    .access-editor-actions {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 620px) {
+    .access-editor-form {
+        grid-template-columns: 1fr;
+    }
+
+    .access-editor-field--notes,
+    .access-editor-actions {
+        grid-column: auto;
+    }
+
+    .access-delete-form {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .access-delete-form button {
+        width: 100%;
+    }
+}
+
+.access-lock-note {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border: 1px solid rgba(251, 191, 36, 0.28);
+    border-radius: 9px;
+    color: #fde68a;
+    background: rgba(120, 53, 15, 0.14);
+    font-size: 0.68rem;
+    line-height: 1.55;
+}
+

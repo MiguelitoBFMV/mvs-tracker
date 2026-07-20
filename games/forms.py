@@ -388,6 +388,21 @@ class GameAccessOwnerForm(forms.ModelForm):
         self.library_entry = library_entry
         self.instance.library_entry = library_entry
 
+        self.access_is_in_use = bool(
+            self.instance.pk
+            and Playthrough.objects.filter(
+                access=self.instance,
+            ).exists()
+        )
+
+        if self.access_is_in_use:
+            for field_name in (
+                "access_type",
+                "platform_name",
+                "store",
+            ):
+                self.fields[field_name].disabled = True
+
     def clean(self):
         cleaned_data = super().clean()
 
@@ -415,6 +430,21 @@ class GameAccessOwnerForm(forms.ModelForm):
                         "is already registered."
                     )
                 )
+
+        if (
+            self.instance.pk
+            and access_type != GameAccess.AccessType.OWNED
+            and Playthrough.objects.filter(
+                access=self.instance,
+            ).exists()
+        ):
+            self.add_error(
+                "access_type",
+                (
+                    "An access used by a playthrough "
+                    "must remain Owned."
+                ),
+            )
 
         return cleaned_data
     

@@ -405,6 +405,136 @@
                                     <p>{{ access.notes }}</p>
                                 {% endif %}
                             </article>
+
+                            {% if user.is_authenticated %}
+                                <details
+                                    class="access-editor"
+                                    {% if access.owner_form.errors or access_action_id == access.pk %}
+                                        open
+                                    {% endif %}
+                                >
+                                    <summary>
+                                        Manage Access
+                                    </summary>
+
+                                    {% if access_action_id == access.pk and access_action_error %}
+                                        <p class="access-action-error">
+                                            {{ access_action_error }}
+                                        </p>
+                                    {% endif %}
+                                    
+                                    {% if access.owner_form.access_type.field.disabled %}
+                                        <p class="access-lock-note">
+                                            Platform, store and access type are locked because
+                                            this access is part of the playthrough history.
+                                            Notes can still be edited.
+                                        </p>
+                                    {% endif %}
+
+                                    <form
+                                        method="post"
+                                        action="{% url 'games:update_access' game.slug access.pk %}"
+                                        class="access-editor-form"
+                                    >
+                                        {% csrf_token %}
+
+                                        {% if access.owner_form.non_field_errors %}
+                                            <div class="detail-form-error detail-form-error--wide">
+                                                {% for error in access.owner_form.non_field_errors %}
+                                                    <p>{{ error }}</p>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+
+                                        <div class="playthrough-editor-field">
+                                            <label for="{{ access.owner_form.access_type.id_for_label }}">
+                                                {{ access.owner_form.access_type.label }}
+                                            </label>
+
+                                            {{ access.owner_form.access_type }}
+
+                                            {% for error in access.owner_form.access_type.errors %}
+                                                <p class="detail-form-error">
+                                                    {{ error }}
+                                                </p>
+                                            {% endfor %}
+                                        </div>
+
+                                        <div class="playthrough-editor-field">
+                                            <label for="{{ access.owner_form.platform_name.id_for_label }}">
+                                                {{ access.owner_form.platform_name.label }}
+                                            </label>
+
+                                            {{ access.owner_form.platform_name }}
+
+                                            {% for error in access.owner_form.platform_name.errors %}
+                                                <p class="detail-form-error">
+                                                    {{ error }}
+                                                </p>
+                                            {% endfor %}
+                                        </div>
+
+                                        <div class="playthrough-editor-field">
+                                            <label for="{{ access.owner_form.store.id_for_label }}">
+                                                {{ access.owner_form.store.label }}
+                                            </label>
+
+                                            {{ access.owner_form.store }}
+
+                                            {% for error in access.owner_form.store.errors %}
+                                                <p class="detail-form-error">
+                                                    {{ error }}
+                                                </p>
+                                            {% endfor %}
+                                        </div>
+
+                                        <div
+                                            class="
+                                                playthrough-editor-field
+                                                access-editor-field--notes
+                                            "
+                                        >
+                                            <label for="{{ access.owner_form.notes.id_for_label }}">
+                                                {{ access.owner_form.notes.label }}
+                                            </label>
+
+                                            {{ access.owner_form.notes }}
+
+                                            {% for error in access.owner_form.notes.errors %}
+                                                <p class="detail-form-error">
+                                                    {{ error }}
+                                                </p>
+                                            {% endfor %}
+                                        </div>
+
+                                        <div class="access-editor-actions">
+                                            <button
+                                                type="submit"
+                                                class="access-editor-save"
+                                            >
+                                                Save Access
+                                            </button>
+                                        </div>
+                                    </form>
+
+                                    <form
+                                        method="post"
+                                        action="{% url 'games:delete_access' game.slug access.pk %}"
+                                        class="access-delete-form"
+                                    >
+                                        {% csrf_token %}
+
+                                        <p>
+                                            Deletion is blocked while a playthrough
+                                            uses this access.
+                                        </p>
+
+                                        <button type="submit">
+                                            Delete Access
+                                        </button>
+                                    </form>
+                                </details>
+                            {% endif %}
                         {% empty %}
                             <p class="empty-state">
                                 No owned access has been registered.
@@ -439,6 +569,128 @@
                                     <p>{{ access.notes }}</p>
                                 {% endif %}
                             </article>
+
+                            {% if user.is_authenticated %}
+                                <details
+                                    class="access-editor"
+                                    {% if access.owner_form.errors or access_action_id == access.pk %}
+                                        open
+                                    {% endif %}
+                                >
+                                    <summary>
+                                        Manage Access
+                                    </summary>
+
+                                    {% if access_action_id == access.pk and access_action_error %}
+                                        <p class="access-action-error">
+                                            {{ access_action_error }}
+                                        </p>
+                                    {% endif %}
+
+                                    <form
+                                        method="post"
+                                        action="{% url 'games:update_access' game.slug access.pk %}"
+                                        class="access-editor-form"
+                                    >
+                                        {% csrf_token %}
+
+                                        {% if access.owner_form.non_field_errors %}
+                                            <div class="detail-form-error detail-form-error--wide">
+                                                {% for error in access.owner_form.non_field_errors %}
+                                                    <p>{{ error }}</p>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+
+                                        <div class="playthrough-editor-field">
+                                            <label for="{{ access.owner_form.access_type.id_for_label }}">
+                                                {{ access.owner_form.access_type.label }}
+                                            </label>
+
+                                            {{ access.owner_form.access_type }}
+
+                                            {% for error in access.owner_form.access_type.errors %}
+                                                <p class="detail-form-error">
+                                                    {{ error }}
+                                                </p>
+                                            {% endfor %}
+                                        </div>
+
+                                        <div class="playthrough-editor-field">
+                                            <label for="{{ access.owner_form.platform_name.id_for_label }}">
+                                                {{ access.owner_form.platform_name.label }}
+                                            </label>
+
+                                            {{ access.owner_form.platform_name }}
+
+                                            {% for error in access.owner_form.platform_name.errors %}
+                                                <p class="detail-form-error">
+                                                    {{ error }}
+                                                </p>
+                                            {% endfor %}
+                                        </div>
+
+                                        <div class="playthrough-editor-field">
+                                            <label for="{{ access.owner_form.store.id_for_label }}">
+                                                {{ access.owner_form.store.label }}
+                                            </label>
+
+                                            {{ access.owner_form.store }}
+
+                                            {% for error in access.owner_form.store.errors %}
+                                                <p class="detail-form-error">
+                                                    {{ error }}
+                                                </p>
+                                            {% endfor %}
+                                        </div>
+
+                                        <div
+                                            class="
+                                                playthrough-editor-field
+                                                access-editor-field--notes
+                                            "
+                                        >
+                                            <label for="{{ access.owner_form.notes.id_for_label }}">
+                                                {{ access.owner_form.notes.label }}
+                                            </label>
+
+                                            {{ access.owner_form.notes }}
+
+                                            {% for error in access.owner_form.notes.errors %}
+                                                <p class="detail-form-error">
+                                                    {{ error }}
+                                                </p>
+                                            {% endfor %}
+                                        </div>
+
+                                        <div class="access-editor-actions">
+                                            <button
+                                                type="submit"
+                                                class="access-editor-save"
+                                            >
+                                                Save Access
+                                            </button>
+                                        </div>
+                                    </form>
+
+                                    <form
+                                        method="post"
+                                        action="{% url 'games:delete_access' game.slug access.pk %}"
+                                        class="access-delete-form"
+                                    >
+                                        {% csrf_token %}
+
+                                        <p>
+                                            Deletion is blocked while a playthrough
+                                            uses this access.
+                                        </p>
+
+                                        <button type="submit">
+                                            Delete Access
+                                        </button>
+                                    </form>
+                                </details>
+                            {% endif %}
                         {% empty %}
                             <p class="empty-state">
                                 This game is not wishlisted on another platform.

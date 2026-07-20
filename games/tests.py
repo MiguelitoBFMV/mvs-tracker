@@ -2080,3 +2080,535 @@ class GameKirokuAccessCreationTests(TestCase):
             self.entry.accesses.count(),
             0,
         )
+
+
+class GameKirokuAccessManagementTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = get_user_model().objects.create_user(
+            username="access-manager",
+            password="test-password",
+        )
+
+        cls.game = Game.objects.create(
+            title="Access Management Game",
+        )
+
+        cls.entry = LibraryEntry.objects.create(
+            game=cls.game,
+            status=LibraryEntry.Status.PLAYING,
+        )
+
+        cls.used_access = GameAccess.objects.create(
+            library_entry=cls.entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PLAYSTATION_5,
+            store=GameAccess.Store.PLAYSTATION_STORE,
+        )
+
+        cls.playthrough = Playthrough.objects.create(
+            library_entry=cls.entry,
+            access=cls.used_access,
+            number=1,
+            status=Playthrough.Status.PLAYING,
+            text_language=Playthrough.TextLanguage.ENGLISH,
+        )
+
+    def update_url(self, access=None):
+        selected_access = access or self.used_access
+
+        return reverse(
+            "games:update_access",
+            kwargs={
+                "slug": self.game.slug,
+                "access_id": selected_access.pk,
+            },
+        )
+
+    def delete_url(self, access=None):
+        selected_access = access or self.used_access
+
+        return reverse(
+            "games:delete_access",
+            kwargs={
+                "slug": self.game.slug,
+                "access_id": selected_access.pk,
+            },
+        )
+
+    def form_data(
+        self,
+        access=None,
+        **overrides,
+    ):
+        selected_access = access or self.used_access
+        prefix = f"access-{selected_access.pk}"
+
+        data = {
+            f"{prefix}-access_type": (
+                selected_access.access_type
+            ),
+            f"{prefix}-platform_name": (
+                selected_access.platform_name
+            ),
+            f"{prefix}-store": selected_access.store,
+            f"{prefix}-notes": "Updated access notes.",
+        }
+
+        data.update(overrides)
+
+        return data
+
+    def test_access_manager_is_hidden_from_anonymous_users(
+        self,
+    ):
+        response = self.client.get(
+            self.game.get_absolute_url()
+        )
+
+        field_id = (
+            f'id="id_access-'
+            f'{self.used_access.pk}-access_type"'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, field_id)
+        self.assertNotContains(
+            response,
+            "Save Access",
+        )
+        self.assertNotContains(
+            response,
+            "Delete Access",
+        )
+
+    def test_access_manager_is_visible_to_owner(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            self.game.get_absolute_url()
+        )
+
+        field_id = (
+            f'id="id_access-'
+            f'{self.used_access.pk}-access_type"'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, field_id)
+        self.assertContains(
+            response,
+            "Manage Access",
+        )
+        self.assertContains(
+            response,
+            "Save Access",
+        )
+        self.assertContains(
+            response,
+            "Delete Access",
+        )
+
+    def test_anonymous_update_redirects_to_login(
+        self,
+    ):
+        response = self.client.post(
+            self.update_url(),
+            self.form_data(),
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            reverse("login"),
+            response.url,
+        )
+
+        self.used_access.refresh_from_db()
+
+        self.assertEqual(
+            self.used_access.notes,
+            "",
+        )
+
+    def test_authenticated_get_to_update_route_returns_405(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            self.update_url()
+        )
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_owner_can_update_access_notes(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.update_url(),
+            self.form_data(),
+        )
+
+        self.assertRedirects(
+            response,
+            self.game.get_absolute_url(),
+        )
+
+        self.used_access.refresh_from_db()
+
+        self.assertEqual(
+            self.used_access.notes,
+            "Updated access notes.",
+        )
+
+    def test_update_rejects_exact_duplicate_access(
+        self,
+    ):
+        editable_access = GameAccess.objects.create(
+            library_entry=self.entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+
+        GameAccess.objects.create(
+            library_entry=self.entry,
+            access_type=GameAccess.AccessType.WISHLIST,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+
+        self.client.force_login(self.owner)
+
+        prefix = f"access-{editable_access.pk}"
+
+        response = self.client.post(
+            self.update_url(
+                access=editable_access,
+            ),
+            self.form_data(
+                access=editable_access,
+                **{
+                    f"{prefix}-access_type":
+                        GameAccess.AccessType.WISHLIST,
+                    f"{prefix}-platform_name":
+                        GameAccess.Platform.PC,
+                    f"{prefix}-store":
+                        GameAccess.Store.STEAM,
+                }
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        rendered_access = next(
+            access
+            for access
+            in response.context["entry"].detail_accesses
+            if access.pk == editable_access.pk
+        )
+
+        self.assertTrue(
+            rendered_access.owner_form.non_field_errors()
+        )
+
+        editable_access.refresh_from_db()
+
+        self.assertEqual(
+            editable_access.access_type,
+            GameAccess.AccessType.OWNED,
+        )
+        self.assertEqual(
+            editable_access.platform_name,
+            GameAccess.Platform.PC,
+        )
+        self.assertEqual(
+            editable_access.store,
+            GameAccess.Store.STEAM,
+        )
+
+    def test_access_used_by_playthrough_must_remain_owned(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        prefix = f"access-{self.used_access.pk}"
+
+        response = self.client.post(
+            self.update_url(),
+            self.form_data(
+                **{
+                    f"{prefix}-access_type":
+                        GameAccess.AccessType.WISHLIST,
+                }
+            ),
+        )
+
+        self.assertRedirects(
+            response,
+            self.game.get_absolute_url(),
+        )
+
+        self.used_access.refresh_from_db()
+
+        self.assertEqual(
+            self.used_access.access_type,
+            GameAccess.AccessType.OWNED,
+        )
+
+        def test_anonymous_delete_redirects_to_login(
+            self,
+        ):
+            response = self.client.post(
+                self.delete_url()
+            )
+
+            self.assertEqual(response.status_code, 302)
+            self.assertIn(
+                reverse("login"),
+                response.url,
+            )
+            self.assertTrue(
+                GameAccess.objects.filter(
+                    pk=self.used_access.pk
+                ).exists()
+            )
+
+    def test_anonymous_delete_redirects_to_login(
+        self,
+    ):
+        response = self.client.post(
+            self.delete_url()
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            reverse("login"),
+            response.url,
+        )
+        self.assertTrue(
+            GameAccess.objects.filter(
+                pk=self.used_access.pk
+            ).exists()
+        )
+
+    def test_authenticated_get_to_delete_route_returns_405(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            self.delete_url()
+        )
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_access_used_by_playthrough_cannot_be_deleted(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.delete_url()
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertContains(
+            response,
+            (
+                "This access is used by one or more "
+                "playthroughs and cannot be deleted."
+            ),
+            status_code=409,
+        )
+        self.assertTrue(
+            GameAccess.objects.filter(
+                pk=self.used_access.pk
+            ).exists()
+        )
+
+    def test_unused_access_can_be_deleted(
+        self,
+    ):
+        unused_access = GameAccess.objects.create(
+            library_entry=self.entry,
+            access_type=GameAccess.AccessType.WISHLIST,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            self.delete_url(
+                access=unused_access,
+            )
+        )
+
+        self.assertRedirects(
+            response,
+            self.game.get_absolute_url(),
+        )
+        self.assertFalse(
+            GameAccess.objects.filter(
+                pk=unused_access.pk
+            ).exists()
+        )
+
+    def test_update_rejects_access_from_another_entry(
+        self,
+    ):
+        other_game = Game.objects.create(
+            title="Foreign Managed Access Game",
+        )
+
+        other_entry = LibraryEntry.objects.create(
+            game=other_game,
+            status=LibraryEntry.Status.PLAN_TO_PLAY,
+        )
+
+        other_access = GameAccess.objects.create(
+            library_entry=other_entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse(
+                "games:update_access",
+                kwargs={
+                    "slug": self.game.slug,
+                    "access_id": other_access.pk,
+                },
+            ),
+            {},
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_delete_rejects_access_from_another_entry(
+        self,
+    ):
+        other_game = Game.objects.create(
+            title="Foreign Deleted Access Game",
+        )
+
+        other_entry = LibraryEntry.objects.create(
+            game=other_game,
+            status=LibraryEntry.Status.PLAN_TO_PLAY,
+        )
+
+        other_access = GameAccess.objects.create(
+            library_entry=other_entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.STEAM,
+        )
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse(
+                "games:delete_access",
+                kwargs={
+                    "slug": self.game.slug,
+                    "access_id": other_access.pk,
+                },
+            )
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(
+            GameAccess.objects.filter(
+                pk=other_access.pk
+            ).exists()
+        )
+
+    def test_access_identity_is_locked_when_used_by_playthrough(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            self.game.get_absolute_url()
+        )
+
+        rendered_access = next(
+            access
+            for access
+            in response.context["entry"].detail_accesses
+            if access.pk == self.used_access.pk
+        )
+
+        form = rendered_access.owner_form
+
+        self.assertTrue(
+            form.fields["access_type"].disabled
+        )
+        self.assertTrue(
+            form.fields["platform_name"].disabled
+        )
+        self.assertTrue(
+            form.fields["store"].disabled
+        )
+        self.assertContains(
+            response,
+            (
+                "Platform, store and access type are "
+                "locked because"
+            ),
+        )
+
+    def test_direct_post_cannot_rewrite_used_access_identity(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        prefix = f"access-{self.used_access.pk}"
+
+        response = self.client.post(
+            self.update_url(),
+            self.form_data(
+                **{
+                    f"{prefix}-access_type":
+                        GameAccess.AccessType.WISHLIST,
+                    f"{prefix}-platform_name":
+                        GameAccess.Platform.PC,
+                    f"{prefix}-store":
+                        GameAccess.Store.STEAM,
+                    f"{prefix}-notes":
+                        "Notes remain editable.",
+                }
+            ),
+        )
+
+        self.assertRedirects(
+            response,
+            self.game.get_absolute_url(),
+        )
+
+        self.used_access.refresh_from_db()
+
+        self.assertEqual(
+            self.used_access.access_type,
+            GameAccess.AccessType.OWNED,
+        )
+        self.assertEqual(
+            self.used_access.platform_name,
+            GameAccess.Platform.PLAYSTATION_5,
+        )
+        self.assertEqual(
+            self.used_access.store,
+            GameAccess.Store.PLAYSTATION_STORE,
+        )
+        self.assertEqual(
+            self.used_access.notes,
+            "Notes remain editable.",
+        )
