@@ -24,7 +24,7 @@ The project began as MAL Insight Lab, a personal MyAnimeList analytics dashboard
 
 MVS Tracker is in active development.
 
-The application currently runs locally and uses Supabase PostgreSQL as its shared database.
+The application currently runs locally and uses Supabase PostgreSQL as its shared database. MAL Insights and Game Kiroku are available; Game Kiroku now includes an explicit local-first IGDB import workflow and additional-content tracking for DLC and expansions.
 
 The platform supports two access levels:
 
@@ -66,34 +66,51 @@ Route:
 
 Status: **Available — active development**
 
-Game Kiroku is the video game library and playthrough-tracking module.
+Game Kiroku is the video game library, playthrough, access, and additional-content tracking module.
 
 Current features include:
 
 - Local game library stored in Supabase PostgreSQL.
-- Owned and wishlist access records.
-- Playing, paused, dropped, completed, Plan to Play, and multiplayer states.
-- Platform and storefront selectors.
-- Manual franchise grouping.
-- Multiple playthroughs per game.
-- Text language per playthrough.
-- Optional progress, dates, notes, and hours.
-- Main-story duration with manual override support.
-- Platinum indicator at library-entry level.
+- Dynamic dashboard with owned, wishlist, completed, platinum, Plan to Play, and multiplayer metrics.
 - Replay-aware completion analytics.
 - Completion analytics that exclude persistent multiplayer games.
-- Dynamic dashboard with real library data.
-- Public library with search and filters.
-- Shared authentication and public read-only access.
-- Automated route, permission, model, dashboard, and library tests.
+- Public library with title, franchise, status, access, and platform filters.
+- Rich individual game detail pages.
+- Playing, paused, dropped, completed, Plan to Play, and multiplayer states.
+- Manual status control for games without playthrough history.
+- Playthrough-driven status synchronization when history exists.
+- Multiple playthroughs per game.
+- Text language, platform access, progress, dates, notes, and hours per playthrough.
+- Owned and wishlist access records by platform and storefront.
+- Owner controls for creating, editing, and deleting eligible access records.
+- Manual franchise grouping.
+- Main-story duration from IGDB with manual override support.
+- Platinum indicator at library-entry level.
+- Owner-only forms for library entries, accesses, playthroughs, and additional content.
+- Explicit IGDB search, review, import, linking, and refresh actions.
+- Local-first storage of imported IGDB metadata.
+- Exact-title-first IGDB search ranking with bundles and secondary editions deprioritized.
+- Imported cover art, background artwork, synopsis, release date, genres, platforms, raw payload, and synchronization timestamp.
+- Linking IGDB metadata to existing local games without replacing their slug, accesses, playthroughs, notes, or status.
+- Creating a new `Game`, `LibraryEntry`, and initial `GameAccess` in one transactional import.
+- Validation that prevents a platinum-marked entry from existing without at least one Owned access.
+- Additional Content records for DLC, expansions, standalone expansions, and manual related content.
+- IGDB detection of `dlcs`, `expansions`, `standalone_expansions`, and `parent_game` relationships.
+- Choice to track detected content under its parent game or review it as a separate library game.
+- Status, optional completion date, notes, synopsis, cover, release date, and raw IGDB payload for tracked additional content.
+- Public read-only mode and owner-only write actions.
+- Automated model, route, permission, dashboard, library, detail, playthrough, and access tests.
 
-IGDB integration is planned as an explicit import and enrichment workflow. Imported metadata will be stored locally instead of being requested whenever a page loads.
+IGDB is treated as an import and enrichment source. Normal Game Kiroku pages read from Supabase and do not contact IGDB automatically. Search, import, linking, and refresh operations happen only after an explicit owner action.
 
 Routes:
 
 ```text
-/games/
-/games/library/
+/games/                               Dashboard
+/games/library/                       Library
+/games/library/<slug>/                Game detail
+/games/igdb/search/                   Owner IGDB search
+/games/igdb/<igdb_id>/import/         Owner import review
 ```
 
 ### Watchroom
@@ -182,16 +199,19 @@ Planned route:
 ## Platform Routes
 
 ```text
-/                    MVS Tracker module selector
-/accounts/login/     Owner login
-/accounts/logout/    Owner logout
-/anime/              MAL Insights
-/games/              Game Kiroku dashboard
-/games/library/      Game Kiroku library
-/watchroom/          Watchroom — planned
-/music/              Music — planned
-/activity/           Hibi Log — planned
-/admin/              Django administration
+/                                  MVS Tracker module selector
+/accounts/login/                   Owner login
+/accounts/logout/                  Owner logout
+/anime/                            MAL Insights
+/games/                            Game Kiroku dashboard
+/games/library/                    Game Kiroku library
+/games/library/<slug>/             Game Kiroku game detail
+/games/igdb/search/                Owner-only IGDB search
+/games/igdb/<igdb_id>/import/      Owner-only IGDB import review
+/watchroom/                        Watchroom — planned
+/music/                            Music — planned
+/activity/                         Hibi Log — planned
+/admin/                            Django administration
 ```
 
 Hibi Log will serve as the future cross-module activity dashboard, so a separate global `/dashboard/` route is not currently planned.
@@ -216,7 +236,8 @@ Opening a normal page never triggers an automatic synchronization.
 - Supabase PostgreSQL
 - MyAnimeList API v2
 - AniList GraphQL API
-- IGDB — planned
+- IGDB API
+- Twitch application authentication for IGDB
 - Last.fm API — planned
 - HTML
 - CSS
@@ -247,16 +268,26 @@ mvs-tracker/
 ├── games/
 │   ├── migrations/
 │   ├── services/
+│   │   ├── igdb_client.py
+│   │   ├── igdb_importer.py
+│   │   ├── igdb_normalizer.py
+│   │   └── playthrough_state.py
 │   ├── static/games/
 │   ├── templates/games/
 │   │   ├── base.html
 │   │   ├── dashboard.html
+│   │   ├── detail.html
+│   │   ├── igdb_import.html
+│   │   ├── igdb_search.html
 │   │   └── library.html
 │   ├── web/
 │   │   ├── dashboard.py
+│   │   ├── detail.py
+│   │   ├── igdb.py
 │   │   └── library.py
 │   ├── admin.py
 │   ├── apps.py
+│   ├── forms.py
 │   ├── models.py
 │   ├── tests.py
 │   └── urls.py
@@ -304,6 +335,8 @@ SECRET_KEY=your-django-secret-key
 DEBUG=True
 DATABASE_URL=postgresql://...
 MAL_ACCESS_TOKEN=your-mal-access-token
+IGDB_CLIENT_ID=your-twitch-client-id
+IGDB_CLIENT_SECRET=your-twitch-client-secret
 ALLOWED_HOSTS=127.0.0.1,localhost
 ```
 
@@ -338,6 +371,8 @@ python manage.py test \
 
 The test database is created and destroyed automatically. It does not modify Supabase.
 
+At the current project checkpoint, the automated suite contains **89 passing tests**.
+
 ## Data Sources
 
 ### MyAnimeList
@@ -350,7 +385,18 @@ Public metadata and discovery source for airing data, native titles, streaming l
 
 ### IGDB
 
-Planned primary metadata source for Game Kiroku. Imported metadata will be stored locally.
+Primary metadata and relationship source for Game Kiroku.
+
+IGDB is used through explicit owner actions to:
+
+- Search for games.
+- Review the correct title or edition.
+- Link metadata to an existing local record.
+- Create a new local library record.
+- Refresh stored metadata.
+- Detect DLC, expansions, standalone expansions, and parent-game relationships.
+
+Imported metadata and raw payloads are stored locally in Supabase. Normal page loads do not require an IGDB request.
 
 ### Last.fm
 
@@ -389,18 +435,29 @@ Planned primary listening-data source for the music module. Music will be the fi
 
 - [x] Create the Django app.
 - [x] Add the module dashboard and navigation.
-- [x] Define library and playthrough models.
+- [x] Define library, access, playthrough, and additional-content models.
 - [x] Add the Game Kiroku admin.
 - [x] Build the dynamic dashboard.
 - [x] Build the searchable and filterable library.
 - [x] Add wishlist and access modeling.
 - [x] Add platinum tracking at library-entry level.
 - [x] Add replay-aware completion analytics.
-- [ ] Add the individual game detail page.
-- [ ] Add owner editing controls.
-- [ ] Integrate IGDB metadata imports.
+- [x] Add the individual game detail page.
+- [x] Add owner editing controls.
+- [x] Integrate IGDB search, import, linking, and refresh actions.
+- [x] Store IGDB metadata locally.
+- [x] Add exact-title-first IGDB result ranking.
+- [x] Add additional-content tracking for DLC and expansions.
+- [x] Detect IGDB DLC, expansion, standalone-expansion, and parent-game relations.
+- [x] Allow related content to be tracked under a game or imported separately.
+- [x] Add manual additional-content records.
+- [x] Protect platinum entries from losing their final Owned access.
+- [ ] Add platinum acquisition dates and a dedicated Platinum History view.
+- [ ] Add a Platinum-only library filter.
 - [ ] Add franchise views.
+- [ ] Add manual competitive-rank tracking per game and mode.
 - [ ] Expand game analytics.
+- [ ] Connect Game Kiroku activity to Hibi Log.
 
 ### Watchroom
 
@@ -447,6 +504,7 @@ Never commit:
 - `.env`
 - Database credentials
 - MAL access tokens
+- IGDB client secrets
 - API tokens
 - Raw private API responses
 - Local virtual environments
