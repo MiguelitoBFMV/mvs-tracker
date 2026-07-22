@@ -28,3 +28,10 @@ STORAGES = {
 }
 
 MAL_ACCESS_TOKEN = "test-token"
+
+MAL_CLIENT_ID = "test-mal-client-id"
+MAL_CLIENT_SECRET = "test-mal-client-secret"
+MAL_REDIRECT_URI = (
+    "http://127.0.0.1:8000/anime/oauth/mal/callback/"
+)
+MAL_ACCESS_TOKEN = "test-mal-access-token"
