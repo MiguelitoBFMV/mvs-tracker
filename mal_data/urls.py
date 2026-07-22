@@ -26,9 +26,24 @@ urlpatterns = [
     ),
     path(
         "sync/",
-        sync_views.sync_anime_list_view,
+        sync_views.sync_mal_library_view,
         name="sync_anime_list",
     ),
+    path(
+        "sync/library/",
+        sync_views.sync_mal_library_view,
+        name="sync_mal_library",
+    ),
+    path(
+        "sync/episode-signals/",
+        sync_views.sync_episode_signals_view,
+        name="sync_episode_signals",
+    ),
+    path(
+    "sync/manual-rescues/",
+    sync_views.sync_manual_rescues_view,
+    name="sync_manual_rescues",
+),
     path(
         "<int:mal_id>/relations/sync/",
         relations_views.sync_anime_relations_view,

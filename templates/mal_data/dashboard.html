@@ -52,7 +52,7 @@
                     <div class="sync-actions">
                         <form
                             method="post"
-                            action="{% url 'mal_insights:sync_anime_list' %}"
+                            action="{% url 'mal_insights:sync_mal_library' %}"
                         >
                             {% csrf_token %}
 
@@ -60,7 +60,21 @@
                                 class="sync-action-button"
                                 type="submit"
                             >
-                                Manual Resync
+                                Sync MAL Library
+                            </button>
+                        </form>
+
+                        <form
+                            method="post"
+                            action="{% url 'mal_insights:sync_manual_rescues' %}"
+                        >
+                            {% csrf_token %}
+
+                            <button
+                                class="sync-action-button sync-action-button-secondary"
+                                type="submit"
+                            >
+                                Sync Manual Rescues
                             </button>
                         </form>
 
@@ -72,7 +86,9 @@
                         </a>
                     </div>
                 {% else %}
-                    <p>Login required for synchronization</p>
+                    <p>
+                        Login required for synchronization
+                    </p>
                 {% endif %}
             </div>
         </section>
@@ -129,10 +145,31 @@
     <section class="center-column" aria-label="Protocolos activos">
         <section class="panel">
             <header class="panel-header">
-                <h2 class="panel-title">Episode Signals</h2>
-                <a class="panel-link" href="{% url 'mal_insights:anime_status_list' 'watching' %}">
-                    View All
-                </a>
+                <h2>Episode Signals</h2>
+
+                <div class="episode-signal-actions">
+                    {% if user.is_authenticated %}
+                        <form
+                            method="post"
+                            action="{% url 'mal_insights:sync_episode_signals' %}"
+                        >
+                            {% csrf_token %}
+
+                            <button
+                                class="episode-signal-sync-button"
+                                type="submit"
+                            >
+                                Sync Signals
+                            </button>
+                        </form>
+                    {% endif %}
+
+                    <a
+                        href="{% url 'mal_insights:anime_status_list' 'watching' %}"
+                    >
+                        View All
+                    </a>
+                </div>
             </header>
 
             <div class="panel-body">

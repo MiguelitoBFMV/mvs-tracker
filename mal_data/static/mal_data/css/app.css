@@ -1721,3 +1721,36 @@ button.danger-button:hover {
     background: rgba(169, 193, 255, 0.16);
     color: #ffffff;
 }
+
+.episode-signal-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.episode-signal-actions form {
+    margin: 0;
+}
+
+.episode-signal-sync-button {
+    padding: 5px 9px;
+
+    border: 1px solid var(--blue);
+    background: rgba(169, 193, 255, 0.08);
+    color: var(--blue);
+
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    text-transform: uppercase;
+
+    cursor: pointer;
+}
+
+.episode-signal-sync-button:hover,
+.episode-signal-sync-button:focus-visible {
+    background: rgba(169, 193, 255, 0.16);
+    color: #ffffff;
+}

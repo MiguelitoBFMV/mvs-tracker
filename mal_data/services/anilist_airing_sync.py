@@ -70,13 +70,15 @@ def sync_airing_data_for_anime(mal_id):
 
     return airing_data, created
 
-def sync_airing_data_for_dashboard():
+def sync_episode_signals():
     targets = (
         AnimeEntry.objects
         .filter(
             Q(list_status="watching")
-            | Q(is_rewatching=True)
-            | Q(list_status="plan_to_watch", airing_status="currently_airing")
+            | Q(
+                list_status="completed",
+                is_rewatching=True,
+            )
         )
         .order_by("title")
     )
@@ -85,18 +87,23 @@ def sync_airing_data_for_dashboard():
 
     for anime in targets:
         try:
-            airing_data, created = sync_airing_data_for_anime(anime.mal_id)
+            airing_data, created = sync_airing_data_for_anime(
+                anime.mal_id
+            )
 
             results.append(
                 {
                     "mal_id": anime.mal_id,
                     "title": anime.display_title,
                     "created": created,
-                    "pending": airing_data.pending_episodes_for_user,
+                    "pending": (
+                        airing_data.pending_episodes_for_user
+                    ),
                     "ok": True,
                     "error": None,
                 }
             )
+
         except Exception as error:
             results.append(
                 {
@@ -110,6 +117,14 @@ def sync_airing_data_for_dashboard():
             )
 
     return results
+
+
+def sync_airing_data_for_dashboard():
+    """
+    Alias temporal para mantener compatibilidad con comandos
+    o servicios que todavía usen el nombre antiguo.
+    """
+    return sync_episode_signals()
 
 def parse_anilist_timestamp(value):
     if not value:
