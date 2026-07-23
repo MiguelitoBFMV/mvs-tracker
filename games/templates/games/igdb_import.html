@@ -234,7 +234,18 @@
                                     {% if field.name == 'notes' %}
                                         igdb-import-field--notes
                                     {% endif %}
+
+                                    {% if field.name == 'completed_text_language' or field.name == 'completed_on' %}
+                                        igdb-import-completed-field
+                                    {% endif %}
                                 "
+                                {% if field.name == 'completed_text_language' or field.name == 'completed_on' %}
+                                    data-completed-playthrough-field
+
+                                    {% if new_game_form.status.value != "completed" %}
+                                        hidden
+                                    {% endif %}
+                                {% endif %}
                             >
                                 <label for="{{ field.id_for_label }}">
                                     {{ field.label }}
@@ -257,6 +268,41 @@
                         </button>
                     </div>
                 </form>
+
+                <script>
+                    (() => {
+                        const statusField = document.getElementById(
+                            "{{ new_game_form.status.id_for_label }}"
+                        );
+
+                        const completedFields = (
+                            document.querySelectorAll(
+                                "[data-completed-playthrough-field]"
+                            )
+                        );
+
+                        if (!statusField || !completedFields.length) {
+                            return;
+                        }
+
+                        const syncCompletedFields = () => {
+                            const shouldShow = (
+                                statusField.value === "completed"
+                            );
+
+                            completedFields.forEach((field) => {
+                                field.hidden = !shouldShow;
+                            });
+                        };
+
+                        statusField.addEventListener(
+                            "change",
+                            syncCompletedFields
+                        );
+
+                        syncCompletedFields();
+                    })();
+                </script>
             </section>
         </div>
     {% endif %}

@@ -4135,3 +4135,7 @@ button {
     }
 }
 
+.igdb-import-completed-field[hidden] {
+    display: none;
+}
+

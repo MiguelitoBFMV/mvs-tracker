@@ -1,7 +1,9 @@
+from io import StringIO
 from decimal import Decimal
 from datetime import date
 
 from django.core.exceptions import ValidationError
+from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -3547,3 +3549,244 @@ class GameKirokuAccessManagementTests(TestCase):
             "Notes remain editable.",
         )
 
+
+class GameKirokuCompletedImportTests(TestCase):
+    def create_completed_entry(
+        self,
+        *,
+        title="Historical Completed Game",
+    ):
+        game = Game.objects.create(
+            title=title,
+        )
+
+        entry = LibraryEntry.objects.create(
+            game=game,
+            status=LibraryEntry.Status.COMPLETED,
+        )
+
+        access = GameAccess.objects.create(
+            library_entry=entry,
+            access_type=GameAccess.AccessType.OWNED,
+            platform_name=GameAccess.Platform.PC,
+            store=GameAccess.Store.XBOX,
+        )
+
+        return entry, access
+
+    def test_unspecified_language_is_available(self):
+        choice_values = {
+            value
+            for value, _label
+            in Playthrough.TextLanguage.choices
+        }
+
+        self.assertIn(
+            Playthrough.TextLanguage.UNSPECIFIED,
+            choice_values,
+        )
+
+    def test_xbox_game_pass_store_is_available(self):
+        choice_values = {
+            value
+            for value, _label
+            in GameAccess.Store.choices
+        }
+
+        self.assertIn(
+            GameAccess.Store.XBOX,
+            choice_values,
+        )
+
+    def test_completed_import_form_keeps_playthrough_data(
+        self,
+    ):
+        form = IGDBNewGameImportForm(
+            data={
+                "status": (
+                    LibraryEntry.Status.COMPLETED
+                ),
+                "franchise": "",
+                "completed_text_language": (
+                    Playthrough.TextLanguage.SPANISH
+                ),
+                "completed_on": "2026-07-23",
+                "has_platinum": "",
+                "platinum_earned_on": "",
+                "is_platinum_target": "",
+                "access_type": (
+                    GameAccess.AccessType.OWNED
+                ),
+                "platform_name": (
+                    GameAccess.Platform.PC
+                ),
+                "store": GameAccess.Store.XBOX,
+                "notes": "",
+            }
+        )
+
+        self.assertTrue(
+            form.is_valid(),
+            form.errors.as_json(),
+        )
+
+        self.assertEqual(
+            form.cleaned_data[
+                "completed_text_language"
+            ],
+            Playthrough.TextLanguage.SPANISH,
+        )
+
+        self.assertEqual(
+            form.cleaned_data["completed_on"],
+            date(2026, 7, 23),
+        )
+
+    def test_non_completed_import_discards_playthrough_data(
+        self,
+    ):
+        form = IGDBNewGameImportForm(
+            data={
+                "status": (
+                    LibraryEntry.Status.PLAN_TO_PLAY
+                ),
+                "franchise": "",
+                "completed_text_language": (
+                    Playthrough.TextLanguage.SPANISH
+                ),
+                "completed_on": "2026-07-23",
+                "has_platinum": "",
+                "platinum_earned_on": "",
+                "is_platinum_target": "",
+                "access_type": (
+                    GameAccess.AccessType.OWNED
+                ),
+                "platform_name": (
+                    GameAccess.Platform.PC
+                ),
+                "store": GameAccess.Store.XBOX,
+                "notes": "",
+            }
+        )
+
+        self.assertTrue(
+            form.is_valid(),
+            form.errors.as_json(),
+        )
+
+        self.assertEqual(
+            form.cleaned_data[
+                "completed_text_language"
+            ],
+            Playthrough.TextLanguage.UNSPECIFIED,
+        )
+
+        self.assertIsNone(
+            form.cleaned_data["completed_on"]
+        )
+
+    def test_backfill_creates_completed_playthrough(
+        self,
+    ):
+        entry, access = self.create_completed_entry()
+
+        output = StringIO()
+
+        call_command(
+            "backfill_completed_playthroughs",
+            stdout=output,
+        )
+
+        playthrough = entry.playthroughs.get()
+
+        self.assertEqual(
+            playthrough.number,
+            1,
+        )
+        self.assertEqual(
+            playthrough.status,
+            Playthrough.Status.COMPLETED,
+        )
+        self.assertEqual(
+            playthrough.text_language,
+            Playthrough.TextLanguage.UNSPECIFIED,
+        )
+        self.assertEqual(
+            playthrough.access,
+            access,
+        )
+        self.assertIsNone(
+            playthrough.started_on
+        )
+        self.assertIsNone(
+            playthrough.finished_on
+        )
+
+    def test_backfill_dry_run_does_not_create_records(
+        self,
+    ):
+        entry, _access = self.create_completed_entry()
+
+        output = StringIO()
+
+        call_command(
+            "backfill_completed_playthroughs",
+            dry_run=True,
+            stdout=output,
+        )
+
+        self.assertEqual(
+            entry.playthroughs.count(),
+            0,
+        )
+        self.assertIn(
+            "[DRY RUN]",
+            output.getvalue(),
+        )
+
+    def test_backfill_ignores_non_completed_entries(
+        self,
+    ):
+        game = Game.objects.create(
+            title="Plan to Play Game",
+        )
+
+        entry = LibraryEntry.objects.create(
+            game=game,
+            status=LibraryEntry.Status.PLAN_TO_PLAY,
+        )
+
+        call_command(
+            "backfill_completed_playthroughs",
+            stdout=StringIO(),
+        )
+
+        self.assertEqual(
+            entry.playthroughs.count(),
+            0,
+        )
+
+    def test_backfill_is_idempotent(self):
+        entry, _access = self.create_completed_entry()
+
+        call_command(
+            "backfill_completed_playthroughs",
+            stdout=StringIO(),
+        )
+
+        second_output = StringIO()
+
+        call_command(
+            "backfill_completed_playthroughs",
+            stdout=second_output,
+        )
+
+        self.assertEqual(
+            entry.playthroughs.count(),
+            1,
+        )
+
+        self.assertIn(
+            "No completed entries require backfill.",
+            second_output.getvalue(),
+        )
