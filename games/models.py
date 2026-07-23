@@ -504,6 +504,7 @@ class GameAccess(models.Model):
             "Nintendo eShop",
         )
         GOG = "gog", "GOG"
+        XBOX = "xbox", "Xbox"
         OTHER = "other", "Otra"
 
     library_entry = models.ForeignKey(
@@ -578,6 +579,7 @@ class Playthrough(models.Model):
         DROPPED = "dropped", "Dropped"
 
     class TextLanguage(models.TextChoices):
+        UNSPECIFIED = "unknown", "Unspecified"
         JAPANESE = "ja", "Japanese"
         ENGLISH = "en", "English"
         SPANISH = "es", "Spanish"

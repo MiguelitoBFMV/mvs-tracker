@@ -20,6 +20,7 @@ from games.models import (
     Game,
     GameAccess,
     LibraryEntry,
+    Playthrough,
 )
 from games.services.igdb_client import (
     IGDBClient,
@@ -332,27 +333,62 @@ def igdb_import(
                         ),
                     )
 
-                    GameAccess.objects.create(
-                        library_entry=entry,
-                        access_type=(
-                            new_game_form
-                            .cleaned_data[
-                                "access_type"
-                            ]
-                        ),
-                        platform_name=(
-                            new_game_form
-                            .cleaned_data[
-                                "platform_name"
-                            ]
-                        ),
-                        store=(
-                            new_game_form
-                            .cleaned_data[
-                                "store"
-                            ]
-                        ),
+                    created_access = (
+                        GameAccess.objects.create(
+                            library_entry=entry,
+                            access_type=(
+                                new_game_form
+                                .cleaned_data[
+                                    "access_type"
+                                ]
+                            ),
+                            platform_name=(
+                                new_game_form
+                                .cleaned_data[
+                                    "platform_name"
+                                ]
+                            ),
+                            store=(
+                                new_game_form
+                                .cleaned_data[
+                                    "store"
+                                ]
+                            ),
+                        )
                     )
+
+                    if (
+                    entry.status
+                    == LibraryEntry.Status.COMPLETED
+                    ):
+                        playthrough_access = None
+
+                        if (
+                            created_access.access_type
+                            == GameAccess.AccessType.OWNED
+                        ):
+                            playthrough_access = (
+                                created_access
+                            )
+
+                        Playthrough.objects.create(
+                            library_entry=entry,
+                            access=playthrough_access,
+                            number=1,
+                            status=(
+                                Playthrough.Status.COMPLETED
+                            ),
+                            text_language=(
+                                new_game_form.cleaned_data[
+                                    "completed_text_language"
+                                ]
+                            ),
+                            finished_on=(
+                                new_game_form.cleaned_data[
+                                    "completed_on"
+                                ]
+                            ),
+                        )
 
                 return redirect(
                     game.get_absolute_url()

@@ -307,7 +307,7 @@ class LibraryEntryOwnerForm(forms.ModelForm):
             ] = None
 
         return cleaned_data
-    
+
 
 class GameAccessChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, access):
@@ -565,7 +565,7 @@ class NewPlaythroughForm(forms.ModelForm):
 
         return cleaned_data
 
-    
+
 class GameAccessOwnerForm(forms.ModelForm):
     class Meta:
         model = GameAccess
@@ -679,7 +679,7 @@ class GameAccessOwnerForm(forms.ModelForm):
                     "must remain Owned."
                 ),
             )
-    
+
         if (
             self.library_entry.has_platinum
             and access_type
@@ -950,6 +950,30 @@ class IGDBNewGameImportForm(forms.Form):
         ),
     )
 
+    completed_text_language = forms.ChoiceField(
+        choices=Playthrough.TextLanguage.choices,
+        required=False,
+        initial=Playthrough.TextLanguage.UNSPECIFIED,
+        label="Completed Playthrough Language",
+        widget=forms.Select(
+            attrs={
+                "class": "detail-owner-control",
+            }
+        ),
+    )
+
+    completed_on = forms.DateField(
+        required=False,
+        label="Completed On",
+        widget=forms.DateInput(
+            format="%Y-%m-%d",
+            attrs={
+                "class": "detail-owner-control",
+                "type": "date",
+            },
+        ),
+    )
+
     has_platinum = forms.BooleanField(
         required=False,
         label="Platinum Unlocked",
@@ -1059,6 +1083,18 @@ class IGDBNewGameImportForm(forms.Form):
             "to a franchise immediately."
         )
 
+        self.fields[
+            "completed_text_language"
+        ].help_text = (
+            "Used to create Playthrough 1 when "
+            "the initial status is Completed."
+        )
+
+        self.fields["completed_on"].help_text = (
+            "Optional. Leave blank when the exact "
+            "completion date is unknown."
+        )
+
     def clean(self):
         cleaned_data = super().clean()
 
@@ -1066,6 +1102,32 @@ class IGDBNewGameImportForm(forms.Form):
         access_type = cleaned_data.get(
             "access_type"
         )
+
+        completed_text_language = (
+            cleaned_data.get(
+                "completed_text_language"
+            )
+        )
+
+        if status == LibraryEntry.Status.COMPLETED:
+            cleaned_data[
+                "completed_text_language"
+            ] = (
+                completed_text_language
+                or Playthrough
+                .TextLanguage
+                .UNSPECIFIED
+            )
+        else:
+            cleaned_data[
+                "completed_text_language"
+            ] = (
+                Playthrough
+                .TextLanguage
+                .UNSPECIFIED
+            )
+            cleaned_data["completed_on"] = None
+
         has_platinum = cleaned_data.get(
             "has_platinum"
         )
@@ -1122,5 +1184,3 @@ class IGDBNewGameImportForm(forms.Form):
             ] = False
 
         return cleaned_data
-    
-
