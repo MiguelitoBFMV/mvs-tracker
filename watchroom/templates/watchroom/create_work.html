@@ -1,0 +1,82 @@
+{% extends "watchroom/base.html" %}
+
+{% block title %}
+    Add Work
+{% endblock %}
+
+{% block module_name %}
+    Add Work · Watchroom
+{% endblock %}
+
+{% block content %}
+    <header class="owner-page-header">
+        <div>
+            <p class="dashboard-eyebrow">
+                Owner Controls
+            </p>
+
+            <h1>Add Local Work</h1>
+
+            <p>
+                Create a movie or series using local
+                metadata. TMDB linking can be added later.
+            </p>
+        </div>
+    </header>
+
+    <section class="owner-panel">
+        <form
+            method="post"
+            class="owner-form-grid"
+        >
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="owner-form-error owner-field--wide">
+                    {% for error in form.non_field_errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% for field in form %}
+                <label
+                    class="
+                        owner-field
+
+                        {% if field.name == 'overview' or field.name == 'notes' %}
+                            owner-field--wide
+                        {% endif %}
+                    "
+                    for="{{ field.id_for_label }}"
+                >
+                    <span>{{ field.label }}</span>
+
+                    {{ field }}
+
+                    {% if field.help_text %}
+                        <small>
+                            {{ field.help_text }}
+                        </small>
+                    {% endif %}
+
+                    {% for error in field.errors %}
+                        <strong class="owner-form-error">
+                            {{ error }}
+                        </strong>
+                    {% endfor %}
+                </label>
+            {% endfor %}
+
+            <div class="owner-form-actions owner-field--wide">
+                <button type="submit">
+                    Create Work
+                </button>
+
+                <a href="{% url 'watchroom:library' %}">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </section>
+{% endblock %}

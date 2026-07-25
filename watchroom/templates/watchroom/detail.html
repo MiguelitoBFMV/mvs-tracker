@@ -1,0 +1,908 @@
+{% extends "watchroom/base.html" %}
+
+{% block title %}
+    {{ work.title }}
+{% endblock %}
+
+{% block module_name %}
+    Work Detail · Watchroom
+{% endblock %}
+
+{% block content %}
+    <article class="work-detail">
+        <header
+            class="work-detail-hero"
+
+            {% if work.backdrop_url %}
+                style="
+                    --work-backdrop:
+                    url('{{ work.backdrop_url }}');
+                "
+            {% endif %}
+        >
+            <div class="work-detail-backdrop"></div>
+
+            <div class="work-detail-content">
+                <div class="work-detail-poster">
+                    {% if work.poster_url %}
+                        <img
+                            src="{{ work.poster_url }}"
+                            alt=""
+                        >
+                    {% else %}
+                        <span aria-hidden="true">
+                            {{ work.title|slice:":2"|upper }}
+                        </span>
+                    {% endif %}
+                </div>
+
+                <div class="work-detail-heading">
+                    <div class="media-card-labels">
+                        <span>
+                            {{ work.get_media_type_display }}
+                        </span>
+
+                        <span>
+                            {{ work.get_presentation_display }}
+                        </span>
+
+                        {% if work.external_status %}
+                            <span>
+                                {{ work.external_status }}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <h1>{{ work.title }}</h1>
+
+                    {% if work.original_title %}
+                        <p class="work-original-title">
+                            {{ work.original_title }}
+                        </p>
+                    {% endif %}
+
+                    <strong class="work-current-status">
+                        {{ entry.activity_label }}
+                    </strong>
+
+                    {% if entry.progress_label %}
+                        <p class="work-current-progress">
+                            {{ entry.progress_label }}
+                        </p>
+                    {% endif %}
+
+                    {% if entry.is_up_to_date %}
+                        <span class="up-to-date-badge">
+                            Up to Date
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+        </header>
+
+        <section class="work-detail-grid">
+            <article class="work-detail-panel">
+                <p class="section-kicker">
+                    Overview
+                </p>
+
+                <h2>About This Work</h2>
+
+                <p class="work-overview">
+                    {% if work.overview %}
+                        {{ work.overview }}
+                    {% else %}
+                        No synopsis available yet.
+                    {% endif %}
+                </p>
+            </article>
+
+            <aside class="work-facts">
+                <div>
+                    <span>
+                        {% if work.media_type == "movie" %}
+                            Release Date
+                        {% else %}
+                            First Aired
+                        {% endif %}
+                    </span>
+
+                    <strong>
+                        {% if work.first_release_date %}
+                            {{ work.first_release_date }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </strong>
+                </div>
+
+                {% if work.media_type == "movie" %}
+                    <div>
+                        <span>Runtime</span>
+
+                        <strong>
+                            {% if work.runtime_minutes %}
+                                {{ work.runtime_minutes }}
+                                min
+                            {% else %}
+                                —
+                            {% endif %}
+                        </strong>
+                    </div>
+                {% else %}
+                    <div>
+                        <span>Progress</span>
+
+                        <strong>
+                            {% if entry.overall_progress_label %}
+                                {{ entry.overall_progress_label }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </strong>
+                    </div>
+                {% endif %}
+
+                <div>
+                    <span>Viewing Runs</span>
+                    <strong>{{ entry.run_count }}</strong>
+                </div>
+            </aside>
+        </section>
+
+        {% if work.media_type == "series" %}
+            <section class="detail-section">
+                <header class="section-heading">
+                    <div>
+                        <p class="section-kicker">
+                            Series Progress
+                        </p>
+
+                        <h2>Seasons</h2>
+                    </div>
+                </header>
+
+                {% if regular_seasons %}
+                    <div class="season-list">
+                        {% for season in regular_seasons %}
+                            <article class="season-row">
+                                <div>
+                                    <span>
+                                        Season
+                                        {{ season.season_number }}
+                                    </span>
+
+                                    <strong>
+                                        {% if season.name %}
+                                            {{ season.name }}
+                                        {% else %}
+                                            Season
+                                            {{ season.season_number }}
+                                        {% endif %}
+                                    </strong>
+                                </div>
+
+                                <p>
+                                    {% if season.current_progress %}
+                                        {{ season.current_progress.episodes_watched }}
+                                    {% else %}
+                                        0
+                                    {% endif %}
+                                    /
+                                    {{ season.episode_count }}
+                                </p>
+                            </article>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <article class="empty-state">
+                        <h3>No seasons stored yet</h3>
+
+                        <p>
+                            Imported seasons will appear
+                            here.
+                        </p>
+                    </article>
+                {% endif %}
+
+                {% if special_seasons %}
+                    <details class="specials-panel">
+                        <summary>
+                            Specials
+                        </summary>
+
+                        {% for season in special_seasons %}
+                            <article class="season-row">
+                                <div>
+                                    <strong>
+                                        {{ season.name|default:"Specials" }}
+                                    </strong>
+                                </div>
+
+                                <p>
+                                    {% if season.current_progress %}
+                                        {{ season.current_progress.episodes_watched }}
+                                    {% else %}
+                                        0
+                                    {% endif %}
+                                    /
+                                    {{ season.episode_count }}
+                                </p>
+                            </article>
+                        {% endfor %}
+                    </details>
+                {% endif %}
+            </section>
+        {% endif %}
+
+        <section class="detail-section">
+            <header class="section-heading">
+                <div>
+                    <p class="section-kicker">
+                        Viewing History
+                    </p>
+
+                    <h2>Runs</h2>
+                </div>
+            </header>
+
+            {% if viewing_runs %}
+                <div class="run-list">
+                    {% for run in viewing_runs %}
+                        <article class="run-card">
+                            <header>
+                                <div>
+                                    <span>
+                                        {% if run.is_rewatch %}
+                                            Rewatch
+                                        {% else %}
+                                            First Watch
+                                        {% endif %}
+                                    </span>
+
+                                    <h3>
+                                        Run {{ run.number }}
+                                    </h3>
+                                </div>
+
+                                <strong>
+                                    {{ run.get_status_display }}
+                                </strong>
+                            </header>
+
+                            <dl>
+                                <div>
+                                    <dt>Started</dt>
+                                    <dd>
+                                        {{ run.started_on|default:"—" }}
+                                    </dd>
+                                </div>
+
+                                <div>
+                                    <dt>Finished</dt>
+                                    <dd>
+                                        {{ run.finished_on|default:"—" }}
+                                    </dd>
+                                </div>
+
+                                <div>
+                                    <dt>Progress</dt>
+                                    <dd>
+                                        {% if work.media_type == "movie" %}
+                                            {% if run.progress_minutes %}
+                                                {{ run.progress_minutes }}
+                                                min
+                                            {% else %}
+                                                —
+                                            {% endif %}
+                                        {% else %}
+                                            {{ run.progress_summary|default:"—" }}
+                                        {% endif %}
+                                    </dd>
+                                </div>
+                            </dl>
+
+                            {% if run.notes %}
+                                <p class="run-notes">
+                                    {{ run.notes }}
+                                </p>
+                            {% endif %}
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <article class="empty-state">
+                    <h3>No viewing history yet</h3>
+
+                    <p>
+                        First watches and rewatches will
+                        appear here.
+                    </p>
+                </article>
+            {% endif %}
+        </section>
+    </article>
+
+    {% if user.is_authenticated %}
+        <section
+            id="owner-controls"
+            class="detail-section owner-section"
+        >
+            <header class="section-heading">
+                <div>
+                    <p class="section-kicker">
+                        Private
+                    </p>
+
+                    <h2>Owner Controls</h2>
+                </div>
+            </header>
+
+            <article class="owner-panel">
+                <h3>Library Entry</h3>
+
+                <form
+                    method="post"
+                    action="{% url 'watchroom:update_entry' work.slug %}"
+                    class="owner-form-grid"
+                >
+                    {% csrf_token %}
+
+                    {% for field in entry_form %}
+                        <label
+                            class="
+                                owner-field
+
+                                {% if field.name == 'notes' %}
+                                    owner-field--wide
+                                {% endif %}
+                            "
+                            for="{{ field.id_for_label }}"
+                        >
+                            <span>{{ field.label }}</span>
+                            {{ field }}
+
+                            {% if field.help_text %}
+                                <small>
+                                    {{ field.help_text }}
+                                </small>
+                            {% endif %}
+
+                            {% for error in field.errors %}
+                                <strong class="owner-form-error">
+                                    {{ error }}
+                                </strong>
+                            {% endfor %}
+                        </label>
+                    {% endfor %}
+
+                    <div class="owner-form-actions owner-field--wide">
+                        <button type="submit">
+                            Save Library Entry
+                        </button>
+                    </div>
+                </form>
+            </article>
+
+            <article
+                id="viewing-controls"
+                class="owner-panel"
+            >
+                <header class="owner-panel-heading">
+                    <div>
+                        <p class="section-kicker">
+                            Watch History
+                        </p>
+
+                        <h3>Viewing Controls</h3>
+                    </div>
+
+                    {% if entry.current_run %}
+                        <span class="owner-state-badge">
+                            Active Run {{ entry.current_run.number }}
+                        </span>
+                    {% endif %}
+                </header>
+
+                {% if can_start_run %}
+                    <form
+                        method="post"
+                        action="{% url 'watchroom:create_run' work.slug %}"
+                        class="owner-form-grid"
+                    >
+                        {% csrf_token %}
+
+                        {% if new_run_form.non_field_errors %}
+                            <div
+                                class="
+                                    owner-form-error
+                                    owner-field--wide
+                                "
+                            >
+                                {% for error in new_run_form.non_field_errors %}
+                                    <p>{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        {% if work.media_type == "movie" %}
+                            <label
+                                class="owner-field"
+                                for="{{ new_run_form.progress_minutes.id_for_label }}"
+                            >
+                                <span>
+                                    {{ new_run_form.progress_minutes.label }}
+                                </span>
+
+                                {{ new_run_form.progress_minutes }}
+
+                                {% for error in new_run_form.progress_minutes.errors %}
+                                    <strong class="owner-form-error">
+                                        {{ error }}
+                                    </strong>
+                                {% endfor %}
+                            </label>
+                        {% endif %}
+
+                        <label
+                            class="owner-field owner-field--wide"
+                            for="{{ new_run_form.notes.id_for_label }}"
+                        >
+                            <span>
+                                {{ new_run_form.notes.label }}
+                            </span>
+
+                            {{ new_run_form.notes }}
+
+                            {% for error in new_run_form.notes.errors %}
+                                <strong class="owner-form-error">
+                                    {{ error }}
+                                </strong>
+                            {% endfor %}
+                        </label>
+
+                        <div
+                            class="
+                                owner-form-actions
+                                owner-field--wide
+                            "
+                        >
+                            <button type="submit">
+                                {% if entry.run_count %}
+                                    Start Rewatch
+                                {% else %}
+                                    Start First Watch
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                {% else %}
+                    <p class="owner-panel-note">
+                        Finish, pause or drop the current run
+                        before starting another one.
+                    </p>
+                {% endif %}
+                    
+
+                {% if work.media_type == "series" and progress_run %}
+                    <section
+                        id="season-progress"
+                        class="owner-inline-section"
+                    >
+                        <header class="owner-panel-heading">
+                            <div>
+                                <p class="section-kicker">
+                                    MAL-style Progress
+                                </p>
+
+                                <h4>Season Progress</h4>
+                            </div>
+
+                            <span class="owner-state-badge">
+                                Run {{ progress_run.number }}
+                            </span>
+                        </header>
+
+                        <p class="owner-panel-note">
+                            Editing progress for
+
+                            {% if progress_run.is_rewatch %}
+                                rewatch
+                            {% else %}
+                                first watch
+                            {% endif %}
+
+                            run {{ progress_run.number }}.
+                        </p>
+
+                        <div class="owner-progress-list">
+                            {% for season in all_seasons %}
+                                <details class="owner-management-item">
+                                    <summary>
+                                        <span>
+                                            {% if season.is_special %}
+                                                Specials
+                                            {% else %}
+                                                Season {{ season.season_number }}
+                                            {% endif %}
+                                        </span>
+
+                                        <strong>
+                                            {% if season.current_progress %}
+                                                {{ season.current_progress.episodes_watched }}
+                                            {% else %}
+                                                0
+                                            {% endif %}
+                                            /
+                                            {{ season.episode_count }}
+                                        </strong>
+                                    </summary>
+
+                                    <form
+                                        method="post"
+                                        action="{% url 'watchroom:update_season_progress' work.slug progress_run.pk season.pk %}"
+                                        class="owner-progress-main"
+                                    >
+                                        {% csrf_token %}
+
+                                        {% if season.progress_form.non_field_errors %}
+                                            <div class="owner-form-error">
+                                                {% for error in season.progress_form.non_field_errors %}
+                                                    <p>{{ error }}</p>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+
+                                        <label
+                                            class="owner-field"
+                                            for="{{ season.progress_form.episodes_watched.id_for_label }}"
+                                        >
+                                            <span>Episodes Watched</span>
+
+                                            <div class="owner-progress-counter">
+                                                {{ season.progress_form.episodes_watched }}
+
+                                                <strong>
+                                                    / {{ season.episode_count }}
+                                                </strong>
+                                            </div>
+
+                                            {% for error in season.progress_form.episodes_watched.errors %}
+                                                <strong class="owner-form-error">
+                                                    {{ error }}
+                                                </strong>
+                                            {% endfor %}
+                                        </label>
+
+                                        <button
+                                            type="submit"
+                                            class="owner-progress-save"
+                                        >
+                                            Save Progress
+                                        </button>
+                                    </form>
+                                </details>
+                            {% endfor %}
+                        </div>
+                    </section>
+                {% endif %}
+
+                {% if viewing_runs %}
+                    <div class="owner-management-list owner-run-list">
+                        {% for run in viewing_runs %}
+                            <details
+                                class="owner-management-item"
+
+                                {% if run_action_id == run.pk %}
+                                    open
+                                {% endif %}
+                            >
+                                <summary>
+                                    <span>
+                                        Run {{ run.number }}
+
+                                        {% if run.is_rewatch %}
+                                            · Rewatch
+                                        {% else %}
+                                            · First Watch
+                                        {% endif %}
+                                    </span>
+
+                                    <strong>
+                                        {{ run.get_status_display }}
+                                    </strong>
+                                </summary>
+
+                                {% if run_action_id == run.pk and run_action_error %}
+                                    <p class="owner-form-error">
+                                        {{ run_action_error }}
+                                    </p>
+                                {% endif %}
+
+                                {% if run.is_active %}
+                                    <div class="run-transition-actions">
+                                        {% if run.status == "watching" %}
+                                            <form
+                                                method="post"
+                                                action="{% url 'watchroom:transition_run' work.slug run.pk 'pause' %}"
+                                            >
+                                                {% csrf_token %}
+
+                                                <button type="submit">
+                                                    Pause
+                                                </button>
+                                            </form>
+                                        {% else %}
+                                            <form
+                                                method="post"
+                                                action="{% url 'watchroom:transition_run' work.slug run.pk 'resume' %}"
+                                            >
+                                                {% csrf_token %}
+
+                                                <button type="submit">
+                                                    Resume
+                                                </button>
+                                            </form>
+                                        {% endif %}
+
+                                        <form
+                                            method="post"
+                                            action="{% url 'watchroom:transition_run' work.slug run.pk 'complete' %}"
+                                        >
+                                            {% csrf_token %}
+
+                                            <button
+                                                type="submit"
+                                                class="run-action-complete"
+                                            >
+                                                Complete
+                                            </button>
+                                        </form>
+
+                                        <form
+                                            method="post"
+                                            action="{% url 'watchroom:transition_run' work.slug run.pk 'drop' %}"
+                                        >
+                                            {% csrf_token %}
+
+                                            <button
+                                                type="submit"
+                                                class="run-action-drop"
+                                            >
+                                                Drop
+                                            </button>
+                                        </form>
+                                    </div>
+                                {% endif %}
+
+                                <form
+                                    method="post"
+                                    action="{% url 'watchroom:update_run' work.slug run.pk %}"
+                                    class="owner-form-grid"
+                                >
+                                    {% csrf_token %}
+
+                                    {% if run.owner_form.non_field_errors %}
+                                        <div
+                                            class="
+                                                owner-form-error
+                                                owner-field--wide
+                                            "
+                                        >
+                                            {% for error in run.owner_form.non_field_errors %}
+                                                <p>{{ error }}</p>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+
+                                    <label
+                                        class="owner-field"
+                                        for="{{ run.owner_form.started_on.id_for_label }}"
+                                    >
+                                        <span>
+                                            {{ run.owner_form.started_on.label }}
+                                        </span>
+
+                                        {{ run.owner_form.started_on }}
+
+                                        {% for error in run.owner_form.started_on.errors %}
+                                            <strong class="owner-form-error">
+                                                {{ error }}
+                                            </strong>
+                                        {% endfor %}
+                                    </label>
+
+                                    {% if not run.is_active %}
+                                        <label
+                                            class="owner-field"
+                                            for="{{ run.owner_form.finished_on.id_for_label }}"
+                                        >
+                                            <span>
+                                                {{ run.owner_form.finished_on.label }}
+                                            </span>
+
+                                            {{ run.owner_form.finished_on }}
+
+                                            {% for error in run.owner_form.finished_on.errors %}
+                                                <strong class="owner-form-error">
+                                                    {{ error }}
+                                                </strong>
+                                            {% endfor %}
+                                        </label>
+                                    {% endif %}
+
+                                    {% if work.media_type == "movie" %}
+                                        <label
+                                            class="owner-field"
+                                            for="{{ run.owner_form.progress_minutes.id_for_label }}"
+                                        >
+                                            <span>
+                                                {{ run.owner_form.progress_minutes.label }}
+                                            </span>
+
+                                            {{ run.owner_form.progress_minutes }}
+
+                                            {% for error in run.owner_form.progress_minutes.errors %}
+                                                <strong class="owner-form-error">
+                                                    {{ error }}
+                                                </strong>
+                                            {% endfor %}
+                                        </label>
+                                    {% endif %}
+
+                                    <label
+                                        class="owner-field owner-field--wide"
+                                        for="{{ run.owner_form.notes.id_for_label }}"
+                                    >
+                                        <span>
+                                            {{ run.owner_form.notes.label }}
+                                        </span>
+
+                                        {{ run.owner_form.notes }}
+
+                                        {% for error in run.owner_form.notes.errors %}
+                                            <strong class="owner-form-error">
+                                                {{ error }}
+                                            </strong>
+                                        {% endfor %}
+                                    </label>
+
+                                    <div
+                                        class="
+                                            owner-form-actions
+                                            owner-field--wide
+                                        "
+                                    >
+                                        <button type="submit">
+                                            Save Run Details
+                                        </button>
+                                    </div>
+                                </form>
+                            </details>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </article>
+
+            {% if work.media_type == "series" %}
+                <article
+                    id="season-management"
+                    class="owner-panel"
+                >
+                    <h3>Add Season</h3>
+
+                    <form
+                        method="post"
+                        action="{% url 'watchroom:create_season' work.slug %}"
+                        class="owner-form-grid"
+                    >
+                        {% csrf_token %}
+
+                        {% if new_season_form.non_field_errors %}
+                            <div class="owner-form-error owner-field--wide">
+                                {% for error in new_season_form.non_field_errors %}
+                                    <p>{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        {% for field in new_season_form %}
+                            <label
+                                class="owner-field"
+                                for="{{ field.id_for_label }}"
+                            >
+                                <span>{{ field.label }}</span>
+                                {{ field }}
+
+                                {% for error in field.errors %}
+                                    <strong class="owner-form-error">
+                                        {{ error }}
+                                    </strong>
+                                {% endfor %}
+                            </label>
+                        {% endfor %}
+
+                        <div class="owner-form-actions owner-field--wide">
+                            <button type="submit">
+                                Add Season
+                            </button>
+                        </div>
+                    </form>
+                </article>
+
+                {% if all_seasons %}
+                    <article class="owner-panel">
+                        <h3>Manage Seasons</h3>
+
+                        <div class="owner-management-list">
+                            {% for season in all_seasons %}
+                                <details class="owner-management-item">
+                                    <summary>
+                                        {% if season.is_special %}
+                                            Specials
+                                        {% else %}
+                                            Season {{ season.season_number }}
+                                        {% endif %}
+
+                                        · {{ season.episode_count }} episodes
+                                    </summary>
+
+                                    {% if season_action_id == season.pk and season_action_error %}
+                                        <p class="owner-form-error">
+                                            {{ season_action_error }}
+                                        </p>
+                                    {% endif %}
+
+                                    <form
+                                        method="post"
+                                        action="{% url 'watchroom:update_season' work.slug season.pk %}"
+                                        class="owner-form-grid"
+                                    >
+                                        {% csrf_token %}
+
+                                        {% for field in season.owner_form %}
+                                            <label
+                                                class="owner-field"
+                                                for="{{ field.id_for_label }}"
+                                            >
+                                                <span>
+                                                    {{ field.label }}
+                                                </span>
+
+                                                {{ field }}
+
+                                                {% for error in field.errors %}
+                                                    <strong class="owner-form-error">
+                                                        {{ error }}
+                                                    </strong>
+                                                {% endfor %}
+                                            </label>
+                                        {% endfor %}
+
+                                        <div class="owner-form-actions owner-field--wide">
+                                            <button type="submit">
+                                                Save Season
+                                            </button>
+                                        </div>
+                                    </form>
+
+                                    <form
+                                        method="post"
+                                        action="{% url 'watchroom:delete_season' work.slug season.pk %}"
+                                        class="owner-delete-form"
+                                    >
+                                        {% csrf_token %}
+
+                                        <button type="submit">
+                                            Delete Season
+                                        </button>
+                                    </form>
+                                </details>
+                            {% endfor %}
+                        </div>
+                    </article>
+                {% endif %}
+            {% endif %}
+        </section>
+    {% endif %}
+{% endblock %}

@@ -101,11 +101,6 @@ class PlatformAccessTests(TestCase):
         response = self.client.get(
             reverse("core:home")
         )
-
-        self.assertNotContains(
-            response,
-            'href="/watchroom/"',
-        )
         self.assertNotContains(
             response,
             'href="/music/"',
@@ -113,4 +108,30 @@ class PlatformAccessTests(TestCase):
         self.assertNotContains(
             response,
             'href="/activity/"',
+        )
+
+    def test_watchroom_is_an_available_module_link(
+        self,
+    ):
+        response = self.client.get(
+            reverse("core:home")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertContains(
+            response,
+            reverse(
+                "watchroom:dashboard"
+            ),
+        )
+        self.assertContains(
+            response,
+            "Watchroom",
+        )
+        self.assertContains(
+            response,
+            "Available",
         )
