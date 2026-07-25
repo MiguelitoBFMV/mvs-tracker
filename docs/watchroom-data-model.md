@@ -1,6 +1,6 @@
 # Watchroom — MVP Data Model and Architecture
 
-This document defines the initial MVP architecture for **Watchroom — Series & Movies** inside MVS Tracker.
+This document describes the approved MVP architecture and the current implemented public foundation for **Watchroom — Series & Movies** inside MVS Tracker.
 
 Watchroom combines:
 
@@ -11,7 +11,7 @@ Watchroom combines:
 - Authenticated owner management.
 - Movie- and series-specific rules where needed.
 
-This document is the pre-migration foundation for the module.
+The module is now operational through `watchroom.0004`. Its public dashboard, library, and work-detail views are implemented, and the Watchroom regression suite contains **43 passing tests**. Owner write workflows and TMDB integration remain pending.
 
 ---
 
@@ -143,6 +143,8 @@ Refresh seasons
 
 A normal dashboard, library, or detail request must not contact TMDB.
 
+At the current checkpoint, the local-first read path is implemented. The TMDB client, search, import, linking, and refresh services are still pending.
+
 ### Attribution
 
 The required TMDB attribution will be displayed in the Watchroom or global footer.
@@ -181,6 +183,8 @@ SeasonProgress
     inside one viewing run.
 ```
 
+All five models in the conceptual graph are implemented.
+
 Watchroom does not require these MVP models:
 
 ```text
@@ -197,7 +201,7 @@ EpisodeSegment
 
 Personal progress and status do not belong here.
 
-### Proposed Fields
+### Implemented Fields
 
 | Field | Type | Nullable / blank | Description |
 |---|---|---:|---|
@@ -279,6 +283,7 @@ A manual local work may exist without a TMDB ID.
 - `slug` is globally unique.
 - It is generated when the work is created.
 - It remains stable after visible title edits.
+- `get_absolute_url()` resolves to the public Watchroom detail route.
 
 ---
 
@@ -298,7 +303,7 @@ dropped
 completed
 ```
 
-### Proposed Fields
+### Implemented Fields
 
 | Field | Type | Nullable / blank | Description |
 |---|---|---:|---|
@@ -361,7 +366,7 @@ completed
 dropped
 ```
 
-### Proposed Fields
+### Implemented Fields
 
 | Field | Type | Nullable / blank | Description |
 |---|---|---:|---|
@@ -439,7 +444,7 @@ Series progress is stored through `SeasonProgress`, not `progress_minutes`.
 
 `Season` exists only for series.
 
-### Proposed Fields
+### Implemented Fields
 
 | Field | Type | Nullable / blank | Description |
 |---|---|---:|---|
@@ -518,7 +523,7 @@ No separate `is_special` database field is required in the MVP.
 
 `SeasonProgress` stores aggregated series progress inside one viewing run.
 
-### Proposed Fields
+### Implemented Fields
 
 | Field | Type | Nullable / blank | Description |
 |---|---|---:|---|
@@ -715,9 +720,38 @@ When a refreshed episode total becomes lower than existing progress, the operati
 
 ---
 
-## 13. Database Constraints
+## 13. Current Public Read Architecture
 
-Planned constraints include:
+The public views share a common optimized read layer under `watchroom/web/common.py`.
+
+It:
+
+- Uses `select_related()` for `MediaWork`.
+- Prefetches seasons, viewing runs, and season progress.
+- Detects active rewatches with an `Exists` annotation.
+- Derives current run, display run, run count, and activity labels.
+- Derives movie-minute progress.
+- Sums non-special episode totals for series.
+- Derives current season progress and overall progress.
+- Derives `Up to Date` without writing to the database.
+
+The web layer is modularized as:
+
+```text
+watchroom/web/
+├── common.py
+├── dashboard.py
+├── detail.py
+└── library.py
+```
+
+Normal GET requests remain read only.
+
+---
+
+## 14. Database Constraints
+
+Implemented constraints include:
 
 - Unique `MediaWork.slug`.
 - Unique `MediaWork(media_type, tmdb_id)` when `tmdb_id` is present.
@@ -737,7 +771,7 @@ Cross-model limits such as `episodes_watched <= episode_count` remain model/form
 
 ---
 
-## 14. Owner and Public Access
+## 15. Owner and Public Access
 
 Public visitors may:
 
@@ -747,7 +781,7 @@ Public visitors may:
 - View progress and watch history.
 - View seasons and aggregate progress.
 
-Only the authenticated owner may:
+The authenticated owner will eventually be able to:
 
 - Search TMDB.
 - Import or link works.
@@ -759,7 +793,9 @@ Only the authenticated owner may:
 - Add notes.
 - Delete eligible local records.
 
-Mutating endpoints require:
+The public read paths above are implemented. The owner forms and mutating endpoints listed below are still pending.
+
+When implemented, mutating endpoints require:
 
 ```text
 login
@@ -771,95 +807,121 @@ Normal GET requests remain read-only.
 
 ---
 
-## 15. Planned Routes
+## 16. Routes
+
+### Implemented Public Routes
 
 ```text
-/watchroom/
-/watchroom/library/
-/watchroom/library/<slug>/
-/watchroom/search/
-/watchroom/import/<media_type>/<tmdb_id>/
+/watchroom/                         Dashboard
+/watchroom/library/                 Library
+/watchroom/library/<slug>/          Work detail
 ```
+
+These routes are publicly accessible and read only.
+
+### Planned Owner Routes
 
 Owner actions will use nested work-detail routes where practical.
 
 Examples:
 
 ```text
+/watchroom/search/
+/watchroom/import/<media_type>/<tmdb_id>/
+/watchroom/library/<slug>/entry/update/
 /watchroom/library/<slug>/runs/create/
 /watchroom/library/<slug>/runs/<id>/update/
 /watchroom/library/<slug>/seasons/refresh/
 /watchroom/library/<slug>/progress/<season_id>/update/
 ```
 
-Final route names may be adjusted during implementation.
+Final owner route names may be adjusted during implementation.
 
 ---
 
-## 16. MVP Dashboard
+## 17. Implemented Public Dashboard
 
-The initial dashboard should prioritise:
+The dashboard is available at `/watchroom/`.
 
+Current metrics:
+
+- Total works.
 - Watching.
-- Up to Date.
-- Paused.
-- Plan to Watch.
 - Completed.
+- Plan to Watch.
 - Movies.
 - Series.
-- Recent progress.
-- Current rewatches.
 
-The dashboard should not require episode-level rows.
+Current sections:
 
-Example cards:
+- Now Watching.
+- Recently Updated.
+- Empty states for a new library.
+- Owner or read-only access state.
+- TMDB attribution footer.
+
+The dashboard uses local PostgreSQL data and shared prefetched query helpers. It does not require episode-level rows or external API requests.
+
+Example card state:
 
 ```text
 Phineas and Ferb
 Watching
 Season 1 · 12 / 38
-
-Wizards of Waverly Place
-Completed
-
-Saw
-Plan to Watch
 ```
 
 ---
 
-## 17. Library Filters
+## 18. Implemented Public Library and Detail Views
 
-Initial filters:
+The library is available at `/watchroom/library/`.
+
+Implemented search and filters:
 
 ```text
-All
-Movies
-Series
-Watching
-Paused
-Plan to Watch
-Completed
-Dropped
-Animation / Cartoon
-Live Action
-Documentary
-Rewatching
+Title or original title
+Movie or Series
+Personal status
+Presentation
+Active rewatch
 ```
 
-Ordering:
+Implemented ordering:
 
 ```text
 Title
-Recently updated
-Release date
-Recently started
-Recently completed
+Recently Updated
+Newest Release
+Oldest Release
 ```
+
+Each library card shows:
+
+- Poster or local fallback initials.
+- Type.
+- Presentation.
+- Title and optional original title.
+- Synopsis preview.
+- Derived activity state.
+- Current progress.
+- Viewing-run count.
+
+The work-detail page shows:
+
+- Poster and optional backdrop.
+- Type, presentation, and imported external status.
+- Release Date for movies or First Aired for series.
+- Runtime for movies.
+- Aggregate progress for series.
+- Seasons and Season 0 / Specials.
+- Current run progress.
+- First-watch and rewatch history.
+- Up to Date when the active run matches all imported non-special episodes.
+- Public 404 behaviour for unknown slugs.
 
 ---
 
-## 18. Decisions Outside the MVP
+## 19. Decisions Outside the MVP
 
 The initial MVP excludes:
 
@@ -884,7 +946,7 @@ These may be added later only when they provide clear value.
 
 ---
 
-## 19. Future Extensions
+## 20. Future Extensions
 
 Possible post-MVP additions:
 
@@ -901,38 +963,48 @@ Possible post-MVP additions:
 
 ---
 
-## 20. Initial Implementation Order
+## 21. Implementation Progress
 
 ```text
-1. Create Watchroom Django app
-2. Add module routes and navigation
-3. Implement MediaWork and WatchEntry
-4. Implement Season
-5. Implement ViewingRun and SeasonProgress
-6. Add initial owner forms
-7. Add public library and detail views
-8. Add TMDB client and search
-9. Add local import workflow
-10. Add metadata and season refresh
-11. Add dashboard
-12. Add tests and hardening
-13. Update repository documentation
+[x] Create Watchroom Django app
+[x] Add public module routes and navigation
+[x] Implement MediaWork and WatchEntry
+[x] Implement Season
+[x] Implement ViewingRun and SeasonProgress
+[x] Add the public dashboard
+[x] Add the public library and detail views
+[x] Add dashboard, library, detail, and model tests
+[x] Add the initial technical document
+[ ] Add owner forms and write endpoints
+[ ] Add local manual creation workflows
+[ ] Add run transitions and progress editing
+[ ] Add TMDB client and search
+[ ] Add local TMDB import and linking
+[ ] Add metadata and season refresh
+[ ] Validate the interface with real imported data
+[ ] Complete final hardening and documentation
 ```
 
 ---
 
-## 21. Current Decision Checkpoint
+## 22. Current Implementation Checkpoint
 
 ```text
 Document: watchroom-data-model.md
 Module: Watchroom
-Stage: Pre-migration architecture
-Status: Core MVP model approved
-Primary source: TMDB
+Stage: Public foundation
+Status: Implemented on feat/watchroom-foundation
+Current migration: watchroom.0004
+Watchroom tests: 43 OK
+Active routes: Dashboard, Library, Work Detail
+Primary source: TMDB selected; integration pending
 Storage strategy: Local-first
 Progress style: MAL-like aggregate progress
 History style: Game Kiroku-like ViewingRun history
 Primary types: Movie and Series
 Episode rows: Excluded
 TMDB attribution: Footer
+Next block: Owner forms and write workflows
 ```
+
+This branch should remain separate from `main` until owner write workflows, real-data validation, and the next hardening checkpoint are complete.
