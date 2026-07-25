@@ -13,6 +13,10 @@ from django.db.models.deletion import (
     ProtectedError,
 )
 
+from django.contrib.auth import (
+    get_user_model,
+)
+
 from django.test import TestCase
 
 from .models import (
@@ -21,6 +25,14 @@ from .models import (
     SeasonProgress,
     ViewingRun,
     WatchEntry,
+)
+
+from .forms import (
+    ManualMediaWorkOwnerForm,
+    NewViewingRunOwnerForm,
+    SeasonOwnerForm,
+    SeasonProgressOwnerForm,
+    WatchEntryOwnerForm,
 )
 
 
@@ -1187,6 +1199,618 @@ class WatchroomPublicLibraryTests(TestCase):
         self.assertEqual(
             response.status_code,
             404,
+        )
+
+
+class WatchroomOwnerFormTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.movie = MediaWork.objects.create(
+            media_type=(
+                MediaWork.MediaType.MOVIE
+            ),
+            title="Saw",
+            runtime_minutes=103,
+        )
+        cls.movie_entry = (
+            WatchEntry.objects.create(
+                media_work=cls.movie,
+            )
+        )
+
+        cls.series = MediaWork.objects.create(
+            media_type=(
+                MediaWork.MediaType.SERIES
+            ),
+            title="Phineas and Ferb",
+            presentation=(
+                MediaWork.Presentation.ANIMATION
+            ),
+        )
+        cls.series_entry = (
+            WatchEntry.objects.create(
+                media_work=cls.series,
+            )
+        )
+        cls.season = Season.objects.create(
+            media_work=cls.series,
+            season_number=1,
+            episode_count=38,
+        )
+
+    def test_manual_movie_form_accepts_runtime(
+        self,
+    ):
+        form = ManualMediaWorkOwnerForm(
+            data={
+                "media_type": "movie",
+                "title": "The Purge",
+                "original_title": "",
+                "presentation": "live_action",
+                "overview": "",
+                "original_language": "en",
+                "first_release_date": "",
+                "runtime_minutes": 90,
+                "external_status": "",
+                "poster_url": "",
+                "backdrop_url": "",
+                "status": "plan_to_watch",
+                "notes": "",
+            },
+        )
+
+        self.assertTrue(
+            form.is_valid(),
+            form.errors,
+        )
+
+    def test_manual_series_form_rejects_runtime(
+        self,
+    ):
+        form = ManualMediaWorkOwnerForm(
+            data={
+                "media_type": "series",
+                "title": "Example Series",
+                "original_title": "",
+                "presentation": "live_action",
+                "overview": "",
+                "original_language": "en",
+                "first_release_date": "",
+                "runtime_minutes": 22,
+                "external_status": "",
+                "poster_url": "",
+                "backdrop_url": "",
+                "status": "plan_to_watch",
+                "notes": "",
+            },
+        )
+
+        self.assertFalse(
+            form.is_valid()
+        )
+        self.assertIn(
+            "runtime_minutes",
+            form.errors,
+        )
+
+    def test_entry_form_rejects_watching_without_run(
+        self,
+    ):
+        form = WatchEntryOwnerForm(
+            data={
+                "status": "watching",
+                "notes": "",
+            },
+            instance=self.movie_entry,
+        )
+
+        self.assertFalse(
+            form.is_valid()
+        )
+        self.assertIn(
+            "status",
+            form.errors,
+        )
+
+    def test_entry_status_is_disabled_with_history(
+        self,
+    ):
+        ViewingRun.objects.create(
+            watch_entry=self.movie_entry,
+            number=1,
+            status=(
+                ViewingRun.Status.COMPLETED
+            ),
+        )
+
+        form = WatchEntryOwnerForm(
+            instance=self.movie_entry,
+        )
+
+        self.assertTrue(
+            form.fields["status"].disabled
+        )
+
+    def test_season_form_assigns_parent_series(
+        self,
+    ):
+        form = SeasonOwnerForm(
+            data={
+                "season_number": 2,
+                "name": "Season 2",
+                "episode_count": 39,
+                "air_date": "",
+                "poster_url": "",
+            },
+            media_work=self.series,
+        )
+
+        self.assertTrue(
+            form.is_valid(),
+            form.errors,
+        )
+
+        season = form.save(
+            commit=False
+        )
+
+        self.assertEqual(
+            season.media_work,
+            self.series,
+        )
+
+    def test_new_run_form_rejects_second_active_run(
+        self,
+    ):
+        ViewingRun.objects.create(
+            watch_entry=self.movie_entry,
+            number=1,
+            status=(
+                ViewingRun.Status.PAUSED
+            ),
+        )
+
+        form = NewViewingRunOwnerForm(
+            data={
+                "started_on": "",
+                "progress_minutes": "",
+                "notes": "",
+            },
+            watch_entry=self.movie_entry,
+        )
+
+        self.assertFalse(
+            form.is_valid()
+        )
+        self.assertTrue(
+            form.non_field_errors()
+        )
+
+    def test_series_run_form_disables_minutes(
+        self,
+    ):
+        form = NewViewingRunOwnerForm(
+            watch_entry=self.series_entry,
+        )
+
+        self.assertTrue(
+            form.fields[
+                "progress_minutes"
+            ].disabled
+        )
+
+    def test_season_progress_form_enforces_total(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=(
+                ViewingRun.Status.WATCHING
+            ),
+        )
+
+        form = SeasonProgressOwnerForm(
+            data={
+                "episodes_watched": 39,
+                "started_on": "",
+                "finished_on": "",
+            },
+            viewing_run=run,
+            season=self.season,
+        )
+
+        self.assertFalse(
+            form.is_valid()
+        )
+        self.assertIn(
+            "episodes_watched",
+            form.errors,
+        )
+
+
+class WatchroomOwnerWorkflowTests(
+    TestCase
+):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects.create_user(
+                username="watchroom-owner",
+                password="test-password",
+            )
+        )
+
+        cls.movie = MediaWork.objects.create(
+            media_type="movie",
+            title="Saw",
+            runtime_minutes=103,
+        )
+        cls.movie_entry = (
+            WatchEntry.objects.create(
+                media_work=cls.movie,
+            )
+        )
+
+        cls.series = MediaWork.objects.create(
+            media_type="series",
+            title="Phineas and Ferb",
+            presentation="animation",
+        )
+        cls.series_entry = (
+            WatchEntry.objects.create(
+                media_work=cls.series,
+            )
+        )
+        cls.season = Season.objects.create(
+            media_work=cls.series,
+            season_number=1,
+            episode_count=38,
+        )
+
+    def manual_work_payload(
+        self,
+        *,
+        title="The Purge",
+        status="plan_to_watch",
+    ):
+        return {
+            "media_type": "movie",
+            "title": title,
+            "original_title": "",
+            "presentation": "live_action",
+            "overview": "",
+            "original_language": "en",
+            "first_release_date": "",
+            "runtime_minutes": 90,
+            "external_status": "",
+            "poster_url": "",
+            "backdrop_url": "",
+            "status": status,
+            "notes": "",
+        }
+
+    def test_create_work_requires_login(self):
+        response = self.client.get(
+            reverse(
+                "watchroom:create_work"
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+    def test_owner_can_create_manual_work(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:create_work"
+            ),
+            self.manual_work_payload(),
+        )
+
+        work = MediaWork.objects.get(
+            title="The Purge"
+        )
+
+        self.assertRedirects(
+            response,
+            work.get_absolute_url(),
+        )
+        self.assertTrue(
+            WatchEntry.objects.filter(
+                media_work=work,
+                status="plan_to_watch",
+            ).exists()
+        )
+
+    def test_completed_manual_work_creates_run(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:create_work"
+            ),
+            self.manual_work_payload(
+                title="Completed Movie",
+                status="completed",
+            ),
+        )
+
+        entry = WatchEntry.objects.get(
+            media_work__title=(
+                "Completed Movie"
+            )
+        )
+
+        self.assertTrue(
+            ViewingRun.objects.filter(
+                watch_entry=entry,
+                number=1,
+                status="completed",
+            ).exists()
+        )
+
+    def test_entry_update_is_post_only(self):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            reverse(
+                "watchroom:update_entry",
+                kwargs={
+                    "slug": self.movie.slug,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            405,
+        )
+
+    def test_owner_can_update_entry(self):
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:update_entry",
+                kwargs={
+                    "slug": self.movie.slug,
+                },
+            ),
+            {
+                "entry-status": "dropped",
+                "entry-notes": (
+                    "Stopped for now."
+                ),
+            },
+        )
+
+        self.movie_entry.refresh_from_db()
+
+        self.assertEqual(
+            self.movie_entry.status,
+            "dropped",
+        )
+        self.assertEqual(
+            self.movie_entry.notes,
+            "Stopped for now.",
+        )
+
+    def test_owner_can_create_season(self):
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:create_season",
+                kwargs={
+                    "slug": self.series.slug,
+                },
+            ),
+            {
+                "new-season-season_number": 2,
+                "new-season-name": "Season 2",
+                "new-season-episode_count": 39,
+                "new-season-air_date": "",
+                "new-season-poster_url": "",
+            },
+        )
+
+        self.assertTrue(
+            Season.objects.filter(
+                media_work=self.series,
+                season_number=2,
+                episode_count=39,
+            ).exists()
+        )
+
+    def test_season_count_cannot_drop_below_progress(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status="watching",
+        )
+        SeasonProgress.objects.create(
+            viewing_run=run,
+            season=self.season,
+            episodes_watched=12,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:update_season",
+                kwargs={
+                    "slug": self.series.slug,
+                    "season_id": self.season.pk,
+                },
+            ),
+            {
+                (
+                    f"season-{self.season.pk}"
+                    "-season_number"
+                ): 1,
+                (
+                    f"season-{self.season.pk}"
+                    "-name"
+                ): "Season 1",
+                (
+                    f"season-{self.season.pk}"
+                    "-episode_count"
+                ): 10,
+                (
+                    f"season-{self.season.pk}"
+                    "-air_date"
+                ): "",
+                (
+                    f"season-{self.season.pk}"
+                    "-poster_url"
+                ): "",
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        rendered_season = next(
+            season
+            for season in response.context[
+                "all_seasons"
+            ]
+            if season.pk == self.season.pk
+        )
+
+        self.assertIsNotNone(
+            rendered_season.owner_form
+        )
+        self.assertIn(
+            "episode_count",
+            rendered_season.owner_form.errors,
+        )
+        self.assertEqual(
+            rendered_season.owner_form.errors[
+                "episode_count"
+            ],
+            [
+                (
+                    "Episode count cannot be lower "
+                    "than the existing progress of 12."
+                ),
+            ],
+        )
+
+        self.season.refresh_from_db()
+
+        self.assertEqual(
+            self.season.episode_count,
+            38,
+        )
+
+    def test_owner_can_delete_unused_season(
+        self,
+    ):
+        unused = Season.objects.create(
+            media_work=self.series,
+            season_number=2,
+            episode_count=10,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:delete_season",
+                kwargs={
+                    "slug": self.series.slug,
+                    "season_id": unused.pk,
+                },
+            )
+        )
+
+        self.assertFalse(
+            Season.objects.filter(
+                pk=unused.pk,
+            ).exists()
+        )
+
+    def test_season_with_progress_is_protected(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status="watching",
+        )
+        SeasonProgress.objects.create(
+            viewing_run=run,
+            season=self.season,
+            episodes_watched=12,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:delete_season",
+                kwargs={
+                    "slug": self.series.slug,
+                    "season_id": self.season.pk,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertEqual(
+            response.context[
+                "season_action_error"
+            ],
+            (
+                "This season cannot be deleted "
+                "because viewing progress already "
+                "references it."
+            ),
+        )
+        self.assertEqual(
+            response.context[
+                "season_action_id"
+            ],
+            self.season.pk,
+        )
+        self.assertTrue(
+            Season.objects.filter(
+                pk=self.season.pk,
+            ).exists()
         )
 
 
