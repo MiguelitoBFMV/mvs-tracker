@@ -537,3 +537,559 @@ textarea {
     }
 }
 
+/* =========================================================
+   Watchroom Library
+   ========================================================= */
+
+.library-hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 28px;
+    padding-bottom: 28px;
+}
+
+.library-hero h1 {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 3.1rem);
+    letter-spacing: -0.05em;
+}
+
+.library-hero > div > p:last-child {
+    margin: 13px 0 0;
+    color: var(--muted);
+}
+
+.library-result-count {
+    min-width: 130px;
+    padding: 15px 18px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface);
+}
+
+.library-result-count span,
+.library-result-count strong,
+.library-result-count small {
+    display: block;
+}
+
+.library-result-count span {
+    color: var(--accent);
+    font-size: 0.6rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.library-result-count strong {
+    margin-top: 5px;
+    font-size: 1.6rem;
+}
+
+.library-result-count small {
+    color: var(--muted);
+}
+
+.library-controls {
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    background: var(--surface);
+}
+
+.library-controls h2 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.library-controls form {
+    display: grid;
+    grid-template-columns:
+        minmax(220px, 2fr)
+        repeat(5, minmax(130px, 1fr));
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.library-field {
+    display: grid;
+    min-width: 0;
+    gap: 7px;
+}
+
+.library-field > span {
+    color: var(--muted);
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.library-field input,
+.library-field select {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 11px;
+    border: 1px solid var(--border-strong);
+    border-radius: 9px;
+    outline: none;
+    background: var(--background);
+    color: var(--text);
+}
+
+.library-field input:focus,
+.library-field select:focus {
+    border-color: var(--accent);
+}
+
+.library-actions {
+    display: flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    gap: 10px;
+}
+
+.library-actions button,
+.library-actions a {
+    padding: 9px 13px;
+    border: 1px solid var(--border-strong);
+    border-radius: 9px;
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-decoration: none;
+}
+
+.library-actions button {
+    border-color: rgba(125, 211, 252, 0.4);
+    background: var(--accent-soft);
+    color: var(--accent);
+    cursor: pointer;
+}
+
+.library-actions a {
+    color: var(--muted);
+}
+
+.library-results {
+    margin-top: 32px;
+}
+
+.library-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+    gap: 15px;
+}
+
+.library-card {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 128px minmax(0, 1fr);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    background: var(--surface);
+    color: inherit;
+    text-decoration: none;
+}
+
+.library-card:hover {
+    border-color: rgba(125, 211, 252, 0.46);
+    background: var(--surface-raised);
+}
+
+.library-card-poster {
+    display: grid;
+    min-height: 205px;
+    place-items: center;
+    overflow: hidden;
+    background:
+        linear-gradient(
+            145deg,
+            rgba(56, 189, 248, 0.16),
+            rgba(196, 181, 253, 0.09)
+        );
+    color: var(--accent);
+    font-size: 1.8rem;
+    font-weight: 900;
+}
+
+.library-card-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.library-card-body {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    padding: 17px;
+}
+
+.library-card h3 {
+    margin: 12px 0 5px;
+    font-size: 1rem;
+}
+
+.library-original-title {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.68rem;
+}
+
+.library-overview {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 13px 0;
+    color: var(--muted);
+    font-size: 0.72rem;
+    line-height: 1.55;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+}
+
+.library-card-footer {
+    display: grid;
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 13px;
+    border-top: 1px solid var(--border);
+}
+
+.library-card-footer span,
+.library-card-footer strong {
+    display: block;
+}
+
+.library-card-footer span {
+    color: var(--muted);
+    font-size: 0.55rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.library-card-footer strong {
+    margin-top: 4px;
+    overflow: hidden;
+    color: var(--highlight);
+    font-size: 0.64rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* =========================================================
+   Watchroom Detail
+   ========================================================= */
+
+.work-detail-hero {
+    position: relative;
+    overflow: hidden;
+    min-height: 320px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--surface);
+}
+
+.work-detail-backdrop {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(
+            90deg,
+            rgba(7, 11, 18, 0.97),
+            rgba(7, 11, 18, 0.74)
+        ),
+        var(--work-backdrop);
+    background-position: center;
+    background-size: cover;
+}
+
+.work-detail-content {
+    position: relative;
+    display: flex;
+    align-items: end;
+    gap: 28px;
+    padding: 34px;
+}
+
+.work-detail-poster {
+    display: grid;
+    width: 180px;
+    aspect-ratio: 2 / 3;
+    flex: 0 0 auto;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    background: var(--surface-raised);
+    color: var(--accent);
+    font-size: 2rem;
+    font-weight: 900;
+}
+
+.work-detail-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.work-detail-heading h1 {
+    margin: 13px 0 7px;
+    font-size: clamp(2rem, 5vw, 4.4rem);
+    letter-spacing: -0.055em;
+}
+
+.work-original-title,
+.work-current-progress {
+    color: var(--muted);
+}
+
+.work-current-status {
+    display: block;
+    margin-top: 17px;
+    color: var(--highlight);
+}
+
+.up-to-date-badge {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 5px 8px;
+    border: 1px solid rgba(110, 231, 183, 0.4);
+    border-radius: 999px;
+    color: var(--success);
+    font-size: 0.62rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.work-detail-grid {
+    display: grid;
+    grid-template-columns:
+        minmax(0, 2fr)
+        minmax(250px, 0.8fr);
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.work-detail-panel,
+.work-facts {
+    padding: 22px;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    background: var(--surface);
+}
+
+.work-detail-panel h2 {
+    margin: 0;
+}
+
+.work-overview {
+    margin: 16px 0 0;
+    color: var(--muted);
+    line-height: 1.75;
+}
+
+.work-facts {
+    display: grid;
+    gap: 14px;
+}
+
+.work-facts div {
+    padding-bottom: 13px;
+    border-bottom: 1px solid var(--border);
+}
+
+.work-facts div:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.work-facts span,
+.work-facts strong {
+    display: block;
+}
+
+.work-facts span {
+    color: var(--muted);
+    font-size: 0.61rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.work-facts strong {
+    margin-top: 5px;
+}
+
+.detail-section {
+    margin-top: 30px;
+    padding-top: 27px;
+    border-top: 1px solid var(--border);
+}
+
+.season-list,
+.run-list {
+    display: grid;
+    gap: 10px;
+}
+
+.season-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 15px 17px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--surface);
+}
+
+.season-row span,
+.season-row strong {
+    display: block;
+}
+
+.season-row span {
+    color: var(--accent);
+    font-size: 0.6rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.season-row strong {
+    margin-top: 4px;
+}
+
+.season-row p {
+    margin: 0;
+    color: var(--highlight);
+    font-weight: 900;
+}
+
+.specials-panel {
+    margin-top: 13px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--surface-soft);
+}
+
+.specials-panel summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-weight: 900;
+}
+
+.specials-panel .season-row {
+    margin-top: 11px;
+}
+
+.run-list {
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+}
+
+.run-card {
+    padding: 17px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface);
+}
+
+.run-card header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.run-card header span {
+    color: var(--accent);
+    font-size: 0.58rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.run-card h3 {
+    margin: 5px 0 0;
+}
+
+.run-card header > strong {
+    color: var(--highlight);
+    font-size: 0.68rem;
+}
+
+.run-card dl {
+    display: grid;
+    gap: 9px;
+    margin: 18px 0 0;
+}
+
+.run-card dl div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.run-card dt {
+    color: var(--muted);
+}
+
+.run-card dd {
+    margin: 0;
+    text-align: right;
+}
+
+.run-notes {
+    margin: 15px 0 0;
+    padding-top: 13px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+@media (max-width: 1200px) {
+    .library-controls form {
+        grid-template-columns:
+            repeat(3, minmax(0, 1fr));
+    }
+
+    .library-grid,
+    .run-list {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .library-hero,
+    .work-detail-content {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .library-controls form,
+    .library-grid,
+    .run-list,
+    .work-detail-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .work-detail-poster {
+        width: 130px;
+    }
+
+    .library-card {
+        grid-template-columns:
+            100px minmax(0, 1fr);
+    }
+
+    .library-card-footer {
+        grid-template-columns: 1fr;
+    }
+}
+

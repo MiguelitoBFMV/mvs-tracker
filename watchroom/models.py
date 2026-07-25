@@ -1,7 +1,9 @@
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 from django.db import models
 from django.db.models import Q
 from django.utils.text import slugify
+
 
 
 class MediaWork(models.Model):
@@ -151,6 +153,14 @@ class MediaWork(models.Model):
 
     def __str__(self):
         return self.title
+
+    def get_absolute_url(self):
+        return reverse(
+            "watchroom:detail",
+            kwargs={
+                "slug": self.slug,
+            },
+        )
 
     def clean(self):
         super().clean()

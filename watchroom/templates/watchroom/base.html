@@ -60,6 +60,20 @@
                     <span aria-hidden="true">◆</span>
                     Dashboard
                 </a>
+
+                <a
+                    class="
+                        sidebar-link
+
+                        {% if active_page == 'library' %}
+                            sidebar-link--active
+                        {% endif %}
+                    "
+                    href="{% url 'watchroom:library' %}"
+                >
+                    <span aria-hidden="true">▦</span>
+                    Library
+                </a>
             </nav>
 
             <footer class="sidebar-footer">

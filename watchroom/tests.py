@@ -926,3 +926,267 @@ class WatchroomPublicDashboardTests(
         )
 
 
+class WatchroomPublicLibraryTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.movie = MediaWork.objects.create(
+            media_type=(
+                MediaWork.MediaType.MOVIE
+            ),
+            title="Saw",
+            original_title="Saw",
+            presentation=(
+                MediaWork.Presentation.LIVE_ACTION
+            ),
+            runtime_minutes=103,
+        )
+        cls.movie_entry = (
+            WatchEntry.objects.create(
+                media_work=cls.movie,
+                status=(
+                    WatchEntry.Status
+                    .PLAN_TO_WATCH
+                ),
+            )
+        )
+
+        cls.series = MediaWork.objects.create(
+            media_type=(
+                MediaWork.MediaType.SERIES
+            ),
+            title="Phineas and Ferb",
+            presentation=(
+                MediaWork.Presentation.ANIMATION
+            ),
+        )
+        cls.series_entry = (
+            WatchEntry.objects.create(
+                media_work=cls.series,
+                status=(
+                    WatchEntry.Status.WATCHING
+                ),
+            )
+        )
+        cls.series_run = (
+            ViewingRun.objects.create(
+                watch_entry=cls.series_entry,
+                number=1,
+                status=(
+                    ViewingRun.Status.WATCHING
+                ),
+            )
+        )
+        cls.season = Season.objects.create(
+            media_work=cls.series,
+            season_number=1,
+            name="Season 1",
+            episode_count=38,
+        )
+        cls.specials = Season.objects.create(
+            media_work=cls.series,
+            season_number=0,
+            name="Specials",
+            episode_count=4,
+        )
+        SeasonProgress.objects.create(
+            viewing_run=cls.series_run,
+            season=cls.season,
+            episodes_watched=12,
+        )
+
+        cls.completed_work = (
+            MediaWork.objects.create(
+                media_type=(
+                    MediaWork.MediaType.SERIES
+                ),
+                title=(
+                    "Wizards of Waverly Place"
+                ),
+                presentation=(
+                    MediaWork.Presentation
+                    .LIVE_ACTION
+                ),
+            )
+        )
+        cls.completed_entry = (
+            WatchEntry.objects.create(
+                media_work=cls.completed_work,
+                status=(
+                    WatchEntry.Status.COMPLETED
+                ),
+            )
+        )
+        ViewingRun.objects.create(
+            watch_entry=cls.completed_entry,
+            number=1,
+            status=(
+                ViewingRun.Status.COMPLETED
+            ),
+        )
+        ViewingRun.objects.create(
+            watch_entry=cls.completed_entry,
+            number=2,
+            status=(
+                ViewingRun.Status.WATCHING
+            ),
+        )
+
+    def test_library_is_public(self):
+        response = self.client.get(
+            reverse("watchroom:library")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertTemplateUsed(
+            response,
+            "watchroom/library.html",
+        )
+
+    def test_library_searches_by_title(self):
+        response = self.client.get(
+            reverse("watchroom:library"),
+            {
+                "q": "Phineas",
+            },
+        )
+
+        self.assertContains(
+            response,
+            "Phineas and Ferb",
+        )
+        self.assertNotContains(
+            response,
+            ">Saw<",
+            html=True,
+        )
+
+    def test_library_filters_by_type(self):
+        response = self.client.get(
+            reverse("watchroom:library"),
+            {
+                "type": "movie",
+            },
+        )
+
+        self.assertEqual(
+            response.context["result_count"],
+            1,
+        )
+        self.assertContains(
+            response,
+            "Saw",
+        )
+
+    def test_library_filters_by_presentation(
+        self,
+    ):
+        response = self.client.get(
+            reverse("watchroom:library"),
+            {
+                "presentation": "animation",
+            },
+        )
+
+        self.assertEqual(
+            response.context["result_count"],
+            1,
+        )
+        self.assertContains(
+            response,
+            "Phineas and Ferb",
+        )
+
+    def test_library_filters_rewatching(self):
+        response = self.client.get(
+            reverse("watchroom:library"),
+            {
+                "activity": "rewatching",
+            },
+        )
+
+        self.assertEqual(
+            response.context["result_count"],
+            1,
+        )
+        self.assertContains(
+            response,
+            "Wizards of Waverly Place",
+        )
+        self.assertContains(
+            response,
+            "Rewatching",
+        )
+
+    def test_library_links_to_detail(self):
+        response = self.client.get(
+            reverse("watchroom:library")
+        )
+
+        self.assertContains(
+            response,
+            self.series.get_absolute_url(),
+        )
+
+    def test_series_detail_is_public(self):
+        response = self.client.get(
+            self.series.get_absolute_url()
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertTemplateUsed(
+            response,
+            "watchroom/detail.html",
+        )
+        self.assertContains(
+            response,
+            "Season 1",
+        )
+        self.assertContains(
+            response,
+            "12",
+        )
+        self.assertContains(
+            response,
+            "38",
+        )
+        self.assertContains(
+            response,
+            "Specials",
+        )
+
+    def test_movie_detail_shows_runtime(self):
+        response = self.client.get(
+            self.movie.get_absolute_url()
+        )
+
+        self.assertContains(
+            response,
+            "103",
+        )
+        self.assertContains(
+            response,
+            "Runtime",
+        )
+
+    def test_missing_detail_returns_404(self):
+        response = self.client.get(
+            reverse(
+                "watchroom:detail",
+                kwargs={
+                    "slug": "missing-work",
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+

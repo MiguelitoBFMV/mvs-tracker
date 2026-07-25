@@ -1,0 +1,325 @@
+{% extends "watchroom/base.html" %}
+
+{% block title %}
+    {{ work.title }}
+{% endblock %}
+
+{% block module_name %}
+    Work Detail · Watchroom
+{% endblock %}
+
+{% block content %}
+    <article class="work-detail">
+        <header
+            class="work-detail-hero"
+
+            {% if work.backdrop_url %}
+                style="
+                    --work-backdrop:
+                    url('{{ work.backdrop_url }}');
+                "
+            {% endif %}
+        >
+            <div class="work-detail-backdrop"></div>
+
+            <div class="work-detail-content">
+                <div class="work-detail-poster">
+                    {% if work.poster_url %}
+                        <img
+                            src="{{ work.poster_url }}"
+                            alt=""
+                        >
+                    {% else %}
+                        <span aria-hidden="true">
+                            {{ work.title|slice:":2"|upper }}
+                        </span>
+                    {% endif %}
+                </div>
+
+                <div class="work-detail-heading">
+                    <div class="media-card-labels">
+                        <span>
+                            {{ work.get_media_type_display }}
+                        </span>
+
+                        <span>
+                            {{ work.get_presentation_display }}
+                        </span>
+
+                        {% if work.external_status %}
+                            <span>
+                                {{ work.external_status }}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <h1>{{ work.title }}</h1>
+
+                    {% if work.original_title %}
+                        <p class="work-original-title">
+                            {{ work.original_title }}
+                        </p>
+                    {% endif %}
+
+                    <strong class="work-current-status">
+                        {{ entry.activity_label }}
+                    </strong>
+
+                    {% if entry.progress_label %}
+                        <p class="work-current-progress">
+                            {{ entry.progress_label }}
+                        </p>
+                    {% endif %}
+
+                    {% if entry.is_up_to_date %}
+                        <span class="up-to-date-badge">
+                            Up to Date
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+        </header>
+
+        <section class="work-detail-grid">
+            <article class="work-detail-panel">
+                <p class="section-kicker">
+                    Overview
+                </p>
+
+                <h2>About This Work</h2>
+
+                <p class="work-overview">
+                    {% if work.overview %}
+                        {{ work.overview }}
+                    {% else %}
+                        No synopsis available yet.
+                    {% endif %}
+                </p>
+            </article>
+
+            <aside class="work-facts">
+                <div>
+                    <span>
+                        {% if work.media_type == "movie" %}
+                            Release Date
+                        {% else %}
+                            First Aired
+                        {% endif %}
+                    </span>
+
+                    <strong>
+                        {% if work.first_release_date %}
+                            {{ work.first_release_date }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </strong>
+                </div>
+
+                {% if work.media_type == "movie" %}
+                    <div>
+                        <span>Runtime</span>
+
+                        <strong>
+                            {% if work.runtime_minutes %}
+                                {{ work.runtime_minutes }}
+                                min
+                            {% else %}
+                                —
+                            {% endif %}
+                        </strong>
+                    </div>
+                {% else %}
+                    <div>
+                        <span>Progress</span>
+
+                        <strong>
+                            {% if entry.overall_progress_label %}
+                                {{ entry.overall_progress_label }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </strong>
+                    </div>
+                {% endif %}
+
+                <div>
+                    <span>Viewing Runs</span>
+                    <strong>{{ entry.run_count }}</strong>
+                </div>
+            </aside>
+        </section>
+
+        {% if work.media_type == "series" %}
+            <section class="detail-section">
+                <header class="section-heading">
+                    <div>
+                        <p class="section-kicker">
+                            Series Progress
+                        </p>
+
+                        <h2>Seasons</h2>
+                    </div>
+                </header>
+
+                {% if regular_seasons %}
+                    <div class="season-list">
+                        {% for season in regular_seasons %}
+                            <article class="season-row">
+                                <div>
+                                    <span>
+                                        Season
+                                        {{ season.season_number }}
+                                    </span>
+
+                                    <strong>
+                                        {% if season.name %}
+                                            {{ season.name }}
+                                        {% else %}
+                                            Season
+                                            {{ season.season_number }}
+                                        {% endif %}
+                                    </strong>
+                                </div>
+
+                                <p>
+                                    {% if season.current_progress %}
+                                        {{ season.current_progress.episodes_watched }}
+                                    {% else %}
+                                        0
+                                    {% endif %}
+                                    /
+                                    {{ season.episode_count }}
+                                </p>
+                            </article>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <article class="empty-state">
+                        <h3>No seasons stored yet</h3>
+
+                        <p>
+                            Imported seasons will appear
+                            here.
+                        </p>
+                    </article>
+                {% endif %}
+
+                {% if special_seasons %}
+                    <details class="specials-panel">
+                        <summary>
+                            Specials
+                        </summary>
+
+                        {% for season in special_seasons %}
+                            <article class="season-row">
+                                <div>
+                                    <strong>
+                                        {{ season.name|default:"Specials" }}
+                                    </strong>
+                                </div>
+
+                                <p>
+                                    {% if season.current_progress %}
+                                        {{ season.current_progress.episodes_watched }}
+                                    {% else %}
+                                        0
+                                    {% endif %}
+                                    /
+                                    {{ season.episode_count }}
+                                </p>
+                            </article>
+                        {% endfor %}
+                    </details>
+                {% endif %}
+            </section>
+        {% endif %}
+
+        <section class="detail-section">
+            <header class="section-heading">
+                <div>
+                    <p class="section-kicker">
+                        Viewing History
+                    </p>
+
+                    <h2>Runs</h2>
+                </div>
+            </header>
+
+            {% if viewing_runs %}
+                <div class="run-list">
+                    {% for run in viewing_runs %}
+                        <article class="run-card">
+                            <header>
+                                <div>
+                                    <span>
+                                        {% if run.is_rewatch %}
+                                            Rewatch
+                                        {% else %}
+                                            First Watch
+                                        {% endif %}
+                                    </span>
+
+                                    <h3>
+                                        Run {{ run.number }}
+                                    </h3>
+                                </div>
+
+                                <strong>
+                                    {{ run.get_status_display }}
+                                </strong>
+                            </header>
+
+                            <dl>
+                                <div>
+                                    <dt>Started</dt>
+                                    <dd>
+                                        {{ run.started_on|default:"—" }}
+                                    </dd>
+                                </div>
+
+                                <div>
+                                    <dt>Finished</dt>
+                                    <dd>
+                                        {{ run.finished_on|default:"—" }}
+                                    </dd>
+                                </div>
+
+                                <div>
+                                    <dt>Progress</dt>
+                                    <dd>
+                                        {% if work.media_type == "movie" %}
+                                            {% if run.progress_minutes %}
+                                                {{ run.progress_minutes }}
+                                                min
+                                            {% else %}
+                                                —
+                                            {% endif %}
+                                        {% else %}
+                                            {{ run.progress_summary|default:"—" }}
+                                        {% endif %}
+                                    </dd>
+                                </div>
+                            </dl>
+
+                            {% if run.notes %}
+                                <p class="run-notes">
+                                    {{ run.notes }}
+                                </p>
+                            {% endif %}
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <article class="empty-state">
+                    <h3>No viewing history yet</h3>
+
+                    <p>
+                        First watches and rewatches will
+                        appear here.
+                    </p>
+                </article>
+            {% endif %}
+        </section>
+    </article>
+{% endblock %}

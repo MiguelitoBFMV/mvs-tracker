@@ -1,0 +1,282 @@
+{% extends "watchroom/base.html" %}
+
+{% block title %}
+    Library
+{% endblock %}
+
+{% block module_name %}
+    Library · Watchroom
+{% endblock %}
+
+{% block content %}
+    <header class="library-hero">
+        <div>
+            <p class="dashboard-eyebrow">
+                Local Media Archive
+            </p>
+
+            <h1>Library</h1>
+
+            <p>
+                Browse movies, series, cartoons,
+                documentaries and viewing history.
+            </p>
+        </div>
+
+        <aside class="library-result-count">
+            <span>Results</span>
+            <strong>{{ result_count }}</strong>
+            <small>
+                {% if result_count == 1 %}
+                    work
+                {% else %}
+                    works
+                {% endif %}
+            </small>
+        </aside>
+    </header>
+
+    <section
+        class="library-controls"
+        aria-labelledby="library-controls-title"
+    >
+        <header>
+            <p class="section-kicker">
+                Library Controls
+            </p>
+
+            <h2 id="library-controls-title">
+                Search & Filter
+            </h2>
+        </header>
+
+        <form method="get">
+            <label class="library-field library-field--search">
+                <span>Search</span>
+
+                <input
+                    type="search"
+                    name="q"
+                    value="{{ query }}"
+                    placeholder="Title or original title"
+                >
+            </label>
+
+            <label class="library-field">
+                <span>Type</span>
+
+                <select name="type">
+                    <option value="">All</option>
+
+                    {% for value, label in type_choices %}
+                        <option
+                            value="{{ value }}"
+
+                            {% if selected_type == value %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label class="library-field">
+                <span>Status</span>
+
+                <select name="status">
+                    <option value="">All</option>
+
+                    {% for value, label in status_choices %}
+                        <option
+                            value="{{ value }}"
+
+                            {% if selected_status == value %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label class="library-field">
+                <span>Presentation</span>
+
+                <select name="presentation">
+                    <option value="">All</option>
+
+                    {% for value, label in presentation_choices %}
+                        <option
+                            value="{{ value }}"
+
+                            {% if selected_presentation == value %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label class="library-field">
+                <span>Activity</span>
+
+                <select name="activity">
+                    <option value="">All</option>
+
+                    <option
+                        value="rewatching"
+
+                        {% if selected_activity == "rewatching" %}
+                            selected
+                        {% endif %}
+                    >
+                        Rewatching
+                    </option>
+                </select>
+            </label>
+
+            <label class="library-field">
+                <span>Order</span>
+
+                <select name="order">
+                    {% for value, label in order_choices %}
+                        <option
+                            value="{{ value }}"
+
+                            {% if selected_order == value %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <div class="library-actions">
+                <button type="submit">
+                    Apply Filters
+                </button>
+
+                <a href="{% url 'watchroom:library' %}">
+                    Clear
+                </a>
+            </div>
+        </form>
+    </section>
+
+    <section class="library-results">
+        <header class="section-heading">
+            <div>
+                <p class="section-kicker">
+                    Results
+                </p>
+
+                <h2>
+                    {% if result_count == 1 %}
+                        1 Work Found
+                    {% else %}
+                        {{ result_count }} Works Found
+                    {% endif %}
+                </h2>
+            </div>
+        </header>
+
+        {% if entries %}
+            <div class="library-grid">
+                {% for entry in entries %}
+                    <a
+                        class="library-card"
+                        href="{{ entry.media_work.get_absolute_url }}"
+                    >
+                        <div class="library-card-poster">
+                            {% if entry.media_work.poster_url %}
+                                <img
+                                    src="{{ entry.media_work.poster_url }}"
+                                    alt=""
+                                >
+                            {% else %}
+                                <span aria-hidden="true">
+                                    {{ entry.media_work.title|slice:":2"|upper }}
+                                </span>
+                            {% endif %}
+                        </div>
+
+                        <section class="library-card-body">
+                            <div class="media-card-labels">
+                                <span>
+                                    {{ entry.media_work.get_media_type_display }}
+                                </span>
+
+                                <span>
+                                    {{ entry.media_work.get_presentation_display }}
+                                </span>
+                            </div>
+
+                            <h3>
+                                {{ entry.media_work.title }}
+                            </h3>
+
+                            {% if entry.media_work.original_title %}
+                                <p class="library-original-title">
+                                    {{ entry.media_work.original_title }}
+                                </p>
+                            {% endif %}
+
+                            <p class="library-overview">
+                                {% if entry.media_work.overview %}
+                                    {{ entry.media_work.overview|truncatechars:145 }}
+                                {% else %}
+                                    No synopsis available yet.
+                                {% endif %}
+                            </p>
+
+                            <footer class="library-card-footer">
+                                <div>
+                                    <span>Status</span>
+                                    <strong>
+                                        {{ entry.activity_label }}
+                                    </strong>
+                                </div>
+
+                                <div>
+                                    <span>Progress</span>
+                                    <strong>
+                                        {% if entry.progress_label %}
+                                            {{ entry.progress_label }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </strong>
+                                </div>
+
+                                <div>
+                                    <span>Runs</span>
+                                    <strong>
+                                        {{ entry.run_count }}
+                                    </strong>
+                                </div>
+                            </footer>
+                        </section>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <article class="empty-state">
+                <span aria-hidden="true">◇</span>
+
+                <h3>No works found</h3>
+
+                <p>
+                    Try changing the filters or the
+                    search query.
+                </p>
+            </article>
+        {% endif %}
+    </section>
+{% endblock %}
