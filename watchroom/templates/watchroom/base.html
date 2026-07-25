@@ -1,0 +1,134 @@
+{% load static %}
+
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        {% block title %}
+            Watchroom
+        {% endblock %}
+        · MVS Tracker
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{% static 'watchroom/watchroom.css' %}"
+    >
+</head>
+
+<body>
+    <div class="watchroom-layout">
+        <aside class="watchroom-sidebar">
+            <header class="sidebar-brand">
+                <a href="{% url 'watchroom:dashboard' %}">
+                    <span
+                        class="brand-mark"
+                        aria-hidden="true"
+                    >
+                        WR
+                    </span>
+
+                    <span>
+                        <strong>Watchroom</strong>
+                        <small>Series & Movies</small>
+                    </span>
+                </a>
+            </header>
+
+            <nav
+                class="sidebar-nav"
+                aria-label="Watchroom navigation"
+            >
+                <a
+                    class="
+                        sidebar-link
+
+                        {% if active_page == 'dashboard' %}
+                            sidebar-link--active
+                        {% endif %}
+                    "
+                    href="{% url 'watchroom:dashboard' %}"
+                >
+                    <span aria-hidden="true">◆</span>
+                    Dashboard
+                </a>
+            </nav>
+
+            <footer class="sidebar-footer">
+                <a href="{% url 'core:home' %}">
+                    ← MVS Tracker
+                </a>
+            </footer>
+        </aside>
+
+        <main class="watchroom-main">
+            <nav
+                class="watchroom-topbar"
+                aria-label="User access"
+            >
+                <div>
+                    <span class="topbar-module">
+                        {% block module_name %}
+                            Watchroom
+                        {% endblock %}
+                    </span>
+
+                    <span class="topbar-state">
+                        Local media library
+                    </span>
+                </div>
+
+                <div class="topbar-access">
+                    {% if user.is_authenticated %}
+                        <span>
+                            Owner · {{ user.username }}
+                        </span>
+
+                        <form
+                            method="post"
+                            action="{% url 'logout' %}"
+                        >
+                            {% csrf_token %}
+
+                            <button type="submit">
+                                Log out
+                            </button>
+                        </form>
+                    {% else %}
+                        <span>Read-only mode</span>
+
+                        <a
+                            href="
+                                {% url 'login' %}
+                                ?next={{ request.path|urlencode }}
+                            "
+                        >
+                            Sign in
+                        </a>
+                    {% endif %}
+                </div>
+            </nav>
+
+            <div class="watchroom-content">
+                {% block content %}
+                {% endblock %}
+            </div>
+
+            <footer class="tmdb-attribution">
+                <p>
+                    This product uses the TMDB API but is
+                    not endorsed or certified by TMDB.
+                </p>
+            </footer>
+        </main>
+    </div>
+</body>
+</html>

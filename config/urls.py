@@ -11,4 +11,5 @@ urlpatterns = [
     path("", include("core.urls")),
     path("anime/", include("mal_data.urls")),
     path("games/", include("games.urls")),
+    path("watchroom/",include("watchroom.urls")),
 ]

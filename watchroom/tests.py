@@ -1,5 +1,6 @@
 from datetime import date
 
+from django.urls import reverse
 from django.core.exceptions import (
     ValidationError,
 )
@@ -766,5 +767,162 @@ class WatchroomSeasonProgressTests(TestCase):
             ProtectedError
         ):
             self.season.delete()
+
+
+class WatchroomPublicDashboardTests(
+    TestCase
+):
+    @classmethod
+    def setUpTestData(cls):
+        cls.movie = MediaWork.objects.create(
+            media_type=(
+                MediaWork.MediaType.MOVIE
+            ),
+            title="Saw",
+            presentation=(
+                MediaWork.Presentation.LIVE_ACTION
+            ),
+            runtime_minutes=103,
+        )
+        cls.movie_entry = (
+            WatchEntry.objects.create(
+                media_work=cls.movie,
+                status=(
+                    WatchEntry.Status.PLAN_TO_WATCH
+                ),
+            )
+        )
+
+        cls.series = MediaWork.objects.create(
+            media_type=(
+                MediaWork.MediaType.SERIES
+            ),
+            title="Phineas and Ferb",
+            presentation=(
+                MediaWork.Presentation.ANIMATION
+            ),
+        )
+        cls.series_entry = (
+            WatchEntry.objects.create(
+                media_work=cls.series,
+                status=(
+                    WatchEntry.Status.WATCHING
+                ),
+            )
+        )
+        cls.series_run = ViewingRun.objects.create(
+            watch_entry=cls.series_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+        cls.season = Season.objects.create(
+            media_work=cls.series,
+            season_number=1,
+            episode_count=38,
+        )
+        SeasonProgress.objects.create(
+            viewing_run=cls.series_run,
+            season=cls.season,
+            episodes_watched=12,
+        )
+
+    def test_dashboard_is_public(self):
+        response = self.client.get(
+            reverse(
+                "watchroom:dashboard"
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertTemplateUsed(
+            response,
+            "watchroom/dashboard.html",
+        )
+
+    def test_dashboard_shows_summary_counts(
+        self,
+    ):
+        response = self.client.get(
+            reverse(
+                "watchroom:dashboard"
+            )
+        )
+
+        self.assertEqual(
+            response.context["total_count"],
+            2,
+        )
+        self.assertEqual(
+            response.context["movie_count"],
+            1,
+        )
+        self.assertEqual(
+            response.context["series_count"],
+            1,
+        )
+        self.assertEqual(
+            response.context["watching_count"],
+            1,
+        )
+
+    def test_dashboard_shows_series_progress(
+        self,
+    ):
+        response = self.client.get(
+            reverse(
+                "watchroom:dashboard"
+            )
+        )
+
+        self.assertContains(
+            response,
+            "Season 1 · 12 / 38",
+        )
+        self.assertContains(
+            response,
+            "Phineas and Ferb",
+        )
+
+    def test_dashboard_shows_tmdb_attribution(
+        self,
+    ):
+        response = self.client.get(
+            reverse(
+                "watchroom:dashboard"
+            )
+        )
+
+        self.assertContains(
+            response,
+            (
+                "<p>"
+                "This product uses the TMDB API "
+                "but is not endorsed or certified "
+                "by TMDB."
+                "</p>"
+            ),
+            html=True,
+        )
+
+    def test_home_links_to_watchroom(
+        self,
+    ):
+        response = self.client.get(
+            reverse("core:home")
+        )
+
+        self.assertContains(
+            response,
+            reverse(
+                "watchroom:dashboard"
+            ),
+        )
+        self.assertContains(
+            response,
+            "Local-first media library",
+        )
 
 

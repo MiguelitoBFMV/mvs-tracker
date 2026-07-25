@@ -1,0 +1,199 @@
+{% extends "watchroom/base.html" %}
+
+{% block title %}
+    Dashboard
+{% endblock %}
+
+{% block content %}
+    <header class="dashboard-hero">
+        <div>
+            <p class="dashboard-eyebrow">
+                Series & Movies
+            </p>
+
+            <h1>Your Watchroom</h1>
+
+            <p>
+                Track movies, series, cartoons,
+                documentaries and every rewatch
+                from one local library.
+            </p>
+        </div>
+
+        <aside class="hero-signal">
+            <span>Database</span>
+            <strong>Supabase connected</strong>
+            <small>Local-first metadata</small>
+        </aside>
+    </header>
+
+    <section
+        class="metric-grid"
+        aria-label="Watchroom summary"
+    >
+        <article class="metric-card">
+            <span aria-hidden="true">◆</span>
+
+            <div>
+                <p>Total</p>
+                <strong>{{ total_count }}</strong>
+            </div>
+        </article>
+
+        <article class="metric-card">
+            <span aria-hidden="true">▶</span>
+
+            <div>
+                <p>Watching</p>
+                <strong>{{ watching_count }}</strong>
+            </div>
+        </article>
+
+        <article class="metric-card">
+            <span aria-hidden="true">✓</span>
+
+            <div>
+                <p>Completed</p>
+                <strong>{{ completed_count }}</strong>
+            </div>
+        </article>
+
+        <article class="metric-card">
+            <span aria-hidden="true">＋</span>
+
+            <div>
+                <p>Plan to Watch</p>
+                <strong>{{ plan_to_watch_count }}</strong>
+            </div>
+        </article>
+
+        <article class="metric-card">
+            <span aria-hidden="true">▣</span>
+
+            <div>
+                <p>Movies</p>
+                <strong>{{ movie_count }}</strong>
+            </div>
+        </article>
+
+        <article class="metric-card">
+            <span aria-hidden="true">▤</span>
+
+            <div>
+                <p>Series</p>
+                <strong>{{ series_count }}</strong>
+            </div>
+        </article>
+    </section>
+
+    <section class="dashboard-section">
+        <header class="section-heading">
+            <div>
+                <p class="section-kicker">
+                    Current activity
+                </p>
+
+                <h2>Now Watching</h2>
+            </div>
+        </header>
+
+        {% if active_entries %}
+            <div class="media-grid">
+                {% for entry in active_entries %}
+                    <article class="media-card">
+                        <div class="media-card-poster">
+                            {% if entry.media_work.poster_url %}
+                                <img
+                                    src="{{ entry.media_work.poster_url }}"
+                                    alt=""
+                                >
+                            {% else %}
+                                <span aria-hidden="true">
+                                    {{ entry.media_work.title|first }}
+                                </span>
+                            {% endif %}
+                        </div>
+
+                        <div class="media-card-body">
+                            <div class="media-card-labels">
+                                <span>
+                                    {{ entry.media_work.get_media_type_display }}
+                                </span>
+
+                                <span>
+                                    {{ entry.media_work.get_presentation_display }}
+                                </span>
+                            </div>
+
+                            <h3>
+                                {{ entry.media_work.title }}
+                            </h3>
+
+                            <strong class="media-card-status">
+                                {{ entry.activity_label }}
+                            </strong>
+
+                            {% if entry.progress_label %}
+                                <p class="media-card-progress">
+                                    {{ entry.progress_label }}
+                                </p>
+                            {% endif %}
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <article class="empty-state">
+                <span aria-hidden="true">◇</span>
+                <h3>Nothing currently playing</h3>
+                <p>
+                    Active movies, series and rewatches
+                    will appear here.
+                </p>
+            </article>
+        {% endif %}
+    </section>
+
+    <section class="dashboard-section">
+        <header class="section-heading">
+            <div>
+                <p class="section-kicker">
+                    Local archive
+                </p>
+
+                <h2>Recently Updated</h2>
+            </div>
+        </header>
+
+        {% if recent_entries %}
+            <div class="recent-list">
+                {% for entry in recent_entries %}
+                    <article class="recent-item">
+                        <div>
+                            <span class="recent-type">
+                                {{ entry.media_work.get_media_type_display }}
+                            </span>
+
+                            <h3>
+                                {{ entry.media_work.title }}
+                            </h3>
+                        </div>
+
+                        <strong>
+                            {{ entry.activity_label }}
+                        </strong>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <article class="empty-state">
+                <span aria-hidden="true">＋</span>
+                <h3>Your Watchroom is empty</h3>
+                <p>
+                    Imported and manually created works
+                    will appear here.
+                </p>
+            </article>
+        {% endif %}
+    </section>
+{% endblock %}
