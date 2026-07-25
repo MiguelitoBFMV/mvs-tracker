@@ -115,7 +115,10 @@ def create_viewing_run(
         watch_entry=locked_entry,
         number=highest_number + 1,
         status=ViewingRun.Status.WATCHING,
-        started_on=started_on,
+        started_on=(
+            started_on
+            or timezone.localdate()
+        ),
         progress_minutes=progress_minutes,
         notes=notes,
     )

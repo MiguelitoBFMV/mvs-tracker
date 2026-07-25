@@ -1,5 +1,4 @@
 from django import forms
-from django.utils import timezone
 from django.db.models import Max
 
 from .models import (
@@ -496,27 +495,16 @@ class NewViewingRunOwnerForm(
     class Meta:
         model = ViewingRun
         fields = (
-            "started_on",
             "progress_minutes",
             "notes",
         )
         labels = {
-            "started_on": "Started On",
             "progress_minutes": (
                 "Movie Progress"
             ),
             "notes": "Run Notes",
         }
         widgets = {
-            "started_on": forms.DateInput(
-                format="%Y-%m-%d",
-                attrs={
-                    "class": (
-                        "watchroom-owner-control"
-                    ),
-                    "type": "date",
-                },
-            ),
             "progress_minutes": (
                 forms.NumberInput(
                     attrs={
@@ -576,14 +564,6 @@ class NewViewingRunOwnerForm(
                 "Series progress is updated "
                 "by season."
             )
-
-        if (
-            not self.is_bound
-            and not self.instance.pk
-        ):
-            self.fields[
-                "started_on"
-            ].initial = timezone.localdate()
 
     def clean(self):
         cleaned_data = super().clean()

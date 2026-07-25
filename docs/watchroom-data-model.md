@@ -1,6 +1,6 @@
 # Watchroom — MVP Data Model and Architecture
 
-This document describes the approved MVP architecture and the current implemented public foundation for **Watchroom — Series & Movies** inside MVS Tracker.
+This document describes the approved MVP architecture and the completed local tracking foundation for **Watchroom — Series & Movies** inside MVS Tracker.
 
 Watchroom combines:
 
@@ -11,7 +11,7 @@ Watchroom combines:
 - Authenticated owner management.
 - Movie- and series-specific rules where needed.
 
-The module is now operational through `watchroom.0004`. Its public dashboard, library, and work-detail views are implemented, and the Watchroom regression suite contains **43 passing tests**. Owner write workflows and TMDB integration remain pending.
+The module is now operational through `watchroom.0005`. Its dashboard, library, work-detail views, manual creation workflow, season management, viewing-run transitions, and aggregate progress editing are implemented. The Watchroom regression suite contains **83 passing module tests**, and the complete four-app project suite contains **242 passing tests**. TMDB integration remains pending.
 
 ---
 
@@ -530,8 +530,6 @@ No separate `is_special` database field is required in the MVP.
 | `viewing_run` | `ForeignKey` | No | Parent first watch or rewatch. |
 | `season` | `ForeignKey` | No | Associated season. |
 | `episodes_watched` | `PositiveIntegerField` | No | MAL-style watched count. |
-| `started_on` | `DateField` | Yes | Optional season start date. |
-| `finished_on` | `DateField` | Yes | Optional season finish date. |
 | `created_at` | `DateTimeField` | No | Creation timestamp. |
 | `updated_at` | `DateTimeField` | No | Last modification timestamp. |
 
@@ -547,9 +545,10 @@ viewing_run + season
 - The season and run must belong to the same `MediaWork`.
 - The parent work must be a series.
 - `0 <= episodes_watched <= season.episode_count`.
-- `finished_on >= started_on` when both exist.
-- A completed season may keep an unknown finish date.
 - A movie run cannot have `SeasonProgress`.
+- Start and finish dates belong to `ViewingRun`, not `SeasonProgress`.
+- Only the active run is editable through owner season-progress controls.
+- Completed historical run progress remains visible but read only.
 
 ### Example
 
@@ -640,9 +639,9 @@ refresh adds one episode
 → 1 episode behind
 ```
 
-Watchroom should not silently mark a series Completed after metadata refresh.
+A metadata refresh must never mark a series Completed automatically.
 
-Completion remains an explicit owner action.
+An explicit owner season-progress update may complete the active run when every known regular season reaches its canonical episode total. Season 0 / Specials do not participate in this automatic completion rule.
 
 ---
 
@@ -742,10 +741,17 @@ watchroom/web/
 ├── common.py
 ├── dashboard.py
 ├── detail.py
-└── library.py
+├── library.py
+└── owner.py
 ```
 
-Normal GET requests remain read only.
+Viewing-state changes are centralized in:
+
+```text
+watchroom/services/viewing.py
+```
+
+Normal GET requests remain read only. Owner mutations use authenticated POST endpoints and CSRF validation.
 
 ---
 
@@ -764,7 +770,6 @@ Implemented constraints include:
 - Positive movie progress when present.
 - Unique `Season(media_work, season_number)`.
 - Unique `SeasonProgress(viewing_run, season)`.
-- Valid SeasonProgress date range.
 - Non-negative `episodes_watched`.
 
 Cross-model limits such as `episodes_watched <= episode_count` remain model/form validation because they depend on another row.
@@ -776,26 +781,27 @@ Cross-model limits such as `episodes_watched <= episode_count` remain model/form
 Public visitors may:
 
 - View the Watchroom dashboard.
-- Browse the library.
+- Browse and filter the library.
 - Open work details.
-- View progress and watch history.
 - View seasons and aggregate progress.
+- View first-watch and rewatch history.
+- View completed historical progress.
 
-The authenticated owner will eventually be able to:
+The authenticated owner may:
 
-- Search TMDB.
-- Import or link works.
-- Refresh metadata.
-- Refresh seasons.
-- Edit personal status.
-- Create or update viewing runs.
-- Update season progress.
-- Add notes.
-- Delete eligible local records.
+- Create a local movie or series.
+- Edit personal status and notes before run history controls the entry.
+- Add, edit, and safely delete eligible seasons.
+- Start a first watch or rewatch.
+- Pause, resume, complete, or drop an active run.
+- Edit run dates, notes, and movie-minute progress.
+- Update season progress for the active series run.
+- Trigger automatic active-run completion through explicit full regular-season progress.
+- Preserve and view completed historical progress without editing it accidentally.
 
-The public read paths above are implemented. The owner forms and mutating endpoints listed below are still pending.
+TMDB search, import, linking, and refresh actions remain pending.
 
-When implemented, mutating endpoints require:
+Implemented mutating endpoints require:
 
 ```text
 login
@@ -803,7 +809,7 @@ POST
 CSRF
 ```
 
-Normal GET requests remain read-only.
+Normal GET requests remain read only.
 
 ---
 
@@ -817,25 +823,32 @@ Normal GET requests remain read-only.
 /watchroom/library/<slug>/          Work detail
 ```
 
-These routes are publicly accessible and read only.
-
-### Planned Owner Routes
-
-Owner actions will use nested work-detail routes where practical.
-
-Examples:
+### Implemented Owner Routes
 
 ```text
-/watchroom/search/
-/watchroom/import/<media_type>/<tmdb_id>/
+/watchroom/library/create/
 /watchroom/library/<slug>/entry/update/
+/watchroom/library/<slug>/seasons/create/
+/watchroom/library/<slug>/seasons/<id>/update/
+/watchroom/library/<slug>/seasons/<id>/delete/
 /watchroom/library/<slug>/runs/create/
 /watchroom/library/<slug>/runs/<id>/update/
-/watchroom/library/<slug>/seasons/refresh/
-/watchroom/library/<slug>/progress/<season_id>/update/
+/watchroom/library/<slug>/runs/<id>/<action>/
+/watchroom/library/<slug>/runs/<id>/progress/<season_id>/update/
 ```
 
-Final owner route names may be adjusted during implementation.
+The run transition action is validated by the service layer and supports:
+
+```text
+pause
+resume
+complete
+drop
+```
+
+### Planned TMDB Routes
+
+Final route names remain open, but the future workflow will include search, import review, linking, metadata refresh, and season refresh.
 
 ---
 
@@ -921,7 +934,74 @@ The work-detail page shows:
 
 ---
 
-## 19. Decisions Outside the MVP
+## 19. Implemented Local Owner Workflows
+
+### Manual Work Creation
+
+The owner can create a local Movie or Series with:
+
+- Title and optional original title.
+- Presentation.
+- Overview.
+- Original language.
+- Release Date / First Aired.
+- Movie runtime.
+- External status.
+- Poster and backdrop URLs.
+- Initial personal status and notes.
+
+Watching and Paused cannot be selected before a viewing run exists.
+
+Creating a historical Completed or Dropped work creates the corresponding first historical run.
+
+### Season Management
+
+Series seasons can be:
+
+- Created.
+- Edited.
+- Deleted when no progress references them.
+- Protected when viewing history exists.
+
+An episode total cannot be reduced below the highest stored progress for that season.
+
+### Viewing Runs
+
+A work can have at most one active run:
+
+```text
+watching
+paused
+```
+
+The service layer:
+
+- Assigns the next sequential run number.
+- Synchronizes `WatchEntry.status`.
+- Preserves Completed history during rewatches.
+- Validates pause, resume, complete, and drop transitions.
+- Completes movies with their known runtime.
+- Requires full known regular-season progress before a series run can be completed.
+
+### Season Progress
+
+`SeasonProgress` contains only:
+
+```text
+viewing_run
+season
+episodes_watched
+```
+
+Run dates and notes remain on `ViewingRun`.
+
+Saving full progress for every known regular season through an explicit owner action completes the active run. Specials remain independent.
+
+Completed historical progress is displayed but cannot be edited until a new rewatch run begins.
+
+---
+
+## 20. Decisions Outside the MVP
 
 The initial MVP excludes:
 
@@ -937,7 +1017,7 @@ The initial MVP excludes:
 - Awards tracking.
 - Subtitle or audio-language tracking.
 - Exact playback-position synchronisation.
-- Automatic Completed transitions after refresh.
+- Automatic Completed transitions after metadata refresh.
 - Separate progress engines for cartoons, documentaries, or miniseries.
 - Separate TV Movie behaviour.
 - Automatic franchise or collection modelling.
@@ -946,7 +1026,7 @@ These may be added later only when they provide clear value.
 
 ---
 
-## 20. Future Extensions
+## 21. Future Extensions
 
 Possible post-MVP additions:
 
@@ -963,7 +1043,7 @@ Possible post-MVP additions:
 
 ---
 
-## 21. Implementation Progress
+## 22. Implementation Progress
 
 ```text
 [x] Create Watchroom Django app
@@ -973,38 +1053,49 @@ Possible post-MVP additions:
 [x] Implement ViewingRun and SeasonProgress
 [x] Add the public dashboard
 [x] Add the public library and detail views
-[x] Add dashboard, library, detail, and model tests
-[x] Add the initial technical document
-[ ] Add owner forms and write endpoints
-[ ] Add local manual creation workflows
-[ ] Add run transitions and progress editing
+[x] Add authenticated owner forms
+[x] Add manual local work creation
+[x] Add entry and season management
+[x] Add viewing-run creation and transitions
+[x] Add movie-minute progress
+[x] Add active-run season progress
+[x] Remove duplicate season-progress dates
+[x] Add explicit full-progress series completion
+[x] Protect completed historical progress from editing
+[x] Add public and owner permission hardening
+[x] Validate local workflows manually
+[x] Reach 83 Watchroom tests
+[x] Reach 242 global tests
+[x] Complete local foundation documentation
 [ ] Add TMDB client and search
 [ ] Add local TMDB import and linking
 [ ] Add metadata and season refresh
-[ ] Validate the interface with real imported data
-[ ] Complete final hardening and documentation
+[ ] Validate imported data
+[ ] Complete the Watchroom MVP
 ```
 
 ---
-
-## 22. Current Implementation Checkpoint
+## 23. Current Implementation Checkpoint
 
 ```text
 Document: watchroom-data-model.md
 Module: Watchroom
-Stage: Public foundation
-Status: Implemented on feat/watchroom-foundation
-Current migration: watchroom.0004
-Watchroom tests: 43 OK
-Active routes: Dashboard, Library, Work Detail
+Stage: Local tracking foundation complete
+Status: Ready to merge from feat/watchroom-foundation
+Current migration: watchroom.0005
+Watchroom tests: 83 OK
+Global tests: 242 OK
+Active public routes: Dashboard, Library, Work Detail
+Active owner workflows: Manual creation, entry, seasons, runs, transitions, progress
 Primary source: TMDB selected; integration pending
 Storage strategy: Local-first
 Progress style: MAL-like aggregate progress
 History style: Game Kiroku-like ViewingRun history
 Primary types: Movie and Series
+SeasonProgress dates: Excluded
 Episode rows: Excluded
 TMDB attribution: Footer
-Next block: Owner forms and write workflows
+Next branch: TMDB integration
 ```
 
-This branch should remain separate from `main` until owner write workflows, real-data validation, and the next hardening checkpoint are complete.
+The local foundation is ready to merge into `main`. TMDB integration should continue in a separate feature branch so external-data work remains isolated from the completed local tracking system.

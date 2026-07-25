@@ -424,23 +424,6 @@
                                 {% endfor %}
                             </div>
                         {% endif %}
-                        
-                        <label
-                            class="owner-field"
-                            for="{{ new_run_form.started_on.id_for_label }}"
-                        >
-                            <span>
-                                {{ new_run_form.started_on.label }}
-                            </span>
-
-                            {{ new_run_form.started_on }}
-
-                            {% for error in new_run_form.started_on.errors %}
-                                <strong class="owner-form-error">
-                                    {{ error }}
-                                </strong>
-                            {% endfor %}
-                        </label>
 
                         {% if work.media_type == "movie" %}
                             <label

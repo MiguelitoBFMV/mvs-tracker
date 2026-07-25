@@ -266,11 +266,6 @@ def create_run(
         try:
             create_viewing_run(
                 watch_entry=entry,
-                started_on=(
-                    form.cleaned_data[
-                        "started_on"
-                    ]
-                ),
                 progress_minutes=(
                     form.cleaned_data[
                         "progress_minutes"

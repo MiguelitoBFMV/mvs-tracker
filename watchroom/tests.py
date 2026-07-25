@@ -1,6 +1,7 @@
 from datetime import date
 
 from django.urls import reverse
+from django.utils import timezone
 from django.core.exceptions import (
     ValidationError,
 )
@@ -2246,6 +2247,18 @@ class WatchroomOwnerWorkflowTests(
             ),
         )
 
+    def test_new_run_form_does_not_expose_start_date(
+        self,
+    ):
+        form = NewViewingRunOwnerForm(
+            watch_entry=self.series_entry,
+        )
+
+        self.assertNotIn(
+            "started_on",
+            form.fields,
+        )
+
 
 class WatchroomViewingWorkflowTests(
     TestCase
@@ -2327,6 +2340,11 @@ class WatchroomViewingWorkflowTests(
         self.assertEqual(
             self.movie_entry.status,
             WatchEntry.Status.WATCHING,
+        )
+
+        self.assertEqual(
+            run.started_on,
+            timezone.localdate(),
         )
 
     def test_rewatch_keeps_completed_status(

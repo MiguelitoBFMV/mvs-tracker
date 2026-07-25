@@ -24,13 +24,13 @@ The project began as MAL Insight Lab, a personal MyAnimeList analytics dashboard
 
 MVS Tracker is in active development.
 
-The application currently runs locally and uses Supabase PostgreSQL as its shared database. MAL Insights and Game Kiroku are available, and Watchroom now has an active public foundation with its dashboard, library, and work-detail views.
+The application currently runs locally and uses Supabase PostgreSQL as its shared database. MAL Insights and Game Kiroku are available, and Watchroom now has a complete local tracking foundation with public views and authenticated owner workflows.
 
 The anime side of MAL Insights is functionally stable and includes automatic MyAnimeList OAuth renewal, optimized synchronization workflows, manual rescue support for entries omitted by the MAL list API, and unified Episode Signals for normal and manually rescued entries.
 
 Game Kiroku has completed its MVP. The module now combines a local-first IGDB workflow, replay-aware playthrough history, additional-content tracking, a dedicated Platinum Collection, franchise timelines, completed-import history, and configurable competitive-rank tracking.
 
-Watchroom is under active development. Its first public checkpoint is complete: the Django app, core data model, local dashboard, searchable library, work-detail pages, season summaries, viewing-run history, and MAL-style aggregate progress are implemented. Owner write workflows and TMDB import services remain pending.
+Watchroom is under active development. Its local foundation now includes the Django app, core data model, dashboard, searchable library, work-detail pages, manual work creation, season management, viewing runs, rewatches, transitions, movie-minute progress, and MAL-style aggregate series progress. TMDB search, import, linking, and refresh services remain pending.
 
 The platform supports two access levels:
 
@@ -168,7 +168,7 @@ Routes:
 
 ### Watchroom
 
-Status: **Available — public foundation in progress**
+Status: **Available — local tracking foundation complete**
 
 Descriptor: **Series & Movies**
 
@@ -191,33 +191,58 @@ other
 
 Implemented features include:
 
-- Dedicated Django app with migrations through `watchroom.0004`.
+- Dedicated Django app with migrations through `watchroom.0005`.
 - Local `MediaWork`, `WatchEntry`, `Season`, `ViewingRun`, and `SeasonProgress` models.
 - Movie and Series as the only progress engines.
-- MAL-style aggregate series progress such as `12 / 38`.
-- Viewing-run history for first watches and rewatches.
-- Movie progress in optional watched minutes.
-- Season 0 / Specials stored separately from ordinary completion totals.
-- Canonical episode totals without per-episode database rows.
+- Presentation classification for Animation, Live Action, Documentary, Mixed, and Other.
+- Stable local slugs and type-scoped TMDB identities.
 - Public dashboard with Total, Watching, Completed, Plan to Watch, Movies, and Series metrics.
 - Public searchable and filterable library.
 - Filters for type, personal status, presentation, and active rewatches.
 - Ordering by title, recent updates, and release date.
-- Public work-detail pages with metadata, seasons, specials, viewing history, and derived progress.
+- Public movie and series detail pages.
+- Season 0 / Specials stored separately from ordinary completion totals.
+- Canonical episode totals without per-episode database rows.
+- MAL-style aggregate series progress such as `12 / 38`.
+- `SeasonProgress` stores only `episodes_watched`; run dates belong exclusively to `ViewingRun`.
+- First-watch and rewatch history with automatic sequential numbering.
+- Pause, resume, complete, and drop transitions.
+- Historical Completed status preserved while a rewatch is active, paused, or dropped.
+- Movie progress in optional watched minutes.
+- Automatic movie completion progress when a known runtime exists.
+- Automatic series-run completion after an explicit owner progress update completes every known regular season.
+- Specials excluded from automatic series completion.
+- Completed series progress remains visible but read only until a new rewatch starts.
 - Derived Rewatching, Rewatch Paused, and Up to Date display states.
+- Manual local movie and series creation.
+- Owner editing for personal status and notes before viewing history exists.
+- Owner season creation, editing, safe deletion, and protection for seasons referenced by progress.
+- Owner run creation, detail editing, transitions, notes, and dates.
+- Owner season-progress upserts for the active run only.
 - Shared optimized query and decoration helpers for dashboard, library, and detail views.
+- Shared viewing-state service for run creation, transitions, entry-status synchronization, and series completion.
 - TMDB attribution in the Watchroom footer.
 - Public read-only access.
-- **43 passing Watchroom tests** covering models, constraints, routes, dashboard, library, detail, filters, and history.
+- Authenticated, POST-only, CSRF-protected write actions.
+- **83 passing Watchroom tests** covering models, constraints, forms, services, routes, permissions, dashboard, library, detail, owner workflows, transitions, and history.
 
-TMDB has been selected as the future local-first import and refresh source. The API client, search, import, linking, metadata refresh, season refresh, and owner write forms are not implemented yet.
+TMDB has been selected as the future local-first import and refresh source. Its API client, search, import, linking, metadata refresh, and season refresh are intentionally deferred to the next development branch.
 
 Routes:
 
 ```text
-/watchroom/                         Dashboard
-/watchroom/library/                 Library
-/watchroom/library/<slug>/          Work detail
+/watchroom/                                              Dashboard
+/watchroom/library/                                      Library
+/watchroom/library/create/                               Owner manual creation
+/watchroom/library/<slug>/                               Work detail
+/watchroom/library/<slug>/entry/update/                  Owner entry update
+/watchroom/library/<slug>/seasons/create/                Owner season creation
+/watchroom/library/<slug>/seasons/<id>/update/           Owner season update
+/watchroom/library/<slug>/seasons/<id>/delete/           Owner season deletion
+/watchroom/library/<slug>/runs/create/                   Owner run creation
+/watchroom/library/<slug>/runs/<id>/update/              Owner run update
+/watchroom/library/<slug>/runs/<id>/<action>/            Owner run transition
+/watchroom/library/<slug>/runs/<id>/progress/<id>/update/ Owner season progress
 ```
 
 ### Music
@@ -420,9 +445,12 @@ mvs-tracker/
 │
 ├── watchroom/
 │   ├── migrations/
+│   ├── services/
+│   │   └── viewing.py
 │   ├── static/watchroom/
 │   ├── templates/watchroom/
 │   │   ├── base.html
+│   │   ├── create_work.html
 │   │   ├── dashboard.html
 │   │   ├── detail.html
 │   │   └── library.html
@@ -430,9 +458,11 @@ mvs-tracker/
 │   │   ├── common.py
 │   │   ├── dashboard.py
 │   │   ├── detail.py
-│   │   └── library.py
+│   │   ├── library.py
+│   │   └── owner.py
 │   ├── admin.py
 │   ├── apps.py
+│   ├── forms.py
 │   ├── models.py
 │   ├── tests.py
 │   └── urls.py
@@ -453,7 +483,7 @@ mvs-tracker/
 
 The technical Django app name `mal_data` is intentionally preserved to avoid unnecessary migration and database table changes. Its public module name is **MAL Insights**.
 
-Watchroom now has an active Django app and public local-data views. Music and Hibi Log do not yet have Django apps; their selector cards continue to define the remaining platform roadmap.
+Watchroom now has an active Django app, public local-data views, and authenticated owner workflows. Music and Hibi Log do not yet have Django apps; their selector cards continue to define the remaining platform roadmap.
 
 ## Environment Variables
 
@@ -601,7 +631,7 @@ python manage.py test \
 
 The test database is created and destroyed automatically. It does not modify Supabase.
 
-The last completed pre-Watchroom global checkpoint contained **158 passing tests**. The current Watchroom branch adds **43 passing module tests**. Run the complete four-app suite before merging to record the new combined global total.
+The current four-app regression checkpoint contains **242 passing tests** across `core`, `mal_data`, `games`, and `watchroom`. Watchroom contributes **83 module tests**.
 
 The MAL Insights regression suite covers:
 
@@ -636,12 +666,19 @@ The Watchroom regression suite currently covers:
 - Movie and Series metadata rules.
 - Stable unique slugs and type-scoped TMDB identities.
 - One personal `WatchEntry` per work.
-- Season ownership, Season 0 / Specials, and canonical episode totals.
+- Season ownership, Season 0 / Specials, canonical episode totals, duplicate prevention, and protected history.
 - Viewing-run numbering, dates, active-run uniqueness, movie-minute progress, and rewatches.
-- Aggregate `SeasonProgress`, cross-series validation, completion limits, and protected history.
+- Run creation, pause, resume, complete, drop, notes, progress, and entry-status synchronization.
+- Historical Completed preservation during active or dropped rewatches.
+- Aggregate `SeasonProgress`, cross-series validation, episode-count limits, and active-run-only editing.
+- Automatic series completion after explicit full regular-season progress.
+- Completed-series progress visibility without historical editing.
+- Owner forms for local work creation, entries, seasons, runs, and season progress.
+- Login, POST-only, CSRF-backed, cross-work, and 404 protections.
 - Public dashboard metrics and TMDB footer attribution.
 - Public library search, type, status, presentation, rewatch filters, and ordering.
-- Public movie and series detail pages, seasons, specials, runtime, progress, and missing-work 404 handling.
+- Public movie and series detail pages, seasons, specials, runtime, progress, history, and owner-control rendering.
+- Core selector behavior for Watchroom as an available module.
 
 ## Data Sources
 
@@ -760,25 +797,30 @@ Planned primary listening-data source for the music module. Music will be the fi
 
 - [x] Define the module name and descriptor.
 - [x] Select TMDB as the future metadata source.
-- [x] Create the Django app and initial migrations.
+- [x] Create the Django app and migrations through `watchroom.0005`.
 - [x] Implement `MediaWork`, `WatchEntry`, `Season`, `ViewingRun`, and `SeasonProgress`.
 - [x] Add Movie and Series behaviour types.
 - [x] Add Animation, Live Action, Documentary, Mixed, and Other presentation classes.
-- [x] Add MAL-style aggregate season progress.
+- [x] Add MAL-style aggregate season progress without per-episode rows.
+- [x] Keep run dates on `ViewingRun` and episode counts on `SeasonProgress`.
 - [x] Add first-watch and rewatch history.
 - [x] Build the public dashboard and module navigation.
 - [x] Build the searchable and filterable public library.
 - [x] Build public movie and series detail pages.
 - [x] Add seasons, specials, runs, and derived progress displays.
+- [x] Add authenticated owner forms and POST-only write actions.
+- [x] Add local work creation and personal-status editing.
+- [x] Add season creation, editing, protected deletion, and progress-safe count validation.
+- [x] Add viewing-run creation, transitions, notes, dates, and movie-minute progress.
+- [x] Add active-run-only season-progress editing and automatic explicit completion.
+- [x] Preserve historical Completed state across rewatches.
 - [x] Add the TMDB attribution footer.
-- [x] Reach 43 passing Watchroom tests.
-- [ ] Add authenticated owner forms and POST-only write actions.
-- [ ] Add local work creation and personal-status editing.
-- [ ] Add viewing-run transitions and season-progress editing.
+- [x] Complete local UI validation and owner-workflow hardening.
+- [x] Reach 83 passing Watchroom tests and 242 passing global tests.
+- [x] Complete the local foundation branch.
 - [ ] Implement the TMDB client and search.
 - [ ] Add TMDB import, linking, metadata refresh, and season refresh.
-- [ ] Add responsive and empty-state hardening with real imported data.
-- [ ] Complete the Watchroom MVP.
+- [ ] Validate imported data and complete the Watchroom MVP.
 - [ ] Connect Watchroom activity to Hibi Log.
 
 ### Music
