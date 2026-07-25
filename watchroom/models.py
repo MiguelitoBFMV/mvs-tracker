@@ -581,14 +581,6 @@ class SeasonProgress(models.Model):
     episodes_watched = models.PositiveIntegerField(
         default=0,
     )
-    started_on = models.DateField(
-        blank=True,
-        null=True,
-    )
-    finished_on = models.DateField(
-        blank=True,
-        null=True,
-    )
     created_at = models.DateTimeField(
         auto_now_add=True,
     )
@@ -619,21 +611,6 @@ class SeasonProgress(models.Model):
                 name=(
                     "watchroom_episodes_watched_"
                     "non_negative"
-                ),
-            ),
-            models.CheckConstraint(
-                condition=(
-                    Q(started_on__isnull=True)
-                    | Q(finished_on__isnull=True)
-                    | Q(
-                        finished_on__gte=(
-                            models.F("started_on")
-                        ),
-                    )
-                ),
-                name=(
-                    "watchroom_season_progress_"
-                    "date_range_valid"
                 ),
             ),
         ]
@@ -709,20 +686,6 @@ class SeasonProgress(models.Model):
                     "episodes_watched": (
                         "Watched episodes cannot exceed "
                         "the season episode count."
-                    ),
-                }
-            )
-
-        if (
-            self.finished_on is not None
-            and not self.is_complete
-        ):
-            raise ValidationError(
-                {
-                    "finished_on": (
-                        "A season can only have a finish "
-                        "date when all known episodes "
-                        "have been watched."
                     ),
                 }
             )

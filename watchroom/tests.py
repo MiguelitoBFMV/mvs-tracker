@@ -660,49 +660,18 @@ class WatchroomSeasonProgressTests(TestCase):
         ):
             progress.full_clean()
 
-    def test_finish_date_requires_complete_season(
+    def test_season_progress_only_stores_episode_count(
         self,
     ):
-        progress = SeasonProgress(
+        progress = SeasonProgress.objects.create(
             viewing_run=self.series_run,
             season=self.season,
             episodes_watched=12,
-            finished_on=date(
-                2026,
-                7,
-                24,
-            ),
         )
 
-        with self.assertRaises(
-            ValidationError
-        ):
-            progress.full_clean()
-
-    def test_complete_season_accepts_finish_date(
-        self,
-    ):
-        progress = SeasonProgress(
-            viewing_run=self.series_run,
-            season=self.season,
-            episodes_watched=38,
-            started_on=date(
-                2026,
-                7,
-                1,
-            ),
-            finished_on=date(
-                2026,
-                7,
-                24,
-            ),
-        )
-
-        progress.full_clean()
-        progress.save()
-
-        self.assertTrue(
-            progress.is_complete
+        self.assertEqual(
+            progress.display_progress,
+            "12 / 38",
         )
 
     def test_same_season_is_unique_per_run(
@@ -1428,6 +1397,27 @@ class WatchroomOwnerFormTests(TestCase):
             form.errors,
         )
 
+    def test_season_progress_form_only_exposes_count(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+
+        form = SeasonProgressOwnerForm(
+            viewing_run=run,
+            season=self.season,
+        )
+
+        self.assertEqual(
+            list(form.fields),
+            [
+                "episodes_watched",
+            ],
+        )
+
 
 class WatchroomOwnerWorkflowTests(
     TestCase
@@ -1813,4 +1803,1034 @@ class WatchroomOwnerWorkflowTests(
             ).exists()
         )
 
+    def test_authenticated_library_renders(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            reverse("watchroom:library")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertContains(
+            response,
+            reverse(
+                "watchroom:create_work"
+            ),
+        )
+
+    def test_anonymous_detail_hides_owner_controls(
+        self,
+    ):
+        response = self.client.get(
+            self.movie.get_absolute_url()
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertNotContains(
+            response,
+            "Viewing Controls",
+        )
+        self.assertNotContains(
+            response,
+            "Start First Watch",
+        )
+
+
+    def test_owner_detail_shows_start_run_form(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            self.movie.get_absolute_url()
+        )
+
+        self.assertContains(
+            response,
+            "Viewing Controls",
+        )
+        self.assertContains(
+            response,
+            "Start First Watch",
+        )
+        self.assertContains(
+            response,
+            reverse(
+                "watchroom:create_run",
+                kwargs={
+                    "slug": self.movie.slug,
+                },
+            ),
+        )
+
+
+    def test_owner_detail_shows_active_run_actions(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.movie_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            self.movie.get_absolute_url()
+        )
+
+        self.assertContains(
+            response,
+            "Pause",
+        )
+        self.assertContains(
+            response,
+            "Complete",
+        )
+        self.assertContains(
+            response,
+            "Drop",
+        )
+        self.assertContains(
+            response,
+            reverse(
+                "watchroom:update_run",
+                kwargs={
+                    "slug": self.movie.slug,
+                    "run_id": run.pk,
+                },
+            ),
+        )
+
+
+    def test_owner_series_detail_shows_progress_forms(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            self.series.get_absolute_url()
+        )
+
+        self.assertContains(
+            response,
+            "Season Progress",
+        )
+        self.assertContains(
+            response,
+            "Save Progress",
+        )
+        self.assertContains(
+            response,
+            reverse(
+                "watchroom:update_season_progress",
+                kwargs={
+                    "slug": self.series.slug,
+                    "run_id": run.pk,
+                    "season_id": self.season.pk,
+                },
+            ),
+        )
+
+        self.assertNotContains(
+            response,
+            "Movie Progress",
+        )
+        progress_prefix = (
+            f"progress-{run.pk}-"
+            f"{self.season.pk}"
+        )
+
+        self.assertContains(
+            response,
+            (
+                f'name="{progress_prefix}-'
+                'episodes_watched"'
+            ),
+        )
+
+        self.assertNotContains(
+            response,
+            (
+                f'name="{progress_prefix}-'
+                'started_on"'
+            ),
+        )
+
+        self.assertNotContains(
+            response,
+            (
+                f'name="{progress_prefix}-'
+                'finished_on"'
+            ),
+        )
+
+        self.assertNotContains(
+            response,
+            "Optional dates",
+        )
+
+
+    def test_completed_series_detail_uses_latest_run_progress(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.COMPLETED,
+        )
+        SeasonProgress.objects.create(
+            viewing_run=run,
+            season=self.season,
+            episodes_watched=38,
+        )
+
+        self.series_entry.status = (
+            WatchEntry.Status.COMPLETED
+        )
+        self.series_entry.save()
+
+        response = self.client.get(
+            self.series.get_absolute_url()
+        )
+
+        rendered_season = (
+            response.context[
+                "regular_seasons"
+            ][0]
+        )
+
+        self.assertIsNotNone(
+            rendered_season.current_progress
+        )
+        self.assertEqual(
+            (
+                rendered_season
+                .current_progress
+                .episodes_watched
+            ),
+            38,
+        )
+
+    def test_full_progress_auto_completes_series_run(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:update_season_progress",
+                kwargs={
+                    "slug": self.series.slug,
+                    "run_id": run.pk,
+                    "season_id": self.season.pk,
+                },
+            ),
+            {
+                (
+                    f"progress-{run.pk}-"
+                    f"{self.season.pk}-"
+                    "episodes_watched"
+                ): 38,
+                (
+                    f"progress-{run.pk}-"
+                    f"{self.season.pk}-"
+                    "started_on"
+                ): "",
+                (
+                    f"progress-{run.pk}-"
+                    f"{self.season.pk}-"
+                    "finished_on"
+                ): "",
+            },
+        )
+
+        run.refresh_from_db()
+        self.series_entry.refresh_from_db()
+
+        self.assertEqual(
+            run.status,
+            ViewingRun.Status.COMPLETED,
+        )
+        self.assertIsNotNone(
+            run.finished_on
+        )
+        self.assertEqual(
+            self.series_entry.status,
+            WatchEntry.Status.COMPLETED,
+        )
+
+
+    def test_full_season_does_not_complete_when_another_is_pending(
+        self,
+    ):
+        second_season = Season.objects.create(
+            media_work=self.series,
+            season_number=2,
+            episode_count=20,
+        )
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:update_season_progress",
+                kwargs={
+                    "slug": self.series.slug,
+                    "run_id": run.pk,
+                    "season_id": self.season.pk,
+                },
+            ),
+            {
+                (
+                    f"progress-{run.pk}-"
+                    f"{self.season.pk}-"
+                    "episodes_watched"
+                ): 38,
+                (
+                    f"progress-{run.pk}-"
+                    f"{self.season.pk}-"
+                    "started_on"
+                ): "",
+                (
+                    f"progress-{run.pk}-"
+                    f"{self.season.pk}-"
+                    "finished_on"
+                ): "",
+            },
+        )
+
+        run.refresh_from_db()
+
+        self.assertEqual(
+            run.status,
+            ViewingRun.Status.WATCHING,
+        )
+        self.assertFalse(
+            SeasonProgress.objects.filter(
+                viewing_run=run,
+                season=second_season,
+            ).exists()
+        )
+    def test_series_run_form_fields_render_once(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.COMPLETED,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            self.series.get_absolute_url()
+        )
+
+        prefix = f"run-{run.pk}"
+
+        self.assertContains(
+            response,
+            f'name="{prefix}-started_on"',
+            count=1,
+        )
+        self.assertContains(
+            response,
+            f'name="{prefix}-finished_on"',
+            count=1,
+        )
+        self.assertContains(
+            response,
+            f'name="{prefix}-notes"',
+            count=1,
+        )
+        self.assertNotContains(
+            response,
+            f'name="{prefix}-progress_minutes"',
+        )
+
+    def test_completed_series_progress_is_read_only(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.COMPLETED,
+        )
+        SeasonProgress.objects.create(
+            viewing_run=run,
+            season=self.season,
+            episodes_watched=38,
+        )
+
+        self.series_entry.status = (
+            WatchEntry.Status.COMPLETED
+        )
+        self.series_entry.save()
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            self.series.get_absolute_url()
+        )
+
+        rendered_season = (
+            response.context[
+                "regular_seasons"
+            ][0]
+        )
+
+        self.assertEqual(
+            rendered_season
+            .current_progress
+            .episodes_watched,
+            38,
+        )
+        self.assertIsNone(
+            response.context["progress_run"]
+        )
+        self.assertContains(
+            response,
+            "Start Rewatch",
+        )
+        self.assertNotContains(
+            response,
+            reverse(
+                "watchroom:update_season_progress",
+                kwargs={
+                    "slug": self.series.slug,
+                    "run_id": run.pk,
+                    "season_id": self.season.pk,
+                },
+            ),
+        )
+
+
+class WatchroomViewingWorkflowTests(
+    TestCase
+):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects.create_user(
+                username="viewing-owner",
+                password="test-password",
+            )
+        )
+
+        cls.movie = MediaWork.objects.create(
+            media_type="movie",
+            title="Saw II",
+            runtime_minutes=93,
+        )
+        cls.movie_entry = (
+            WatchEntry.objects.create(
+                media_work=cls.movie,
+            )
+        )
+
+        cls.series = MediaWork.objects.create(
+            media_type="series",
+            title="Phineas and Ferb",
+            presentation="animation",
+        )
+        cls.series_entry = (
+            WatchEntry.objects.create(
+                media_work=cls.series,
+            )
+        )
+        cls.season = Season.objects.create(
+            media_work=cls.series,
+            season_number=1,
+            episode_count=38,
+        )
+
+    def test_owner_can_start_first_run(self):
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:create_run",
+                kwargs={
+                    "slug": self.movie.slug,
+                },
+            ),
+            {
+                "new-run-started_on": "",
+                "new-run-progress_minutes": 20,
+                "new-run-notes": "",
+            },
+        )
+
+        run = ViewingRun.objects.get(
+            watch_entry=self.movie_entry,
+        )
+
+        self.movie_entry.refresh_from_db()
+
+        self.assertEqual(
+            run.number,
+            1,
+        )
+        self.assertEqual(
+            run.status,
+            ViewingRun.Status.WATCHING,
+        )
+        self.assertEqual(
+            run.progress_minutes,
+            20,
+        )
+        self.assertEqual(
+            self.movie_entry.status,
+            WatchEntry.Status.WATCHING,
+        )
+
+    def test_rewatch_keeps_completed_status(
+        self,
+    ):
+        ViewingRun.objects.create(
+            watch_entry=self.movie_entry,
+            number=1,
+            status=ViewingRun.Status.COMPLETED,
+        )
+        self.movie_entry.status = (
+            WatchEntry.Status.COMPLETED
+        )
+        self.movie_entry.save()
+
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:create_run",
+                kwargs={
+                    "slug": self.movie.slug,
+                },
+            ),
+            {
+                "new-run-started_on": "",
+                "new-run-progress_minutes": "",
+                "new-run-notes": "",
+            },
+        )
+
+        self.movie_entry.refresh_from_db()
+
+        rewatch = ViewingRun.objects.get(
+            watch_entry=self.movie_entry,
+            number=2,
+        )
+
+        self.assertEqual(
+            rewatch.status,
+            ViewingRun.Status.WATCHING,
+        )
+        self.assertEqual(
+            self.movie_entry.status,
+            WatchEntry.Status.COMPLETED,
+        )
+
+    def test_pause_and_resume_sync_entry(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.movie_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+        self.movie_entry.status = (
+            WatchEntry.Status.WATCHING
+        )
+        self.movie_entry.save()
+
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:transition_run",
+                kwargs={
+                    "slug": self.movie.slug,
+                    "run_id": run.pk,
+                    "action": "pause",
+                },
+            )
+        )
+
+        run.refresh_from_db()
+        self.movie_entry.refresh_from_db()
+
+        self.assertEqual(
+            run.status,
+            ViewingRun.Status.PAUSED,
+        )
+        self.assertEqual(
+            self.movie_entry.status,
+            WatchEntry.Status.PAUSED,
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:transition_run",
+                kwargs={
+                    "slug": self.movie.slug,
+                    "run_id": run.pk,
+                    "action": "resume",
+                },
+            )
+        )
+
+        run.refresh_from_db()
+        self.movie_entry.refresh_from_db()
+
+        self.assertEqual(
+            run.status,
+            ViewingRun.Status.WATCHING,
+        )
+        self.assertEqual(
+            self.movie_entry.status,
+            WatchEntry.Status.WATCHING,
+        )
+
+    def test_complete_movie_updates_entry(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.movie_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:transition_run",
+                kwargs={
+                    "slug": self.movie.slug,
+                    "run_id": run.pk,
+                    "action": "complete",
+                },
+            )
+        )
+
+        run.refresh_from_db()
+        self.movie_entry.refresh_from_db()
+
+        self.assertEqual(
+            run.status,
+            ViewingRun.Status.COMPLETED,
+        )
+        self.assertIsNotNone(
+            run.finished_on
+        )
+        self.assertEqual(
+            run.progress_minutes,
+            93,
+        )
+        self.assertEqual(
+            self.movie_entry.status,
+            WatchEntry.Status.COMPLETED,
+        )
+
+    def test_series_completion_requires_progress(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:transition_run",
+                kwargs={
+                    "slug": self.series.slug,
+                    "run_id": run.pk,
+                    "action": "complete",
+                },
+            )
+        )
+
+        run.refresh_from_db()
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertIn(
+            (
+                "Complete all known regular "
+                "seasons"
+            ),
+            response.context[
+                "run_action_error"
+            ],
+        )
+        self.assertEqual(
+            run.status,
+            ViewingRun.Status.WATCHING,
+        )
+
+    def test_series_can_complete_with_full_progress(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+        SeasonProgress.objects.create(
+            viewing_run=run,
+            season=self.season,
+            episodes_watched=38,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:transition_run",
+                kwargs={
+                    "slug": self.series.slug,
+                    "run_id": run.pk,
+                    "action": "complete",
+                },
+            )
+        )
+
+        run.refresh_from_db()
+        self.series_entry.refresh_from_db()
+
+        self.assertEqual(
+            run.status,
+            ViewingRun.Status.COMPLETED,
+        )
+        self.assertEqual(
+            self.series_entry.status,
+            WatchEntry.Status.COMPLETED,
+        )
+
+    def test_dropped_rewatch_preserves_completed(
+        self,
+    ):
+        ViewingRun.objects.create(
+            watch_entry=self.movie_entry,
+            number=1,
+            status=ViewingRun.Status.COMPLETED,
+        )
+        rewatch = ViewingRun.objects.create(
+            watch_entry=self.movie_entry,
+            number=2,
+            status=ViewingRun.Status.WATCHING,
+        )
+        self.movie_entry.status = (
+            WatchEntry.Status.COMPLETED
+        )
+        self.movie_entry.save()
+
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:transition_run",
+                kwargs={
+                    "slug": self.movie.slug,
+                    "run_id": rewatch.pk,
+                    "action": "drop",
+                },
+            )
+        )
+
+        rewatch.refresh_from_db()
+        self.movie_entry.refresh_from_db()
+
+        self.assertEqual(
+            rewatch.status,
+            ViewingRun.Status.DROPPED,
+        )
+        self.assertEqual(
+            self.movie_entry.status,
+            WatchEntry.Status.COMPLETED,
+        )
+
+    def test_owner_can_update_movie_minutes(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.movie_entry,
+            number=1,
+            status=ViewingRun.Status.PAUSED,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:update_run",
+                kwargs={
+                    "slug": self.movie.slug,
+                    "run_id": run.pk,
+                },
+            ),
+            {
+                f"run-{run.pk}-started_on": "",
+                f"run-{run.pk}-finished_on": "",
+                f"run-{run.pk}-progress_minutes": 45,
+                f"run-{run.pk}-notes": (
+                    "Paused halfway."
+                ),
+            },
+        )
+
+        run.refresh_from_db()
+
+        self.assertEqual(
+            run.progress_minutes,
+            45,
+        )
+        self.assertEqual(
+            run.notes,
+            "Paused halfway.",
+        )
+
+    def test_owner_can_upsert_season_progress(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:update_season_progress",
+                kwargs={
+                    "slug": self.series.slug,
+                    "run_id": run.pk,
+                    "season_id": self.season.pk,
+                },
+            ),
+            {
+                (
+                    f"progress-{run.pk}-"
+                    f"{self.season.pk}-"
+                    "episodes_watched"
+                ): 12,
+                (
+                    f"progress-{run.pk}-"
+                    f"{self.season.pk}-"
+                    "started_on"
+                ): "",
+                (
+                    f"progress-{run.pk}-"
+                    f"{self.season.pk}-"
+                    "finished_on"
+                ): "",
+            },
+        )
+
+        progress = SeasonProgress.objects.get(
+            viewing_run=run,
+            season=self.season,
+        )
+
+        self.assertEqual(
+            progress.episodes_watched,
+            12,
+        )
+
+    def test_progress_update_is_post_only(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            reverse(
+                "watchroom:update_season_progress",
+                kwargs={
+                    "slug": self.series.slug,
+                    "run_id": run.pk,
+                    "season_id": self.season.pk,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            405,
+        )
+
+    def test_cross_work_season_returns_404(
+        self,
+    ):
+        other_series = MediaWork.objects.create(
+            media_type="series",
+            title="Other Series",
+        )
+        other_season = Season.objects.create(
+            media_work=other_series,
+            season_number=1,
+            episode_count=10,
+        )
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:update_season_progress",
+                kwargs={
+                    "slug": self.series.slug,
+                    "run_id": run.pk,
+                    "season_id": other_season.pk,
+                },
+            ),
+            {},
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+    def test_anonymous_transition_redirects(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.movie_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:transition_run",
+                kwargs={
+                    "slug": self.movie.slug,
+                    "run_id": run.pk,
+                    "action": "pause",
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+        self.assertIn(
+            reverse("login"),
+            response.url,
+        )
+
+    def test_series_detail_uses_one_viewing_panel(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.series_entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            self.series.get_absolute_url()
+        )
+
+        self.assertContains(
+            response,
+            'id="viewing-controls"',
+            count=1,
+        )
+        self.assertContains(
+            response,
+            'id="season-progress"',
+            count=1,
+        )
+        self.assertNotContains(
+            response,
+            "Optional dates",
+        )
 

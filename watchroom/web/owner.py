@@ -1,3 +1,6 @@
+from django.core.exceptions import (
+    ValidationError,
+)
 from django.contrib.auth.decorators import (
     login_required,
 )
@@ -16,14 +19,24 @@ from django.views.decorators.http import (
 
 from watchroom.forms import (
     ManualMediaWorkOwnerForm,
+    NewViewingRunOwnerForm,
     SeasonOwnerForm,
+    SeasonProgressOwnerForm,
+    ViewingRunOwnerForm,
     WatchEntryOwnerForm,
 )
 from watchroom.models import (
     MediaWork,
     Season,
+    SeasonProgress,
     ViewingRun,
     WatchEntry,
+)
+
+from watchroom.services.viewing import (
+    create_viewing_run,
+    series_run_has_full_progress,
+    transition_viewing_run,
 )
 
 from .detail import render_detail
@@ -227,3 +240,216 @@ def delete_season(
     return redirect(
         f"{work_url}#season-management"
     )
+
+
+
+@login_required
+@require_POST
+def create_run(
+    request,
+    slug,
+):
+    entry = get_object_or_404(
+        WatchEntry.objects.select_related(
+            "media_work"
+        ),
+        media_work__slug=slug,
+    )
+
+    form = NewViewingRunOwnerForm(
+        request.POST,
+        watch_entry=entry,
+        prefix="new-run",
+    )
+
+    if form.is_valid():
+        try:
+            create_viewing_run(
+                watch_entry=entry,
+                started_on=(
+                    form.cleaned_data[
+                        "started_on"
+                    ]
+                ),
+                progress_minutes=(
+                    form.cleaned_data[
+                        "progress_minutes"
+                    ]
+                ),
+                notes=(
+                    form.cleaned_data["notes"]
+                ),
+            )
+        except ValidationError as error:
+            form.add_error(
+                None,
+                error,
+            )
+        else:
+            return redirect(
+                f"{entry.media_work.get_absolute_url()}"
+                "#viewing-controls"
+            )
+
+    return render_detail(
+        request,
+        slug,
+        new_run_form=form,
+    )
+
+
+@login_required
+@require_POST
+def update_run(
+    request,
+    slug,
+    run_id,
+):
+    run = get_object_or_404(
+        ViewingRun.objects.select_related(
+            "watch_entry",
+            "watch_entry__media_work",
+        ),
+        pk=run_id,
+        watch_entry__media_work__slug=slug,
+    )
+
+    form = ViewingRunOwnerForm(
+        request.POST,
+        instance=run,
+        watch_entry=run.watch_entry,
+        prefix=f"run-{run.pk}",
+    )
+
+    if form.is_valid():
+        form.save()
+
+        return redirect(
+            f"{run.watch_entry.media_work.get_absolute_url()}"
+            "#viewing-controls"
+        )
+
+    return render_detail(
+        request,
+        slug,
+        run_update_form=form,
+    )
+
+
+@login_required
+@require_POST
+def transition_run(
+    request,
+    slug,
+    run_id,
+    action,
+):
+    run = get_object_or_404(
+        ViewingRun.objects.select_related(
+            "watch_entry",
+            "watch_entry__media_work",
+        ),
+        pk=run_id,
+        watch_entry__media_work__slug=slug,
+    )
+
+    try:
+        transition_viewing_run(
+            viewing_run=run,
+            action=action,
+        )
+    except ValidationError as error:
+        return render_detail(
+            request,
+            slug,
+            run_action_error=" ".join(
+                error.messages
+            ),
+            run_action_id=run.pk,
+        )
+
+    return redirect(
+        f"{run.watch_entry.media_work.get_absolute_url()}"
+        "#viewing-controls"
+    )
+
+
+@login_required
+@require_POST
+def update_season_progress(
+    request,
+    slug,
+    run_id,
+    season_id,
+):
+    run = get_object_or_404(
+        ViewingRun.objects.select_related(
+            "watch_entry",
+            "watch_entry__media_work",
+        ),
+        pk=run_id,
+        watch_entry__media_work__slug=slug,
+        watch_entry__media_work__media_type=(
+            MediaWork.MediaType.SERIES
+        ),
+    )
+
+    season = get_object_or_404(
+        Season.objects.select_related(
+            "media_work"
+        ),
+        pk=season_id,
+        media_work__slug=slug,
+    )
+
+    progress = (
+        SeasonProgress.objects.filter(
+            viewing_run=run,
+            season=season,
+        ).first()
+    )
+
+    form = SeasonProgressOwnerForm(
+        request.POST,
+        instance=progress,
+        viewing_run=run,
+        season=season,
+        prefix=(
+            f"progress-"
+            f"{run.pk}-"
+            f"{season.pk}"
+        ),
+    )
+
+    if form.is_valid():
+        form.save()
+
+        if (
+            run.status
+            in {
+                ViewingRun.Status.WATCHING,
+                ViewingRun.Status.PAUSED,
+            }
+            and series_run_has_full_progress(
+                run
+            )
+        ):
+            transition_viewing_run(
+                viewing_run=run,
+                action="complete",
+            )
+
+        return redirect(
+            f"{run.watch_entry.media_work.get_absolute_url()}"
+            "#season-progress"
+        )
+
+    return render_detail(
+        request,
+        slug,
+        progress_update_form=form,
+        progress_run_id=run.pk,
+        progress_season_id=season.pk,
+    )
+
+

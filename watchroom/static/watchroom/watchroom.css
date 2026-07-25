@@ -1281,3 +1281,186 @@ textarea {
     }
 }
 
+/* =========================================================
+   Viewing and Progress Controls
+   ========================================================= */
+
+.owner-panel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.owner-panel-heading h3 {
+    margin: 0;
+}
+
+.owner-state-badge {
+    flex: 0 0 auto;
+    padding: 6px 9px;
+    border: 1px solid rgba(125, 211, 252, 0.36);
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.62rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.owner-panel-note {
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-size: 0.76rem;
+    line-height: 1.6;
+}
+
+.owner-run-list,
+.owner-progress-list {
+    margin-top: 18px;
+}
+
+.owner-management-item summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.owner-management-item summary strong {
+    color: var(--highlight);
+    font-size: 0.68rem;
+}
+
+.run-transition-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 17px 0;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.run-transition-actions form {
+    margin: 0;
+}
+
+.run-transition-actions button {
+    padding: 8px 11px;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--background);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 900;
+}
+
+.run-transition-actions button:hover {
+    border-color: var(--accent);
+}
+
+.run-transition-actions
+.run-action-complete {
+    border-color: rgba(110, 231, 183, 0.4);
+    background: rgba(6, 78, 59, 0.16);
+    color: var(--success);
+}
+
+.run-transition-actions
+.run-action-drop {
+    border-color: rgba(248, 113, 113, 0.4);
+    background: rgba(127, 29, 29, 0.12);
+    color: #fca5a5;
+}
+
+@media (max-width: 760px) {
+    .owner-panel-heading,
+    .owner-management-item summary {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}
+
+.owner-progress-main {
+    display: grid;
+    grid-template-columns:
+        minmax(180px, 320px)
+        auto;
+    align-items: end;
+    gap: 12px;
+}
+
+.owner-progress-counter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.owner-progress-counter
+.watchroom-owner-control {
+    max-width: 150px;
+}
+
+.owner-progress-counter strong {
+    flex: 0 0 auto;
+    color: var(--highlight);
+}
+
+.owner-progress-save {
+    min-height: 42px;
+    padding: 9px 15px;
+    border: 1px solid rgba(
+        125,
+        211,
+        252,
+        0.4
+    );
+    border-radius: 9px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 0.72rem;
+    font-weight: 900;
+}
+
+.owner-progress-dates {
+    margin-top: 14px;
+    padding-top: 13px;
+    border-top: 1px solid var(--border);
+}
+
+.owner-progress-dates summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 900;
+}
+
+.owner-progress-dates
+.owner-form-grid {
+    margin-top: 14px;
+}
+
+@media (max-width: 760px) {
+    .owner-progress-main {
+        grid-template-columns: 1fr;
+    }
+
+    .owner-progress-counter
+    .watchroom-owner-control {
+        max-width: none;
+    }
+}
+
+.owner-inline-section {
+    margin-top: 22px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+}
+
+.owner-inline-section h4 {
+    margin: 0;
+    font-size: 1rem;
+}

@@ -51,6 +51,37 @@ urlpatterns = [
         name="delete_season",
     ),
     path(
+        "library/<slug:slug>/runs/create/",
+        owner_views.create_run,
+        name="create_run",
+    ),
+    path(
+        (
+            "library/<slug:slug>/"
+            "runs/<int:run_id>/update/"
+        ),
+        owner_views.update_run,
+        name="update_run",
+    ),
+    path(
+        (
+            "library/<slug:slug>/"
+            "runs/<int:run_id>/"
+            "<str:action>/"
+        ),
+        owner_views.transition_run,
+        name="transition_run",
+    ),
+    path(
+        (
+            "library/<slug:slug>/"
+            "runs/<int:run_id>/"
+            "progress/<int:season_id>/update/"
+        ),
+        owner_views.update_season_progress,
+        name="update_season_progress",
+    ),
+    path(
         "library/<slug:slug>/",
         detail_views.detail,
         name="detail",

@@ -4,7 +4,10 @@ from django.shortcuts import (
 )
 
 from watchroom.forms import (
+    NewViewingRunOwnerForm,
     SeasonOwnerForm,
+    SeasonProgressOwnerForm,
+    ViewingRunOwnerForm,
     WatchEntryOwnerForm,
 )
 
@@ -30,6 +33,13 @@ def _build_detail_context(
     season_update_form=None,
     season_action_error=None,
     season_action_id=None,
+    new_run_form=None,
+    run_update_form=None,
+    run_action_error=None,
+    run_action_id=None,
+    progress_update_form=None,
+    progress_run_id=None,
+    progress_season_id=None,
 ):
     decorate_entry(entry)
 
@@ -40,12 +50,28 @@ def _build_detail_context(
             [],
         )
     )
+    viewing_runs = list(
+        getattr(
+            entry,
+            "prefetched_runs",
+            [],
+        )
+    )
+
+    display_progress_run = (
+        entry.current_run
+        or entry.display_run
+    )
+
+    owner_progress_run = (
+        entry.current_run
+    )
 
     progress_by_season = {}
 
-    if entry.current_run is not None:
+    if display_progress_run is not None:
         progress_by_season = (
-            entry.current_run
+            display_progress_run
             .progress_by_season
         )
 
@@ -56,6 +82,10 @@ def _build_detail_context(
             )
         )
         season.owner_form = None
+        season.progress_form = None
+
+    for run in viewing_runs:
+        run.owner_form = None
 
     if request.user.is_authenticated:
         if entry_form is None:
@@ -64,35 +94,111 @@ def _build_detail_context(
                 prefix="entry",
             )
 
-        if (
-            entry.media_work.media_type
-            == entry.media_work.MediaType.SERIES
-            and new_season_form is None
-        ):
-            new_season_form = SeasonOwnerForm(
-                media_work=entry.media_work,
-                prefix="new-season",
+        if new_run_form is None:
+            new_run_form = (
+                NewViewingRunOwnerForm(
+                    watch_entry=entry,
+                    prefix="new-run",
+                )
             )
 
-        for season in seasons:
+        for run in viewing_runs:
             if (
-                season_update_form is not None
-                and season.pk
-                == season_update_form.instance.pk
+                run_update_form is not None
+                and run.pk
+                == run_update_form.instance.pk
             ):
-                season.owner_form = (
-                    season_update_form
+                run.owner_form = (
+                    run_update_form
                 )
             else:
-                season.owner_form = (
-                    SeasonOwnerForm(
-                        instance=season,
-                        media_work=entry.media_work,
+                run.owner_form = (
+                    ViewingRunOwnerForm(
+                        instance=run,
+                        watch_entry=entry,
                         prefix=(
-                            f"season-{season.pk}"
+                            f"run-{run.pk}"
                         ),
                     )
                 )
+
+        if (
+            entry.media_work.media_type
+            == entry.media_work.MediaType.SERIES
+        ):
+            if new_season_form is None:
+                new_season_form = (
+                    SeasonOwnerForm(
+                        media_work=(
+                            entry.media_work
+                        ),
+                        prefix="new-season",
+                    )
+                )
+
+            for season in seasons:
+                if (
+                    season_update_form is not None
+                    and season.pk
+                    == (
+                        season_update_form
+                        .instance
+                        .pk
+                    )
+                ):
+                    season.owner_form = (
+                        season_update_form
+                    )
+                else:
+                    season.owner_form = (
+                        SeasonOwnerForm(
+                            instance=season,
+                            media_work=(
+                                entry.media_work
+                            ),
+                            prefix=(
+                                f"season-"
+                                f"{season.pk}"
+                            ),
+                        )
+                    )
+
+            if owner_progress_run is not None:
+                for season in seasons:
+                    existing_progress = (
+                        owner_progress_run
+                        .progress_by_season
+                        .get(season.pk)
+                    )
+
+                    if (
+                        progress_update_form
+                        is not None
+                        and progress_run_id
+                        == owner_progress_run.pk
+                        and progress_season_id
+                        == season.pk
+                    ):
+                        season.progress_form = (
+                            progress_update_form
+                        )
+                    else:
+                        season.progress_form = (
+                            SeasonProgressOwnerForm(
+                                instance=(
+                                    existing_progress
+                                ),
+                                viewing_run=(
+                                    owner_progress_run
+                                ),
+                                season=season,
+                                prefix=(
+                                    f"progress-"
+                                    f"{owner_progress_run.pk}-"
+                                    f"{season.pk}"
+                                ),
+                            )
+                        )
 
     regular_seasons = [
         season
@@ -109,9 +215,7 @@ def _build_detail_context(
         "active_page": "library",
         "entry": entry,
         "work": entry.media_work,
-        "viewing_runs": (
-            entry.prefetched_runs
-        ),
+        "viewing_runs": viewing_runs,
         "all_seasons": seasons,
         "regular_seasons": (
             regular_seasons
@@ -128,6 +232,17 @@ def _build_detail_context(
         ),
         "season_action_id": (
             season_action_id
+        ),
+        "new_run_form": new_run_form,
+        "run_action_error": (
+            run_action_error
+        ),
+        "run_action_id": (
+            run_action_id
+        ),
+        "progress_run": owner_progress_run,
+        "can_start_run": (
+            entry.current_run is None
         ),
     }
 
@@ -155,3 +270,4 @@ def detail(request, slug):
         request,
         slug,
     )
+

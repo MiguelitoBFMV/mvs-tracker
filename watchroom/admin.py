@@ -117,8 +117,6 @@ class SeasonProgressAdmin(admin.ModelAdmin):
         "viewing_run",
         "season",
         "episodes_watched",
-        "started_on",
-        "finished_on",
         "updated_at",
     )
     list_filter = (

@@ -772,15 +772,11 @@ class SeasonProgressOwnerForm(
         model = SeasonProgress
         fields = (
             "episodes_watched",
-            "started_on",
-            "finished_on",
         )
         labels = {
             "episodes_watched": (
                 "Episodes Watched"
             ),
-            "started_on": "Started On",
-            "finished_on": "Finished On",
         }
         widgets = {
             "episodes_watched": (
@@ -793,24 +789,6 @@ class SeasonProgressOwnerForm(
                         "step": 1,
                     },
                 )
-            ),
-            "started_on": forms.DateInput(
-                format="%Y-%m-%d",
-                attrs={
-                    "class": (
-                        "watchroom-owner-control"
-                    ),
-                    "type": "date",
-                },
-            ),
-            "finished_on": forms.DateInput(
-                format="%Y-%m-%d",
-                attrs={
-                    "class": (
-                        "watchroom-owner-control"
-                    ),
-                    "type": "date",
-                },
             ),
         }
 
@@ -875,9 +853,6 @@ class SeasonProgressOwnerForm(
         episodes_watched = cleaned_data.get(
             "episodes_watched"
         )
-        finished_on = cleaned_data.get(
-            "finished_on"
-        )
 
         if (
             episodes_watched is not None
@@ -890,19 +865,6 @@ class SeasonProgressOwnerForm(
                     "Watched episodes cannot "
                     f"exceed "
                     f"{self.season.episode_count}."
-                ),
-            )
-
-        if (
-            finished_on is not None
-            and episodes_watched
-            != self.season.episode_count
-        ):
-            self.add_error(
-                "finished_on",
-                (
-                    "A finish date requires "
-                    "the full season count."
                 ),
             )
 
