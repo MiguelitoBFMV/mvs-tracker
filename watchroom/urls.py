@@ -4,6 +4,7 @@ from .web import dashboard as dashboard_views
 from .web import detail as detail_views
 from .web import library as library_views
 from .web import owner as owner_views
+from .web import tmdb as tmdb_views
 
 app_name = "watchroom"
 
@@ -13,6 +14,11 @@ urlpatterns = [
         "",
         dashboard_views.dashboard,
         name="dashboard",
+    ),
+    path(
+        "search/",
+        tmdb_views.search_tmdb,
+        name="tmdb_search",
     ),
     path(
         "library/",
@@ -36,9 +42,9 @@ urlpatterns = [
     ),
     path(
         (
-            "library/<slug:slug>/"
-            "seasons/<int:season_id>/update/"
-        ),
+        "library/<slug:slug>/"
+        "seasons/<int:season_id>/update/"
+            ),
         owner_views.update_season,
         name="update_season",
     ),
@@ -86,5 +92,4 @@ urlpatterns = [
         detail_views.detail,
         name="detail",
     ),
-    
 ]

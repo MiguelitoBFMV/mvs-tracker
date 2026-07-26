@@ -1,0 +1,192 @@
+{% extends "watchroom/base.html" %}
+
+{% block title %}
+    Search TMDB
+{% endblock %}
+
+{% block module_name %}
+    TMDB Search · Watchroom
+{% endblock %}
+
+{% block content %}
+    <header class="library-hero">
+        <div>
+            <p class="dashboard-eyebrow">
+                External Metadata
+            </p>
+
+            <h1>Search TMDB</h1>
+
+            <p>
+                Find a movie or series before
+                importing it into the local library.
+            </p>
+        </div>
+    </header>
+
+    <section class="tmdb-search-panel">
+        <form
+            method="get"
+            class="tmdb-search-form"
+        >
+            <label class="owner-field">
+                <span>
+                    {{ form.media_type.label }}
+                </span>
+
+                {{ form.media_type }}
+
+                {% for error in form.media_type.errors %}
+                    <strong class="owner-form-error">
+                        {{ error }}
+                    </strong>
+                {% endfor %}
+            </label>
+
+            <label class="owner-field">
+                <span>
+                    {{ form.query.label }}
+                </span>
+
+                {{ form.query }}
+
+                {% for error in form.query.errors %}
+                    <strong class="owner-form-error">
+                        {{ error }}
+                    </strong>
+                {% endfor %}
+            </label>
+
+            <button type="submit">
+                Search
+            </button>
+        </form>
+
+        <p class="owner-panel-note">
+            Searching does not add or modify anything
+            in your local library.
+        </p>
+    </section>
+
+    {% if search_error %}
+        <article class="tmdb-search-error">
+            <strong>TMDB Search Failed</strong>
+            <p>{{ search_error }}</p>
+        </article>
+    {% endif %}
+
+    {% if searched and not search_error %}
+        <section class="tmdb-results">
+            <header class="section-heading">
+                <div>
+                    <p class="section-kicker">
+                        Search Results
+                    </p>
+
+                    <h2>
+                        {{ results|length }}
+
+                        {% if results|length == 1 %}
+                            Result
+                        {% else %}
+                            Results
+                        {% endif %}
+                    </h2>
+                </div>
+            </header>
+
+            {% if results %}
+                <div class="tmdb-result-grid">
+                    {% for result in results %}
+                        <article class="tmdb-result-card">
+                            <div class="tmdb-result-poster">
+                                {% if result.poster_url %}
+                                    <img
+                                        src="{{ result.poster_url }}"
+                                        alt=""
+                                    >
+                                {% else %}
+                                    <span aria-hidden="true">
+                                        {{ result.title|slice:":2"|upper }}
+                                    </span>
+                                {% endif %}
+                            </div>
+
+                            <div class="tmdb-result-body">
+                                <div class="media-card-labels">
+                                    <span>
+                                        {{ result.media_type|title }}
+                                    </span>
+
+                                    <span>
+                                        {% if result.presentation == "animation" %}
+                                            Animation / Cartoon
+                                        {% elif result.presentation == "live_action" %}
+                                            Live Action
+                                        {% elif result.presentation == "documentary" %}
+                                            Documentary
+                                        {% else %}
+                                            {{ result.presentation|title }}
+                                        {% endif %}
+                                    </span>
+
+                                    {% if result.first_release_date %}
+                                        <span>
+                                            {{ result.first_release_date|date:"Y" }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+
+                                <h3>{{ result.title }}</h3>
+
+                                {% if result.original_title and result.original_title != result.title %}
+                                    <p class="tmdb-original-title">
+                                        {{ result.original_title }}
+                                    </p>
+                                {% endif %}
+
+                                <p class="tmdb-result-overview">
+                                    {% if result.overview %}
+                                        {{ result.overview|truncatechars:180 }}
+                                    {% else %}
+                                        No overview available.
+                                    {% endif %}
+                                </p>
+
+                                <footer class="tmdb-result-footer">
+                                    {% if result.is_imported %}
+                                        <a
+                                            href="{{ result.local_url }}"
+                                            class="tmdb-imported-link"
+                                        >
+                                            Already Imported →
+                                        </a>
+                                    {% else %}
+                                        <span class="tmdb-ready-state">
+                                            Ready to Import
+                                        </span>
+                                    {% endif %}
+
+                                    <small>
+                                        TMDB ID {{ result.tmdb_id }}
+                                    </small>
+                                </footer>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <article class="empty-state">
+                    <span aria-hidden="true">◇</span>
+
+                    <h3>No matching works found</h3>
+
+                    <p>
+                        Try a different title or
+                        switch between Movie and Series.
+                    </p>
+                </article>
+            {% endif %}
+        </section>
+    {% endif %}
+{% endblock %}

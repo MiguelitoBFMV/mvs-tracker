@@ -851,3 +851,41 @@ class SeasonProgressOwnerForm(
         return cleaned_data
 
 
+class TMDBSearchForm(forms.Form):
+    media_type = forms.ChoiceField(
+        choices=MediaWork.MediaType.choices,
+        initial=MediaWork.MediaType.SERIES,
+        label="Type",
+        widget=forms.Select(
+            attrs={
+                "class": "watchroom-owner-control",
+            },
+        ),
+    )
+    query = forms.CharField(
+        max_length=255,
+        label="Search TMDB",
+        widget=forms.SearchInput(
+            attrs={
+                "class": "watchroom-owner-control",
+                "placeholder": (
+                    "Phineas and Ferb, Saw..."
+                ),
+                "autocomplete": "off",
+            },
+        ),
+    )
+
+    def clean_query(self):
+        query = self.cleaned_data[
+            "query"
+        ].strip()
+
+        if not query:
+            raise forms.ValidationError(
+                "Enter a title to search."
+            )
+
+        return query
+
+

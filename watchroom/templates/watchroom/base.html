@@ -74,7 +74,24 @@
                     <span aria-hidden="true">▦</span>
                     Library
                 </a>
+
+                {% if user.is_authenticated %}
+                    <a
+                        class="
+                            sidebar-link
+
+                            {% if active_page == 'tmdb_search' %}
+                                sidebar-link--active
+                            {% endif %}
+                        "
+                        href="{% url 'watchroom:tmdb_search' %}"
+                    >
+                        <span aria-hidden="true">⌕</span>
+                        Search TMDB
+                    </a>
+                {% endif %}
             </nav>
+
 
             <footer class="sidebar-footer">
                 <a href="{% url 'core:home' %}">
