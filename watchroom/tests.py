@@ -27,6 +27,8 @@ from django.test import (
 
 
 from .models import (
+    Franchise,
+    FranchiseMembership,
     MediaWork,
     Season,
     SeasonProgress,
@@ -75,6 +77,7 @@ from watchroom.services.tmdb_importer import (
 
 from watchroom.services.tmdb_refresh import (
     TMDBRefreshError,
+    TMDBRefreshResult,
     refresh_work_from_tmdb,
 )
 
@@ -219,6 +222,279 @@ class WatchroomMediaWorkTests(TestCase):
         self.assertEqual(
             first_work.slug,
             original_slug,
+        )
+
+
+class WatchroomFranchiseTests(
+    TestCase
+):
+    @classmethod
+    def setUpTestData(cls):
+        cls.series = (
+            MediaWork.objects.create(
+                media_type=(
+                    MediaWork.MediaType
+                    .SERIES
+                ),
+                title=(
+                    "Phineas and Ferb"
+                ),
+                presentation=(
+                    MediaWork.Presentation
+                    .ANIMATION
+                ),
+            )
+        )
+        cls.movie = (
+            MediaWork.objects.create(
+                media_type=(
+                    MediaWork.MediaType
+                    .MOVIE
+                ),
+                title=(
+                    "Phineas and Ferb "
+                    "the Movie"
+                ),
+                presentation=(
+                    MediaWork.Presentation
+                    .ANIMATION
+                ),
+                runtime_minutes=78,
+            )
+        )
+
+    def test_franchise_slug_is_unique_and_stable(
+        self,
+    ):
+        first = Franchise.objects.create(
+            name="Saw",
+        )
+        second = (
+            Franchise.objects.create(
+                name="Saw",
+            )
+        )
+
+        self.assertEqual(
+            first.slug,
+            "saw",
+        )
+        self.assertEqual(
+            second.slug,
+            "saw-2",
+        )
+
+        original_slug = first.slug
+        first.name = "Saw Franchise"
+        first.save()
+
+        self.assertEqual(
+            first.slug,
+            original_slug,
+        )
+
+    def test_tmdb_collection_identity_is_unique(
+        self,
+    ):
+        Franchise.objects.create(
+            name="Saw",
+            tmdb_collection_id=656,
+        )
+
+        with self.assertRaises(
+            IntegrityError
+        ):
+            with transaction.atomic():
+                Franchise.objects.create(
+                    name="Duplicate Saw",
+                    tmdb_collection_id=656,
+                )
+
+    def test_franchise_accepts_movies_and_series(
+        self,
+    ):
+        franchise = (
+            Franchise.objects.create(
+                name="Phineas and Ferb",
+            )
+        )
+
+        FranchiseMembership.objects.create(
+            franchise=franchise,
+            media_work=self.series,
+            position=1,
+            role=(
+                FranchiseMembership
+                .Role.MAIN
+            ),
+        )
+        FranchiseMembership.objects.create(
+            franchise=franchise,
+            media_work=self.movie,
+            position=2,
+            role=(
+                FranchiseMembership
+                .Role.MAIN
+            ),
+        )
+
+        self.assertEqual(
+            franchise.works.count(),
+            2,
+        )
+        self.assertTrue(
+            franchise.works.filter(
+                media_type="series",
+            ).exists()
+        )
+        self.assertTrue(
+            franchise.works.filter(
+                media_type="movie",
+            ).exists()
+        )
+
+    def test_work_is_unique_inside_franchise(
+        self,
+    ):
+        franchise = (
+            Franchise.objects.create(
+                name="Phineas and Ferb",
+            )
+        )
+
+        FranchiseMembership.objects.create(
+            franchise=franchise,
+            media_work=self.series,
+            position=1,
+        )
+
+        with self.assertRaises(
+            IntegrityError
+        ):
+            with transaction.atomic():
+                FranchiseMembership.objects.create(
+                    franchise=franchise,
+                    media_work=self.series,
+                    position=2,
+                )
+
+    def test_work_can_belong_to_multiple_franchises(
+        self,
+    ):
+        main_franchise = (
+            Franchise.objects.create(
+                name="Phineas and Ferb",
+            )
+        )
+        disney_movies = (
+            Franchise.objects.create(
+                name="Disney Movies",
+            )
+        )
+
+        FranchiseMembership.objects.create(
+            franchise=main_franchise,
+            media_work=self.movie,
+            position=2,
+        )
+        FranchiseMembership.objects.create(
+            franchise=disney_movies,
+            media_work=self.movie,
+            position=1,
+        )
+
+        self.assertEqual(
+            self.movie.franchises.count(),
+            2,
+        )
+
+    def test_membership_position_must_be_positive(
+        self,
+    ):
+        franchise = (
+            Franchise.objects.create(
+                name="Invalid Position",
+            )
+        )
+
+        with self.assertRaises(
+            IntegrityError
+        ):
+            with transaction.atomic():
+                FranchiseMembership.objects.create(
+                    franchise=franchise,
+                    media_work=self.movie,
+                    position=0,
+                )
+
+    def test_deleting_franchise_preserves_works(
+        self,
+    ):
+        franchise = (
+            Franchise.objects.create(
+                name="Phineas and Ferb",
+            )
+        )
+        membership = (
+            FranchiseMembership
+            .objects.create(
+                franchise=franchise,
+                media_work=self.series,
+                position=1,
+            )
+        )
+
+        franchise.delete()
+
+        self.assertTrue(
+            MediaWork.objects.filter(
+                pk=self.series.pk,
+            ).exists()
+        )
+        self.assertFalse(
+            FranchiseMembership
+            .objects.filter(
+                pk=membership.pk,
+            )
+            .exists()
+        )
+
+    def test_deleting_work_removes_membership(
+        self,
+    ):
+        franchise = (
+            Franchise.objects.create(
+                name="Phineas and Ferb",
+            )
+        )
+        membership = (
+            FranchiseMembership
+            .objects.create(
+                franchise=franchise,
+                media_work=self.movie,
+                position=1,
+            )
+        )
+
+        movie_pk = self.movie.pk
+        self.movie.delete()
+
+        self.assertTrue(
+            Franchise.objects.filter(
+                pk=franchise.pk,
+            ).exists()
+        )
+        self.assertFalse(
+            MediaWork.objects.filter(
+                pk=movie_pk,
+            ).exists()
+        )
+        self.assertFalse(
+            FranchiseMembership
+            .objects.filter(
+                pk=membership.pk,
+            )
+            .exists()
         )
 
 
@@ -4804,6 +5080,215 @@ class TMDBRefreshServiceTests(
             Season.objects.filter(
                 pk=season.pk,
             ).exists()
+        )
+
+
+class TMDBRefreshViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects.create_user(
+                username="tmdb-refresh-owner",
+                password="test-password",
+            )
+        )
+
+        cls.work = MediaWork.objects.create(
+            media_type="series",
+            tmdb_id=1877,
+            title="Phineas and Ferb",
+            presentation="animation",
+        )
+        cls.entry = WatchEntry.objects.create(
+            media_work=cls.work,
+            status=(
+                WatchEntry.Status
+                .PLAN_TO_WATCH
+            ),
+        )
+
+    def test_refresh_requires_login(
+        self,
+    ):
+        response = self.client.post(
+            reverse(
+                "watchroom:refresh_tmdb",
+                kwargs={
+                    "slug": self.work.slug,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+        self.assertIn(
+            reverse("login"),
+            response.url,
+        )
+
+    def test_refresh_is_post_only(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            reverse(
+                "watchroom:refresh_tmdb",
+                kwargs={
+                    "slug": self.work.slug,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            405,
+        )
+
+    @patch(
+        "watchroom.web.tmdb."
+        "refresh_work_from_tmdb"
+    )
+    def test_owner_can_refresh_tmdb_work(
+        self,
+        mock_refresh,
+    ):
+        mock_refresh.return_value = (
+            TMDBRefreshResult(
+                work=self.work,
+                created_seasons=1,
+                updated_seasons=4,
+            )
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:refresh_tmdb",
+                kwargs={
+                    "slug": self.work.slug,
+                },
+            ),
+            follow=True,
+        )
+
+        mock_refresh.assert_called_once()
+
+        refreshed_work = (
+            mock_refresh.call_args
+            .kwargs["work"]
+        )
+
+        self.assertEqual(
+            refreshed_work,
+            self.work,
+        )
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertContains(
+            response,
+            "TMDB refresh complete.",
+        )
+        self.assertContains(
+            response,
+            (
+                "1 season(s) added and "
+                "4 season(s) updated."
+            ),
+        )
+
+    @patch(
+        "watchroom.web.tmdb."
+        "refresh_work_from_tmdb"
+    )
+    def test_refresh_error_is_displayed(
+        self,
+        mock_refresh,
+    ):
+        mock_refresh.side_effect = (
+            TMDBRefreshError(
+                "TMDB is unavailable."
+            )
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:refresh_tmdb",
+                kwargs={
+                    "slug": self.work.slug,
+                },
+            ),
+            follow=True,
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertContains(
+            response,
+            (
+                "TMDB refresh failed: "
+                "TMDB is unavailable."
+            ),
+        )
+
+    @patch(
+        "watchroom.web.tmdb."
+        "refresh_work_from_tmdb"
+    )
+    def test_unlinked_work_cannot_refresh(
+        self,
+        mock_refresh,
+    ):
+        work = MediaWork.objects.create(
+            media_type="movie",
+            title="Manual Movie",
+        )
+        WatchEntry.objects.create(
+            media_work=work,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:refresh_tmdb",
+                kwargs={
+                    "slug": work.slug,
+                },
+            ),
+            follow=True,
+        )
+
+        mock_refresh.assert_not_called()
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertContains(
+            response,
+            (
+                "This work is not linked "
+                "to TMDB."
+            ),
         )
 
 

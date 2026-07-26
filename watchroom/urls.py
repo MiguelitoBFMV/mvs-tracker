@@ -96,7 +96,15 @@ urlpatterns = [
         owner_views.update_season_progress,
         name="update_season_progress",
     ),
-        path(
+    path(
+        (
+            "library/<slug:slug>/"
+            "tmdb/refresh/"
+        ),
+        tmdb_views.refresh_tmdb_work,
+        name="refresh_tmdb",
+    ),
+    path(
         "library/<slug:slug>/delete/",
         owner_views.delete_work,
         name="delete_work",

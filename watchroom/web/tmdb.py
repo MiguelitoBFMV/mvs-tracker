@@ -3,8 +3,14 @@ from django.contrib.auth.decorators import (
 )
 from django.http import Http404
 from django.shortcuts import (
+    get_object_or_404,
     redirect,
     render,
+)
+from django.contrib import messages
+
+from django.views.decorators.http import (
+    require_POST,
 )
 
 from watchroom.forms import (
@@ -26,6 +32,11 @@ from watchroom.services.tmdb_normalizer import (
     TMDBNormalizationError,
     normalize_movie_search_result,
     normalize_series_search_result,
+)
+
+from watchroom.services.tmdb_refresh import (
+    TMDBRefreshError,
+    refresh_work_from_tmdb,
 )
 
 
@@ -252,6 +263,92 @@ def review_tmdb_import(
             "media_type": media_type,
             "tmdb_id": tmdb_id,
         },
+    )
+
+
+@login_required
+@require_POST
+def refresh_tmdb_work(
+    request,
+    slug,
+):
+    work = get_object_or_404(
+        MediaWork,
+        slug=slug,
+    )
+
+    if work.tmdb_id is None:
+        messages.error(
+            request,
+            (
+                "This work is not linked "
+                "to TMDB."
+            ),
+        )
+
+        return redirect(
+            work.get_absolute_url()
+        )
+
+    try:
+        result = refresh_work_from_tmdb(
+            work=work
+        )
+    except (
+        TMDBClientError,
+        TMDBImportError,
+        TMDBRefreshError,
+    ) as error:
+        messages.error(
+            request,
+            (
+                "TMDB refresh failed: "
+                f"{error}"
+            ),
+        )
+
+        return redirect(
+            work.get_absolute_url()
+        )
+
+    messages.success(
+        request,
+        (
+            "TMDB refresh complete. "
+            f"{result.created_seasons} "
+            "season(s) added and "
+            f"{result.updated_seasons} "
+            "season(s) updated."
+        ),
+    )
+
+    if result.preserved_runtime:
+        messages.warning(
+            request,
+            (
+                "The local runtime was preserved "
+                "because TMDB returned a value "
+                "lower than existing progress."
+            ),
+        )
+
+    if (
+        result.preserved_episode_totals
+        > 0
+    ):
+        messages.warning(
+            request,
+            (
+                f"{result.preserved_episode_totals} "
+                "season total(s) were preserved "
+                "because TMDB returned episode "
+                "counts lower than existing "
+                "progress."
+            ),
+        )
+
+    return redirect(
+        result.work.get_absolute_url()
     )
 
 

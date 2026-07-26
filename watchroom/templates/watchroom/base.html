@@ -148,6 +148,24 @@
                 </div>
             </nav>
 
+            {% if messages %}
+                <section
+                    class="watchroom-messages"
+                    aria-label="Notifications"
+                >
+                    {% for message in messages %}
+                        <article
+                            class="
+                                watchroom-message
+                                watchroom-message--{{ message.tags }}
+                            "
+                        >
+                            {{ message }}
+                        </article>
+                    {% endfor %}
+                </section>
+            {% endif %}
+
             <div class="watchroom-content">
                 {% block content %}
                 {% endblock %}

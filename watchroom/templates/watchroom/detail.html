@@ -928,6 +928,46 @@
                 {% endif %}
             {% endif %}
 
+            {% if work.tmdb_id %}
+                <article class="owner-panel">
+                    <header class="owner-panel-heading">
+                        <div>
+                            <p class="section-kicker">
+                                External Metadata
+                            </p>
+
+                            <h3>TMDB Sync</h3>
+                        </div>
+
+                        {% if work.tmdb_synced_at %}
+                            <span class="owner-panel-state">
+                                Last synced
+                                {{ work.tmdb_synced_at|date:"Y-m-d H:i" }}
+                            </span>
+                        {% endif %}
+                    </header>
+
+                    <p class="owner-panel-note">
+                        Refresh titles, descriptions, images,
+                        runtime, external status and canonical
+                        season metadata without changing personal
+                        status, runs or progress.
+                    </p>
+
+                    <form
+                        method="post"
+                        action="{% url 'watchroom:refresh_tmdb' work.slug %}"
+                        class="owner-form-actions"
+                    >
+                        {% csrf_token %}
+
+                        <button type="submit">
+                            Refresh from TMDB
+                        </button>
+                    </form>
+                </article>
+            {% endif %}
+
             <article class="owner-panel owner-danger-panel">
                 <header class="owner-panel-heading">
                     <div>
