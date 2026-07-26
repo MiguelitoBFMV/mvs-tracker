@@ -73,6 +73,11 @@ from watchroom.services.tmdb_importer import (
     import_tmdb_work,
 )
 
+from watchroom.services.tmdb_refresh import (
+    TMDBRefreshError,
+    refresh_work_from_tmdb,
+)
+
 def build_mock_response(
     *,
     status_code=200,
@@ -4467,6 +4472,338 @@ class TMDBImportViewTests(TestCase):
         self.assertContains(
             response,
             "TMDB details unavailable.",
+        )
+
+
+class TMDBRefreshServiceTests(
+    TestCase
+):
+    def create_movie(self):
+        work = MediaWork.objects.create(
+            media_type="movie",
+            tmdb_id=176,
+            title="Saw",
+            runtime_minutes=103,
+        )
+        entry = WatchEntry.objects.create(
+            media_work=work,
+            status=(
+                WatchEntry.Status.COMPLETED
+            ),
+        )
+        run = ViewingRun.objects.create(
+            watch_entry=entry,
+            number=1,
+            status=(
+                ViewingRun.Status.COMPLETED
+            ),
+            progress_minutes=103,
+        )
+
+        return work, entry, run
+
+    def create_series(self):
+        work = MediaWork.objects.create(
+            media_type="series",
+            tmdb_id=1877,
+            title="Phineas and Ferb",
+            presentation="animation",
+        )
+        entry = WatchEntry.objects.create(
+            media_work=work,
+            status=(
+                WatchEntry.Status.WATCHING
+            ),
+        )
+        season = Season.objects.create(
+            media_work=work,
+            tmdb_id=1001,
+            season_number=1,
+            name="Season 1",
+            episode_count=47,
+        )
+        run = ViewingRun.objects.create(
+            watch_entry=entry,
+            number=1,
+            status=(
+                ViewingRun.Status.WATCHING
+            ),
+        )
+
+        return (
+            work,
+            entry,
+            season,
+            run,
+        )
+
+    @patch(
+        "watchroom.services."
+        "tmdb_refresh.fetch_tmdb_details"
+    )
+    def test_movie_refresh_preserves_history(
+        self,
+        mock_fetch,
+    ):
+        work, entry, run = (
+            self.create_movie()
+        )
+
+        mock_fetch.return_value = {
+            "tmdb_id": 176,
+            "media_type": "movie",
+            "title": "Saw",
+            "overview": "Updated overview.",
+            "runtime_minutes": 110,
+            "external_status": "Released",
+            "genres": [
+                "Horror",
+                "Mystery",
+            ],
+            "tmdb_payload": {
+                "id": 176,
+            },
+        }
+
+        refresh_work_from_tmdb(
+            work=work
+        )
+
+        work.refresh_from_db()
+        entry.refresh_from_db()
+        run.refresh_from_db()
+
+        self.assertEqual(
+            work.overview,
+            "Updated overview.",
+        )
+        self.assertEqual(
+            work.runtime_minutes,
+            110,
+        )
+        self.assertEqual(
+            entry.status,
+            WatchEntry.Status.COMPLETED,
+        )
+        self.assertEqual(
+            run.progress_minutes,
+            103,
+        )
+        self.assertEqual(
+            run.status,
+            ViewingRun.Status.COMPLETED,
+        )
+
+    @patch(
+        "watchroom.services."
+        "tmdb_refresh.fetch_tmdb_details"
+    )
+    def test_movie_runtime_cannot_drop_below_progress(
+        self,
+        mock_fetch,
+    ):
+        work, _entry, _run = (
+            self.create_movie()
+        )
+
+        mock_fetch.return_value = {
+            "tmdb_id": 176,
+            "media_type": "movie",
+            "title": "Saw",
+            "runtime_minutes": 90,
+            "tmdb_payload": {
+                "id": 176,
+            },
+        }
+
+        result = refresh_work_from_tmdb(
+            work=work
+        )
+
+        work.refresh_from_db()
+
+        self.assertEqual(
+            work.runtime_minutes,
+            103,
+        )
+        self.assertTrue(
+            result.preserved_runtime
+        )
+
+    @patch(
+        "watchroom.services."
+        "tmdb_refresh.fetch_tmdb_details"
+    )
+    def test_series_refresh_updates_and_creates_seasons(
+        self,
+        mock_fetch,
+    ):
+        (
+            work,
+            entry,
+            season,
+            run,
+        ) = self.create_series()
+
+        mock_fetch.return_value = {
+            "tmdb_id": 1877,
+            "media_type": "series",
+            "title": "Phineas and Ferb",
+            "external_status": (
+                "Returning Series"
+            ),
+            "tmdb_payload": {
+                "id": 1877,
+            },
+            "seasons": [
+                {
+                    "tmdb_id": 1001,
+                    "season_number": 1,
+                    "name": "Season 1",
+                    "episode_count": 48,
+                    "tmdb_payload": {
+                        "id": 1001,
+                    },
+                },
+                {
+                    "tmdb_id": 1002,
+                    "season_number": 2,
+                    "name": "Season 2",
+                    "episode_count": 66,
+                    "tmdb_payload": {
+                        "id": 1002,
+                    },
+                },
+            ],
+        }
+
+        result = refresh_work_from_tmdb(
+            work=work
+        )
+
+        season.refresh_from_db()
+        entry.refresh_from_db()
+        run.refresh_from_db()
+
+        self.assertEqual(
+            season.episode_count,
+            48,
+        )
+        self.assertTrue(
+            work.seasons.filter(
+                season_number=2,
+                episode_count=66,
+            ).exists()
+        )
+        self.assertEqual(
+            result.created_seasons,
+            1,
+        )
+        self.assertEqual(
+            result.updated_seasons,
+            1,
+        )
+        self.assertEqual(
+            entry.status,
+            WatchEntry.Status.WATCHING,
+        )
+        self.assertEqual(
+            run.status,
+            ViewingRun.Status.WATCHING,
+        )
+
+    @patch(
+        "watchroom.services."
+        "tmdb_refresh.fetch_tmdb_details"
+    )
+    def test_season_total_cannot_drop_below_progress(
+        self,
+        mock_fetch,
+    ):
+        (
+            work,
+            _entry,
+            season,
+            run,
+        ) = self.create_series()
+
+        SeasonProgress.objects.create(
+            viewing_run=run,
+            season=season,
+            episodes_watched=47,
+        )
+
+        mock_fetch.return_value = {
+            "tmdb_id": 1877,
+            "media_type": "series",
+            "title": "Phineas and Ferb",
+            "tmdb_payload": {
+                "id": 1877,
+            },
+            "seasons": [
+                {
+                    "tmdb_id": 1001,
+                    "season_number": 1,
+                    "name": "Season 1",
+                    "episode_count": 40,
+                    "tmdb_payload": {
+                        "id": 1001,
+                    },
+                },
+            ],
+        }
+
+        result = refresh_work_from_tmdb(
+            work=work
+        )
+
+        season.refresh_from_db()
+
+        self.assertEqual(
+            season.episode_count,
+            47,
+        )
+        self.assertEqual(
+            (
+                result
+                .preserved_episode_totals
+            ),
+            1,
+        )
+
+    @patch(
+        "watchroom.services."
+        "tmdb_refresh.fetch_tmdb_details"
+    )
+    def test_missing_tmdb_season_is_not_deleted(
+        self,
+        mock_fetch,
+    ):
+        (
+            work,
+            _entry,
+            season,
+            _run,
+        ) = self.create_series()
+
+        mock_fetch.return_value = {
+            "tmdb_id": 1877,
+            "media_type": "series",
+            "title": "Phineas and Ferb",
+            "tmdb_payload": {
+                "id": 1877,
+            },
+            "seasons": [],
+        }
+
+        refresh_work_from_tmdb(
+            work=work
+        )
+
+        self.assertTrue(
+            Season.objects.filter(
+                pk=season.pk,
+            ).exists()
         )
 
 
