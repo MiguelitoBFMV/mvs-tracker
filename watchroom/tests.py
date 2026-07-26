@@ -40,6 +40,7 @@ from .forms import (
     SeasonOwnerForm,
     SeasonProgressOwnerForm,
     WatchEntryOwnerForm,
+    TMDBImportForm,
 )
 
 from unittest.mock import (
@@ -65,6 +66,12 @@ from watchroom.services.tmdb_normalizer import (
     normalize_series_search_result,
 )
 
+from watchroom.services.tmdb_importer import (
+    TMDBDuplicateWorkError,
+    TMDBImportError,
+    fetch_tmdb_details,
+    import_tmdb_work,
+)
 
 def build_mock_response(
     *,
@@ -2305,6 +2312,137 @@ class WatchroomOwnerWorkflowTests(
             form.fields,
         )
 
+    def test_delete_work_requires_login(
+        self,
+    ):
+        work = MediaWork.objects.create(
+            media_type="movie",
+            title="Delete Anonymous Test",
+        )
+        WatchEntry.objects.create(
+            media_work=work,
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:delete_work",
+                kwargs={
+                    "slug": work.slug,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+        self.assertTrue(
+            MediaWork.objects.filter(
+                pk=work.pk,
+            ).exists()
+        )
+
+
+    def test_delete_work_is_post_only(
+        self,
+    ):
+        work = MediaWork.objects.create(
+            media_type="movie",
+            title="Delete GET Test",
+        )
+        WatchEntry.objects.create(
+            media_work=work,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            reverse(
+                "watchroom:delete_work",
+                kwargs={
+                    "slug": work.slug,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            405,
+        )
+
+
+    def test_owner_can_delete_work_with_history(
+        self,
+    ):
+        work = MediaWork.objects.create(
+            media_type="series",
+            title="Delete Complete Test",
+        )
+        entry = WatchEntry.objects.create(
+            media_work=work,
+            status=WatchEntry.Status.WATCHING,
+        )
+        season = Season.objects.create(
+            media_work=work,
+            season_number=1,
+            episode_count=10,
+        )
+        run = ViewingRun.objects.create(
+            watch_entry=entry,
+            number=1,
+            status=ViewingRun.Status.WATCHING,
+        )
+        progress = SeasonProgress.objects.create(
+            viewing_run=run,
+            season=season,
+            episodes_watched=4,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:delete_work",
+                kwargs={
+                    "slug": work.slug,
+                },
+            )
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("watchroom:library"),
+        )
+        self.assertFalse(
+            MediaWork.objects.filter(
+                pk=work.pk,
+            ).exists()
+        )
+        self.assertFalse(
+            WatchEntry.objects.filter(
+                pk=entry.pk,
+            ).exists()
+        )
+        self.assertFalse(
+            Season.objects.filter(
+                pk=season.pk,
+            ).exists()
+        )
+        self.assertFalse(
+            ViewingRun.objects.filter(
+                pk=run.pk,
+            ).exists()
+        )
+        self.assertFalse(
+            SeasonProgress.objects.filter(
+                pk=progress.pk,
+            ).exists()
+        )
+
 
 class WatchroomViewingWorkflowTests(
     TestCase
@@ -2894,6 +3032,58 @@ class WatchroomViewingWorkflowTests(
         self.assertNotContains(
             response,
             "Optional dates",
+        )
+
+    def test_owner_can_clear_run_dates(
+        self,
+    ):
+        run = ViewingRun.objects.create(
+            watch_entry=self.movie_entry,
+            number=1,
+            status=ViewingRun.Status.COMPLETED,
+            started_on=date(
+                2026,
+                7,
+                1,
+            ),
+            finished_on=date(
+                2026,
+                7,
+                2,
+            ),
+            progress_minutes=93,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:update_run",
+                kwargs={
+                    "slug": self.movie.slug,
+                    "run_id": run.pk,
+                },
+            ),
+            {
+                f"run-{run.pk}-started_on": "",
+                f"run-{run.pk}-finished_on": "",
+                (
+                    f"run-{run.pk}-"
+                    "progress_minutes"
+                ): 93,
+                f"run-{run.pk}-notes": "",
+            },
+        )
+
+        run.refresh_from_db()
+
+        self.assertIsNone(
+            run.started_on
+        )
+        self.assertIsNone(
+            run.finished_on
         )
 
 
@@ -3542,7 +3732,25 @@ class TMDBSearchViewTests(TestCase):
         )
         self.assertContains(
             response,
-            "Ready to Import",
+            "Review &amp; Import",
+        )
+        self.assertContains(
+            response,
+            reverse(
+                "watchroom:tmdb_import",
+                args=[
+                    "movie",
+                    11,
+                ],
+            ),
+        )
+        self.assertContains(
+            response,
+            "Review",
+        )
+        self.assertContains(
+            response,
+            "Import",
         )
 
     @patch(
@@ -3713,6 +3921,552 @@ class TMDBSearchViewTests(TestCase):
         self.assertContains(
             response,
             "Valid Series",
+        )
+
+
+class TMDBImportFormTests(
+    SimpleTestCase
+):
+    def test_import_statuses_exclude_active_states(
+        self,
+    ):
+        form = TMDBImportForm()
+
+        status_values = {
+            value
+            for value, _label
+            in form.fields[
+                "status"
+            ].choices
+        }
+
+        self.assertIn(
+            WatchEntry.Status.PLAN_TO_WATCH,
+            status_values,
+        )
+        self.assertIn(
+            WatchEntry.Status.COMPLETED,
+            status_values,
+        )
+        self.assertIn(
+            WatchEntry.Status.DROPPED,
+            status_values,
+        )
+        self.assertNotIn(
+            WatchEntry.Status.WATCHING,
+            status_values,
+        )
+        self.assertNotIn(
+            WatchEntry.Status.PAUSED,
+            status_values,
+        )
+
+
+class TMDBImporterTests(TestCase):
+    def movie_details(self):
+        return {
+            "tmdb_id": 11,
+            "media_type": (
+                MediaWork.MediaType.MOVIE
+            ),
+            "title": "Saw",
+            "original_title": "Saw",
+            "overview": "A horror movie.",
+            "presentation": (
+                MediaWork.Presentation
+                .LIVE_ACTION
+            ),
+            "original_language": "en",
+            "first_release_date": date(
+                2004,
+                10,
+                29,
+            ),
+            "runtime_minutes": 103,
+            "external_status": "Released",
+            "poster_url": (
+                "https://example.com/poster.jpg"
+            ),
+            "backdrop_url": (
+                "https://example.com/backdrop.jpg"
+            ),
+            "genres": [
+                "Horror",
+            ],
+            "origin_countries": [
+                "US",
+            ],
+            "networks": [],
+            "tmdb_payload": {
+                "id": 11,
+            },
+        }
+
+    def series_details(self):
+        return {
+            "tmdb_id": 22,
+            "media_type": (
+                MediaWork.MediaType.SERIES
+            ),
+            "title": "Phineas and Ferb",
+            "original_title": (
+                "Phineas and Ferb"
+            ),
+            "overview": "Summer adventures.",
+            "presentation": (
+                MediaWork.Presentation
+                .ANIMATION
+            ),
+            "original_language": "en",
+            "first_release_date": date(
+                2007,
+                8,
+                17,
+            ),
+            "runtime_minutes": None,
+            "external_status": "Ended",
+            "poster_url": "",
+            "backdrop_url": "",
+            "genres": [
+                "Animation",
+                "Comedy",
+            ],
+            "origin_countries": [
+                "US",
+            ],
+            "networks": [
+                "Disney Channel",
+            ],
+            "tmdb_payload": {
+                "id": 22,
+            },
+            "seasons": [
+                {
+                    "tmdb_id": 220,
+                    "season_number": 0,
+                    "name": "Specials",
+                    "episode_count": 4,
+                    "air_date": None,
+                    "poster_url": "",
+                    "tmdb_payload": {
+                        "id": 220,
+                    },
+                },
+                {
+                    "tmdb_id": 221,
+                    "season_number": 1,
+                    "name": "Season 1",
+                    "episode_count": 38,
+                    "air_date": None,
+                    "poster_url": "",
+                    "tmdb_payload": {
+                        "id": 221,
+                    },
+                },
+            ],
+        }
+
+    def test_movie_import_creates_local_records(
+        self,
+    ):
+        work = import_tmdb_work(
+            details=self.movie_details(),
+            status=(
+                WatchEntry.Status
+                .PLAN_TO_WATCH
+            ),
+            notes="Watch later.",
+            presentation=(
+                MediaWork.Presentation
+                .LIVE_ACTION
+            ),
+        )
+
+        entry = work.watch_entry
+
+        self.assertEqual(
+            work.tmdb_id,
+            11,
+        )
+        self.assertEqual(
+            work.runtime_minutes,
+            103,
+        )
+        self.assertEqual(
+            work.genres,
+            [
+                "Horror",
+            ],
+        )
+        self.assertIsNotNone(
+            work.tmdb_synced_at
+        )
+        self.assertEqual(
+            entry.status,
+            WatchEntry.Status.PLAN_TO_WATCH,
+        )
+        self.assertEqual(
+            entry.notes,
+            "Watch later.",
+        )
+
+    def test_series_import_creates_seasons(
+        self,
+    ):
+        work = import_tmdb_work(
+            details=self.series_details(),
+            status=(
+                WatchEntry.Status
+                .PLAN_TO_WATCH
+            ),
+            presentation=(
+                MediaWork.Presentation
+                .ANIMATION
+            ),
+        )
+
+        self.assertEqual(
+            work.seasons.count(),
+            2,
+        )
+        self.assertTrue(
+            work.seasons.filter(
+                season_number=0,
+                episode_count=4,
+            ).exists()
+        )
+        self.assertTrue(
+            work.seasons.filter(
+                season_number=1,
+                episode_count=38,
+            ).exists()
+        )
+
+    def test_completed_series_gets_full_progress(
+        self,
+    ):
+        work = import_tmdb_work(
+            details=self.series_details(),
+            status=(
+                WatchEntry.Status.COMPLETED
+            ),
+            presentation=(
+                MediaWork.Presentation
+                .ANIMATION
+            ),
+        )
+
+        run = work.watch_entry.viewing_runs.get(
+            number=1
+        )
+
+        season_one = work.seasons.get(
+            season_number=1
+        )
+
+        progress = SeasonProgress.objects.get(
+            viewing_run=run,
+            season=season_one,
+        )
+
+        self.assertEqual(
+            run.status,
+            ViewingRun.Status.COMPLETED,
+        )
+        self.assertEqual(
+            progress.episodes_watched,
+            38,
+        )
+        self.assertFalse(
+            SeasonProgress.objects.filter(
+                viewing_run=run,
+                season__season_number=0,
+            ).exists()
+        )
+
+    def test_duplicate_import_is_rejected(
+        self,
+    ):
+        existing = MediaWork.objects.create(
+            tmdb_id=11,
+            media_type=(
+                MediaWork.MediaType.MOVIE
+            ),
+            title="Saw",
+        )
+
+        with self.assertRaises(
+            TMDBDuplicateWorkError
+        ) as context:
+            import_tmdb_work(
+                details=self.movie_details(),
+                status=(
+                    WatchEntry.Status
+                    .PLAN_TO_WATCH
+                ),
+                presentation=(
+                    MediaWork.Presentation
+                    .LIVE_ACTION
+                ),
+            )
+
+        self.assertEqual(
+            context.exception.existing_work,
+            existing,
+        )
+
+
+class TMDBImportViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects.create_user(
+                username="tmdb-import-owner",
+                password="test-password",
+            )
+        )
+
+    def setUp(self):
+        self.client.force_login(
+            self.owner
+        )
+
+    def series_details(self):
+        return {
+            "tmdb_id": 22,
+            "media_type": (
+                MediaWork.MediaType.SERIES
+            ),
+            "title": "Phineas and Ferb",
+            "original_title": (
+                "Phineas and Ferb"
+            ),
+            "overview": "Summer adventures.",
+            "presentation": (
+                MediaWork.Presentation
+                .ANIMATION
+            ),
+            "original_language": "en",
+            "first_release_date": date(
+                2007,
+                8,
+                17,
+            ),
+            "runtime_minutes": None,
+            "external_status": "Ended",
+            "poster_url": "",
+            "backdrop_url": "",
+            "genres": [
+                "Animation",
+            ],
+            "origin_countries": [
+                "US",
+            ],
+            "networks": [
+                "Disney Channel",
+            ],
+            "tmdb_payload": {
+                "id": 22,
+            },
+            "seasons": [
+                {
+                    "tmdb_id": 221,
+                    "season_number": 1,
+                    "name": "Season 1",
+                    "episode_count": 38,
+                    "air_date": None,
+                    "poster_url": "",
+                    "tmdb_payload": {
+                        "id": 221,
+                    },
+                },
+            ],
+        }
+
+    def test_import_review_requires_login(
+        self,
+    ):
+        self.client.logout()
+
+        response = self.client.get(
+            reverse(
+                "watchroom:tmdb_import",
+                args=[
+                    "series",
+                    22,
+                ],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+        self.assertIn(
+            reverse("login"),
+            response.url,
+        )
+
+    @patch(
+        "watchroom.web.tmdb."
+        "fetch_tmdb_details"
+    )
+    def test_import_review_shows_details(
+        self,
+        mock_fetch,
+    ):
+        mock_fetch.return_value = (
+            self.series_details()
+        )
+
+        response = self.client.get(
+            reverse(
+                "watchroom:tmdb_import",
+                args=[
+                    "series",
+                    22,
+                ],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertTemplateUsed(
+            response,
+            "watchroom/tmdb_import.html",
+        )
+        self.assertContains(
+            response,
+            "Phineas and Ferb",
+        )
+        self.assertContains(
+            response,
+            "38",
+        )
+        self.assertContains(
+            response,
+            "Import to Watchroom",
+        )
+
+    @patch(
+        "watchroom.web.tmdb."
+        "fetch_tmdb_details"
+    )
+    def test_owner_can_import_series(
+        self,
+        mock_fetch,
+    ):
+        mock_fetch.return_value = (
+            self.series_details()
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:tmdb_import",
+                args=[
+                    "series",
+                    22,
+                ],
+            ),
+            {
+                "presentation": "animation",
+                "status": "plan_to_watch",
+                "notes": "Summer project.",
+            },
+        )
+
+        work = MediaWork.objects.get(
+            media_type="series",
+            tmdb_id=22,
+        )
+
+        self.assertRedirects(
+            response,
+            work.get_absolute_url(),
+        )
+        self.assertEqual(
+            work.watch_entry.notes,
+            "Summer project.",
+        )
+        self.assertEqual(
+            work.seasons.count(),
+            1,
+        )
+
+    @patch(
+        "watchroom.web.tmdb."
+        "fetch_tmdb_details"
+    )
+    def test_existing_import_redirects_without_fetch(
+        self,
+        mock_fetch,
+    ):
+        work = MediaWork.objects.create(
+            media_type="series",
+            tmdb_id=22,
+            title="Phineas and Ferb",
+        )
+        WatchEntry.objects.create(
+            media_work=work,
+            status=(
+                WatchEntry.Status.PLAN_TO_WATCH
+            ),
+        )
+
+        response = self.client.get(
+            reverse(
+                "watchroom:tmdb_import",
+                args=[
+                    "series",
+                    22,
+                ],
+            )
+        )
+
+        self.assertRedirects(
+            response,
+            work.get_absolute_url(),
+        )
+        mock_fetch.assert_not_called()
+
+    @patch(
+        "watchroom.web.tmdb."
+        "fetch_tmdb_details"
+    )
+    def test_tmdb_error_is_displayed(
+        self,
+        mock_fetch,
+    ):
+        mock_fetch.side_effect = (
+            TMDBImportError(
+                "TMDB details unavailable."
+            )
+        )
+
+        response = self.client.get(
+            reverse(
+                "watchroom:tmdb_import",
+                args=[
+                    "series",
+                    22,
+                ],
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertContains(
+            response,
+            "TMDB Import Failed",
+        )
+        self.assertContains(
+            response,
+            "TMDB details unavailable.",
         )
 
 

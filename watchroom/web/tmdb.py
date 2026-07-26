@@ -1,15 +1,26 @@
 from django.contrib.auth.decorators import (
     login_required,
 )
-from django.shortcuts import render
+from django.http import Http404
+from django.shortcuts import (
+    redirect,
+    render,
+)
 
 from watchroom.forms import (
+    TMDBImportForm,
     TMDBSearchForm,
 )
 from watchroom.models import MediaWork
 from watchroom.services.tmdb_client import (
     TMDBClient,
     TMDBClientError,
+)
+from watchroom.services.tmdb_importer import (
+    TMDBDuplicateWorkError,
+    TMDBImportError,
+    fetch_tmdb_details,
+    import_tmdb_work,
 )
 from watchroom.services.tmdb_normalizer import (
     TMDBNormalizationError,
@@ -124,4 +135,123 @@ def search_tmdb(request):
         "watchroom/tmdb_search.html",
         context,
     )
+
+
+def _valid_route_media_type(
+    media_type,
+):
+    if media_type not in {
+        MediaWork.MediaType.MOVIE,
+        MediaWork.MediaType.SERIES,
+    }:
+        raise Http404(
+            "Unsupported TMDB media type."
+        )
+
+    return media_type
+
+
+@login_required
+def review_tmdb_import(
+    request,
+    media_type,
+    tmdb_id,
+):
+    media_type = _valid_route_media_type(
+        media_type
+    )
+
+    existing_work = (
+        MediaWork.objects.filter(
+            media_type=media_type,
+            tmdb_id=tmdb_id,
+        )
+        .first()
+    )
+
+    if existing_work is not None:
+        return redirect(
+            existing_work.get_absolute_url()
+        )
+
+    details = None
+    import_error = ""
+
+    try:
+        details = fetch_tmdb_details(
+            media_type=media_type,
+            tmdb_id=tmdb_id,
+        )
+    except (
+        TMDBClientError,
+        TMDBImportError,
+    ) as error:
+        import_error = str(error)
+
+    if request.method == "POST":
+        form = TMDBImportForm(
+            request.POST,
+            suggested_presentation=(
+                details.get("presentation")
+                if details
+                else None
+            ),
+        )
+
+        if (
+            details is not None
+            and form.is_valid()
+        ):
+            try:
+                work = import_tmdb_work(
+                    details=details,
+                    status=(
+                        form.cleaned_data[
+                            "status"
+                        ]
+                    ),
+                    notes=(
+                        form.cleaned_data[
+                            "notes"
+                        ]
+                    ),
+                    presentation=(
+                        form.cleaned_data[
+                            "presentation"
+                        ]
+                    ),
+                )
+            except TMDBDuplicateWorkError as error:
+                return redirect(
+                    error.existing_work
+                    .get_absolute_url()
+                )
+            except TMDBImportError as error:
+                import_error = str(error)
+            else:
+                return redirect(
+                    work.get_absolute_url()
+                )
+    else:
+        form = TMDBImportForm(
+            suggested_presentation=(
+                details.get("presentation")
+                if details
+                else None
+            ),
+        )
+
+    return render(
+        request,
+        "watchroom/tmdb_import.html",
+        {
+            "active_page": "tmdb_search",
+            "details": details,
+            "form": form,
+            "import_error": import_error,
+            "media_type": media_type,
+            "tmdb_id": tmdb_id,
+        },
+    )
+
 

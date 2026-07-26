@@ -21,6 +21,15 @@ urlpatterns = [
         name="tmdb_search",
     ),
     path(
+        (
+            "import/"
+            "<str:media_type>/"
+            "<int:tmdb_id>/"
+        ),
+        tmdb_views.review_tmdb_import,
+        name="tmdb_import",
+    ),
+    path(
         "library/",
         library_views.library,
         name="library",
@@ -86,6 +95,11 @@ urlpatterns = [
         ),
         owner_views.update_season_progress,
         name="update_season_progress",
+    ),
+        path(
+        "library/<slug:slug>/delete/",
+        owner_views.delete_work,
+        name="delete_work",
     ),
     path(
         "library/<slug:slug>/",

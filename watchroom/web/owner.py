@@ -448,3 +448,26 @@ def update_season_progress(
     )
 
 
+@login_required
+@require_POST
+def delete_work(
+    request,
+    slug,
+):
+    work = get_object_or_404(
+        MediaWork,
+        slug=slug,
+    )
+
+    with transaction.atomic():
+        SeasonProgress.objects.filter(
+            season__media_work=work,
+        ).delete()
+
+        work.delete()
+
+    return redirect(
+        "watchroom:library"
+    )
+
+

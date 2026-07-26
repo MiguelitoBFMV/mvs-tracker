@@ -703,7 +703,19 @@
                                             {{ run.owner_form.started_on.label }}
                                         </span>
 
-                                        {{ run.owner_form.started_on }}
+                                        <div class="owner-date-control">
+                                            {{ run.owner_form.started_on }}
+
+                                            <button
+                                                type="button"
+                                                class="owner-date-clear"
+                                                onclick="
+                                                    this.previousElementSibling.value = '';
+                                                "
+                                            >
+                                                Clear
+                                            </button>
+                                        </div>
 
                                         {% for error in run.owner_form.started_on.errors %}
                                             <strong class="owner-form-error">
@@ -721,7 +733,19 @@
                                                 {{ run.owner_form.finished_on.label }}
                                             </span>
 
-                                            {{ run.owner_form.finished_on }}
+                                            <div class="owner-date-control">
+                                                {{ run.owner_form.finished_on }}
+
+                                                <button
+                                                    type="button"
+                                                    class="owner-date-clear"
+                                                    onclick="
+                                                        this.previousElementSibling.value = '';
+                                                    "
+                                                >
+                                                    Clear
+                                                </button>
+                                            </div>
 
                                             {% for error in run.owner_form.finished_on.errors %}
                                                 <strong class="owner-form-error">
@@ -903,6 +927,44 @@
                     </article>
                 {% endif %}
             {% endif %}
+
+            <article class="owner-panel owner-danger-panel">
+                <header class="owner-panel-heading">
+                    <div>
+                        <p class="section-kicker">
+                            Danger Zone
+                        </p>
+
+                        <h3>Delete Work</h3>
+                    </div>
+                </header>
+
+                <p class="owner-panel-note">
+                    Permanently delete this work, its library
+                    entry, seasons, viewing runs and progress.
+                    This action cannot be undone.
+                </p>
+
+                <form
+                    method="post"
+                    action="{% url 'watchroom:delete_work' work.slug %}"
+                    class="owner-delete-form"
+                    onsubmit="
+                        return confirm(
+                            'Permanently delete {{ work.title|escapejs }} and all its history?'
+                        );
+                    "
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="owner-delete-work-button"
+                    >
+                        Delete Work Permanently
+                    </button>
+                </form>
+            </article>
         </section>
     {% endif %}
 {% endblock %}

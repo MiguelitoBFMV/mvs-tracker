@@ -889,3 +889,85 @@ class TMDBSearchForm(forms.Form):
         return query
 
 
+TMDB_IMPORT_STATUS_CHOICES = (
+    (
+        WatchEntry.Status.PLAN_TO_WATCH,
+        WatchEntry.Status.PLAN_TO_WATCH.label,
+    ),
+    (
+        WatchEntry.Status.COMPLETED,
+        WatchEntry.Status.COMPLETED.label,
+    ),
+    (
+        WatchEntry.Status.DROPPED,
+        WatchEntry.Status.DROPPED.label,
+    ),
+)
+
+
+class TMDBImportForm(forms.Form):
+    presentation = forms.ChoiceField(
+        choices=MediaWork.Presentation.choices,
+        label="Presentation",
+        widget=forms.Select(
+            attrs={
+                "class": (
+                    "watchroom-owner-control"
+                ),
+            },
+        ),
+    )
+    status = forms.ChoiceField(
+        choices=TMDB_IMPORT_STATUS_CHOICES,
+        initial=(
+            WatchEntry.Status.PLAN_TO_WATCH
+        ),
+        label="Initial Status",
+        widget=forms.Select(
+            attrs={
+                "class": (
+                    "watchroom-owner-control"
+                ),
+            },
+        ),
+    )
+    notes = forms.CharField(
+        required=False,
+        label="Library Notes",
+        widget=forms.Textarea(
+            attrs={
+                "class": (
+                    "watchroom-owner-control "
+                    "watchroom-owner-textarea"
+                ),
+                "rows": 4,
+                "placeholder": (
+                    "Personal context, priority "
+                    "or viewing notes..."
+                ),
+            },
+        ),
+    )
+
+    def __init__(
+        self,
+        *args,
+        suggested_presentation=None,
+        **kwargs,
+    ):
+        super().__init__(
+            *args,
+            **kwargs,
+        )
+
+        if (
+            not self.is_bound
+            and suggested_presentation
+        ):
+            self.fields[
+                "presentation"
+            ].initial = (
+                suggested_presentation
+            )
+
+

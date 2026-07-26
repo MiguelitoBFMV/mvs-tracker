@@ -162,9 +162,12 @@
                                             Already Imported →
                                         </a>
                                     {% else %}
-                                        <span class="tmdb-ready-state">
-                                            Ready to Import
-                                        </span>
+                                        <a
+                                            href="{% url 'watchroom:tmdb_import' result.media_type result.tmdb_id %}"
+                                            class="tmdb-ready-state"
+                                        >
+                                            Review &amp; Import →
+                                        </a>
                                     {% endif %}
 
                                     <small>

@@ -1626,6 +1626,7 @@ textarea {
 .tmdb-ready-state {
     font-size: 0.67rem;
     font-weight: 900;
+    text-decoration: none;
 }
 
 .tmdb-imported-link {
@@ -1651,6 +1652,247 @@ textarea {
     .tmdb-result-card {
         grid-template-columns:
             100px minmax(0, 1fr);
+    }
+}
+
+/* =========================================================
+   TMDB Import Review
+   ========================================================= */
+
+.tmdb-import-review {
+    display: grid;
+    gap: 22px;
+}
+
+.tmdb-import-summary,
+.tmdb-import-seasons,
+.tmdb-import-owner-panel {
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    background: var(--surface);
+}
+
+.tmdb-import-summary {
+    display: grid;
+    grid-template-columns:
+        minmax(190px, 250px)
+        minmax(0, 1fr);
+    overflow: hidden;
+}
+
+.tmdb-import-poster {
+    display: grid;
+    min-height: 360px;
+    place-items: center;
+    overflow: hidden;
+    background:
+        linear-gradient(
+            145deg,
+            rgba(56, 189, 248, 0.16),
+            rgba(196, 181, 253, 0.09)
+        );
+    color: var(--accent);
+    font-size: 1.4rem;
+    font-weight: 900;
+}
+
+.tmdb-import-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.tmdb-import-metadata {
+    padding: 28px;
+}
+
+.tmdb-import-metadata h2 {
+    margin: 15px 0 5px;
+    font-size: clamp(
+        1.45rem,
+        3vw,
+        2.3rem
+    );
+}
+
+.tmdb-import-overview {
+    max-width: 850px;
+    margin: 22px 0;
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.7;
+}
+
+.tmdb-import-facts {
+    display: grid;
+    grid-template-columns:
+        repeat(
+            3,
+            minmax(0, 1fr)
+        );
+    gap: 12px;
+    margin: 0;
+}
+
+.tmdb-import-facts div {
+    padding: 13px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-soft);
+}
+
+.tmdb-import-facts dt {
+    color: var(--muted);
+    font-size: 0.57rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.tmdb-import-facts dd {
+    margin: 6px 0 0;
+    font-size: 0.72rem;
+}
+
+.tmdb-import-seasons,
+.tmdb-import-owner-panel {
+    padding: 22px;
+}
+
+.tmdb-season-review-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(
+            3,
+            minmax(0, 1fr)
+        );
+    gap: 11px;
+}
+
+.tmdb-season-review-card {
+    display: grid;
+    gap: 6px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-soft);
+}
+
+.tmdb-season-review-card strong {
+    color: var(--text);
+    font-size: 0.72rem;
+}
+
+.tmdb-season-review-card span,
+.tmdb-season-review-card small {
+    color: var(--muted);
+    font-size: 0.63rem;
+}
+
+.tmdb-import-owner-panel form {
+    display: grid;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+    .tmdb-import-summary {
+        grid-template-columns:
+            170px minmax(0, 1fr);
+    }
+
+    .tmdb-import-facts,
+    .tmdb-season-review-grid {
+        grid-template-columns:
+            repeat(
+                2,
+                minmax(0, 1fr)
+            );
+    }
+}
+
+@media (max-width: 650px) {
+    .tmdb-import-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .tmdb-import-poster {
+        max-height: 430px;
+    }
+
+    .tmdb-import-facts,
+    .tmdb-season-review-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.owner-danger-panel {
+    border-color: rgba(
+        248,
+        113,
+        113,
+        0.38
+    );
+    background: rgba(
+        127,
+        29,
+        29,
+        0.08
+    );
+}
+
+.owner-delete-work-button {
+    border-color: rgba(
+        248,
+        113,
+        113,
+        0.5
+    );
+    background: rgba(
+        127,
+        29,
+        29,
+        0.22
+    );
+    color: #fca5a5;
+}
+
+.owner-delete-work-button:hover {
+    background: rgba(
+        153,
+        27,
+        27,
+        0.34
+    );
+}
+
+.owner-date-control {
+    display: grid;
+    grid-template-columns:
+        minmax(0, 1fr)
+        auto;
+    gap: 8px;
+}
+
+.owner-date-clear {
+    padding: 9px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 9px;
+    background: var(--surface-soft);
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 900;
+}
+
+.owner-date-clear:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+@media (max-width: 600px) {
+    .owner-date-control {
+        grid-template-columns: 1fr;
     }
 }
 
