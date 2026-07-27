@@ -150,6 +150,42 @@
             </aside>
         </section>
 
+        {% if franchise_memberships %}
+            <section class="detail-section">
+                <header class="section-heading">
+                    <div>
+                        <p class="section-kicker">
+                            Connected Worlds
+                        </p>
+
+                        <h2>Franchises</h2>
+                    </div>
+                </header>
+
+                <div class="work-franchise-list">
+                    {% for membership in franchise_memberships %}
+                        <a
+                            href="{{ membership.franchise.get_absolute_url }}"
+                            class="work-franchise-link"
+                        >
+                            <span>
+                                {{ membership.get_role_display }}
+                            </span>
+
+                            <strong>
+                                {{ membership.franchise.name }}
+                            </strong>
+
+                            <small>
+                                Position
+                                {{ membership.position }}
+                            </small>
+                        </a>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
         {% if work.media_type == "series" %}
             <section class="detail-section">
                 <header class="section-heading">

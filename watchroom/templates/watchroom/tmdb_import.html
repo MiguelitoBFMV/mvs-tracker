@@ -136,6 +136,15 @@
                                 </dd>
                             </div>
                         {% endif %}
+
+                        {% if details.collection %}
+                            <div>
+                                <dt>Movie Collection</dt>
+                                <dd>
+                                    {{ details.collection.name }}
+                                </dd>
+                            </div>
+                        {% endif %}
                     </dl>
                 </div>
             </section>

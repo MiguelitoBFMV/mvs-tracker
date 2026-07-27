@@ -405,6 +405,145 @@ def normalize_series_search_result(
     }
 
 
+def normalize_collection_part(
+    payload,
+):
+    tmdb_id = _required_tmdb_id(
+        payload
+    )
+
+    title = str(
+        payload.get("title")
+        or payload.get("name")
+        or f"TMDB Movie {tmdb_id}"
+    ).strip()
+
+    original_title = str(
+        payload.get("original_title")
+        or payload.get("original_name")
+        or ""
+    ).strip()
+
+    return {
+        "tmdb_id": tmdb_id,
+        "title": title,
+        "original_title": (
+            original_title
+        ),
+        "first_release_date": (
+            parse_tmdb_date(
+                payload.get(
+                    "release_date"
+                )
+            )
+        ),
+        "poster_url": (
+            build_tmdb_image_url(
+                payload.get(
+                    "poster_path"
+                ),
+                size=TMDB_POSTER_SIZE,
+            )
+        ),
+        "backdrop_url": (
+            build_tmdb_image_url(
+                payload.get(
+                    "backdrop_path"
+                ),
+                size=(
+                    TMDB_BACKDROP_SIZE
+                ),
+            )
+        ),
+        "tmdb_payload": dict(payload),
+    }
+
+
+def _collection_part_sort_key(
+    part,
+):
+    release_date = part.get(
+        "first_release_date"
+    )
+
+    return (
+        release_date is None,
+        release_date or date.max,
+        part["tmdb_id"],
+    )
+
+
+def normalize_collection_details(
+    payload,
+):
+    collection_id = (
+        _required_tmdb_id(payload)
+    )
+
+    parts = []
+
+    for part_payload in (
+        payload.get("parts") or []
+    ):
+        if not isinstance(
+            part_payload,
+            dict,
+        ):
+            continue
+
+        try:
+            part = (
+                normalize_collection_part(
+                    part_payload
+                )
+            )
+        except TMDBNormalizationError:
+            continue
+
+        parts.append(part)
+
+    parts.sort(
+        key=_collection_part_sort_key
+    )
+
+    return {
+        "tmdb_collection_id": (
+            collection_id
+        ),
+        "name": str(
+            payload.get("name")
+            or (
+                f"TMDB Collection "
+                f"{collection_id}"
+            )
+        ).strip(),
+        "overview": str(
+            payload.get("overview")
+            or ""
+        ).strip(),
+        "poster_url": (
+            build_tmdb_image_url(
+                payload.get(
+                    "poster_path"
+                ),
+                size=TMDB_POSTER_SIZE,
+            )
+        ),
+        "backdrop_url": (
+            build_tmdb_image_url(
+                payload.get(
+                    "backdrop_path"
+                ),
+                size=(
+                    TMDB_BACKDROP_SIZE
+                ),
+            )
+        ),
+        "parts": parts,
+        "tmdb_payload": dict(payload),
+    }
+
+
 def normalize_movie_details(payload):
     normalized = (
         normalize_movie_search_result(
@@ -433,6 +572,7 @@ def normalize_movie_details(payload):
                 )
             ),
             "networks": [],
+            "collection": None,
         }
     )
 

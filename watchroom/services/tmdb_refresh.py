@@ -16,7 +16,10 @@ from watchroom.models import (
 from watchroom.services.tmdb_importer import (
     fetch_tmdb_details,
 )
-
+from watchroom.services.tmdb_collections import (
+    TMDBCollectionSyncError,
+    sync_tmdb_movie_collection,
+)
 
 class TMDBRefreshError(Exception):
     """Raised when a local TMDB refresh fails."""
@@ -29,6 +32,8 @@ class TMDBRefreshResult:
     updated_seasons: int = 0
     preserved_episode_totals: int = 0
     preserved_runtime: bool = False
+    franchise_created: bool = False
+    franchise_linked: bool = False
 
 
 WORK_METADATA_FIELDS = (
@@ -495,6 +500,7 @@ def refresh_work_from_tmdb(
             created_seasons = 0
             updated_seasons = 0
             preserved_totals = 0
+            collection_result = None
 
             if (
                 locked_work.media_type
@@ -514,21 +520,71 @@ def refresh_work_from_tmdb(
                     ),
                 )
 
+            if (
+                locked_work.media_type
+                == MediaWork.MediaType.MOVIE
+            ):
+                collection_result = (
+                    sync_tmdb_movie_collection(
+                        work=locked_work,
+                        collection_details=(
+                            details.get("collection")
+                        ),
+                    )
+                )
+
             return TMDBRefreshResult(
                 work=locked_work,
-                created_seasons=(
-                    created_seasons
-                ),
-                updated_seasons=(
-                    updated_seasons
-                ),
+                created_seasons=created_seasons,
+                updated_seasons=updated_seasons,
                 preserved_episode_totals=(
                     preserved_totals
                 ),
                 preserved_runtime=(
                     preserved_runtime
                 ),
+                franchise_created=(
+                    bool(
+                        collection_result
+                        and (
+                            collection_result
+                            .franchise_created
+                        )
+                    )
+                ),
+                franchise_linked=(
+                    bool(
+                        collection_result
+                        and (
+                            collection_result
+                            .membership_created
+                        )
+                    )
+                ),
             )
+
+        collection_result = None
+
+        if (
+            locked_work.media_type
+            == MediaWork.MediaType.MOVIE
+        ):
+            collection_result = (
+                sync_tmdb_movie_collection(
+                    work=locked_work,
+                    collection_details=(
+                        details.get("collection")
+                    ),
+                )
+            )
+
+    except TMDBCollectionSyncError as error:
+        raise TMDBRefreshError(
+            (
+                "The TMDB movie collection "
+                "could not be synchronized."
+            )
+        ) from error
 
     except ValidationError as error:
         raise TMDBRefreshError(

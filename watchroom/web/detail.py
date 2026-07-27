@@ -211,6 +211,19 @@ def _build_detail_context(
         if season.is_special
     ]
 
+    franchise_memberships = list(
+        entry.media_work
+        .franchise_memberships
+        .select_related(
+            "franchise"
+        )
+        .order_by(
+            "franchise__name",
+            "position",
+            "pk",
+        )
+    )
+
     return {
         "active_page": "library",
         "entry": entry,
@@ -243,6 +256,9 @@ def _build_detail_context(
         "progress_run": owner_progress_run,
         "can_start_run": (
             entry.current_run is None
+        ),
+        "franchise_memberships": (
+            franchise_memberships
         ),
     }
 

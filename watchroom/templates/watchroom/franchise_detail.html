@@ -9,25 +9,48 @@
 {% endblock %}
 
 {% block content %}
-    <header class="library-hero">
-        <div>
-            <p class="dashboard-eyebrow">
-                Franchise
-            </p>
+    <header class="franchise-hero">
+        {% if franchise.backdrop_url %}
+            <img
+                class="franchise-hero-backdrop"
+                src="{{ franchise.backdrop_url }}"
+                alt=""
+            >
+        {% elif franchise.poster_url %}
+            <img
+                class="franchise-hero-backdrop"
+                src="{{ franchise.poster_url }}"
+                alt=""
+            >
+        {% endif %}
 
-            <h1>{{ franchise.name }}</h1>
+        <div
+            class="franchise-hero-overlay"
+            aria-hidden="true"
+        ></div>
 
-            {% if franchise.overview %}
-                <p>{{ franchise.overview }}</p>
-            {% endif %}
+        <div class="franchise-hero-content">
+            <div>
+                <p class="dashboard-eyebrow">
+                    Franchise
+                </p>
+
+                <h1>{{ franchise.name }}</h1>
+
+                {% if franchise.overview %}
+                    <p>
+                        {{ franchise.overview }}
+                    </p>
+                {% endif %}
+            </div>
+
+            <a
+                href="{% url 'watchroom:franchise_index' %}"
+                class="library-hero-link"
+            >
+                All Franchises
+            </a>
         </div>
-
-        <a
-            href="{% url 'watchroom:franchise_index' %}"
-            class="library-hero-link"
-        >
-            All Franchises
-        </a>
     </header>
 
     <section class="franchise-summary">

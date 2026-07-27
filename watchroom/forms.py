@@ -981,14 +981,14 @@ class FranchiseOwnerForm(
         fields = (
             "name",
             "overview",
-            "poster_url",
             "backdrop_url",
         )
         labels = {
             "name": "Franchise Name",
             "overview": "Overview",
-            "poster_url": "Poster URL",
-            "backdrop_url": "Backdrop URL",
+            "backdrop_url": (
+                "Background Image URL"
+            ),
         }
         widgets = {
             "name": forms.TextInput(
@@ -1014,17 +1014,13 @@ class FranchiseOwnerForm(
                     ),
                 },
             ),
-            "poster_url": forms.URLInput(
-                attrs={
-                    "class": (
-                        "watchroom-owner-control"
-                    ),
-                },
-            ),
             "backdrop_url": forms.URLInput(
                 attrs={
                     "class": (
                         "watchroom-owner-control"
+                    ),
+                    "placeholder": (
+                        "https://..."
                     ),
                 },
             ),

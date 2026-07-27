@@ -62,7 +62,12 @@
                     <div class="franchise-card-body">
                         <p class="section-kicker">
                             {{ franchise.member_count }}
-                            Works
+
+                            {% if franchise.member_count == 1 %}
+                                Work
+                            {% else %}
+                                Works
+                            {% endif %}
                         </p>
 
                         <h2>
@@ -80,7 +85,12 @@
                         <footer>
                             <span>
                                 {{ franchise.movie_count }}
-                                Movies
+
+                                {% if franchise.movie_count == 1 %}
+                                    Movie
+                                {% else %}
+                                    Movies
+                                {% endif %}
                             </span>
 
                             <span>

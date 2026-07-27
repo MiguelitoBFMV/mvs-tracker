@@ -68,6 +68,7 @@ from watchroom.services.tmdb_normalizer import (
     normalize_season_details,
     normalize_series_details,
     normalize_series_search_result,
+    normalize_collection_details,
 )
 
 from watchroom.services.tmdb_importer import (
@@ -3674,6 +3675,48 @@ class TMDBClientTests(SimpleTestCase):
         ):
             client.get_movie(11)
 
+    @patch(
+        "watchroom.services."
+        "tmdb_client.requests.get"
+    )
+    def test_collection_details_endpoint(
+        self,
+        mock_get,
+    ):
+        mock_get.return_value = (
+            build_mock_response(
+                payload={
+                    "id": 656,
+                    "name": "Saw Collection",
+                    "parts": [],
+                },
+            )
+        )
+
+        client = TMDBClient(
+            access_token="tmdb-token"
+        )
+
+        result = client.get_collection(
+            656
+        )
+
+        self.assertEqual(
+            result["id"],
+            656,
+        )
+
+        args, _kwargs = mock_get.call_args
+
+        self.assertEqual(
+            args[0],
+            (
+                "https://api."
+                "themoviedb.org/3/"
+                "collection/656"
+            ),
+        )
+
 
 class TMDBNormalizerTests(
     SimpleTestCase
@@ -3916,6 +3959,47 @@ class TMDBNormalizerTests(
                     "title": "Missing ID",
                 }
             )
+
+    def test_collection_parts_use_release_order(
+        self,
+    ):
+        result = normalize_collection_details(
+            {
+                "id": 656,
+                "name": "Saw Collection",
+                "parts": [
+                    {
+                        "id": 215,
+                        "title": "Saw II",
+                        "release_date": (
+                            "2005-10-28"
+                        ),
+                    },
+                    {
+                        "id": 176,
+                        "title": "Saw",
+                        "release_date": (
+                            "2004-10-01"
+                        ),
+                    },
+                ],
+            }
+        )
+
+        self.assertEqual(
+            result["tmdb_collection_id"],
+            656,
+        )
+        self.assertEqual(
+            [
+                part["tmdb_id"]
+                for part in result["parts"]
+            ],
+            [
+                176,
+                215,
+            ],
+        )
 
 
 class TMDBSearchViewTests(TestCase):
@@ -4496,6 +4580,130 @@ class TMDBImporterTests(TestCase):
         self.assertEqual(
             context.exception.existing_work,
             existing,
+        )
+
+    def saw_collection(
+        self,
+    ):
+        return {
+            "tmdb_collection_id": 656,
+            "name": "Saw Collection",
+            "overview": "Saw movies.",
+            "poster_url": "",
+            "backdrop_url": "",
+            "tmdb_payload": {
+                "id": 656,
+            },
+            "parts": [
+                {
+                    "tmdb_id": 176,
+                    "title": "Saw",
+                    "first_release_date": (
+                        date(2004, 10, 1)
+                    ),
+                },
+                {
+                    "tmdb_id": 215,
+                    "title": "Saw II",
+                    "first_release_date": (
+                        date(2005, 10, 28)
+                    ),
+                },
+            ],
+        }
+
+
+    def test_movie_import_creates_tmdb_franchise(
+        self,
+    ):
+        details = self.movie_details()
+        details["tmdb_id"] = 176
+        details["collection"] = (
+            self.saw_collection()
+        )
+
+        work = import_tmdb_work(
+            details=details,
+            status=(
+                WatchEntry.Status
+                .PLAN_TO_WATCH
+            ),
+            presentation="live_action",
+        )
+
+        franchise = Franchise.objects.get(
+            tmdb_collection_id=656
+        )
+        membership = (
+            FranchiseMembership.objects.get(
+                franchise=franchise,
+                media_work=work,
+            )
+        )
+
+        self.assertEqual(
+            franchise.name,
+            "Saw Collection",
+        )
+        self.assertEqual(
+            membership.position,
+            1,
+        )
+        self.assertEqual(
+            membership.role,
+            FranchiseMembership.Role.MAIN,
+        )
+
+
+    def test_second_movie_reuses_tmdb_franchise(
+        self,
+    ):
+        first = self.movie_details()
+        first["tmdb_id"] = 176
+        first["title"] = "Saw"
+        first["collection"] = (
+            self.saw_collection()
+        )
+
+        second = self.movie_details()
+        second["tmdb_id"] = 215
+        second["title"] = "Saw II"
+        second["collection"] = (
+            self.saw_collection()
+        )
+
+        first_work = import_tmdb_work(
+            details=first,
+            status="plan_to_watch",
+            presentation="live_action",
+        )
+        second_work = import_tmdb_work(
+            details=second,
+            status="plan_to_watch",
+            presentation="live_action",
+        )
+
+        franchise = Franchise.objects.get(
+            tmdb_collection_id=656
+        )
+
+        self.assertEqual(
+            Franchise.objects.filter(
+                tmdb_collection_id=656
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            franchise.memberships.get(
+                media_work=first_work
+            ).position,
+            1,
+        )
+        self.assertEqual(
+            franchise.memberships.get(
+                media_work=second_work
+            ).position,
+            2,
         )
 
 
@@ -5084,6 +5292,59 @@ class TMDBRefreshServiceTests(
             ).exists()
         )
 
+    @patch(
+        "watchroom.services."
+        "tmdb_refresh.fetch_tmdb_details"
+    )
+    def test_movie_refresh_links_collection(
+        self,
+        mock_fetch,
+    ):
+        work, _entry, _run = (
+            self.create_movie()
+        )
+
+        mock_fetch.return_value = {
+            "tmdb_id": 176,
+            "media_type": "movie",
+            "title": "Saw",
+            "runtime_minutes": 103,
+            "tmdb_payload": {
+                "id": 176,
+            },
+            "collection": {
+                "tmdb_collection_id": 656,
+                "name": "Saw Collection",
+                "overview": "",
+                "poster_url": "",
+                "backdrop_url": "",
+                "tmdb_payload": {
+                    "id": 656,
+                },
+                "parts": [
+                    {
+                        "tmdb_id": 176,
+                    },
+                ],
+            },
+        }
+
+        result = refresh_work_from_tmdb(
+            work=work
+        )
+
+        self.assertTrue(
+            result.franchise_created
+        )
+        self.assertTrue(
+            result.franchise_linked
+        )
+        self.assertTrue(
+            work.franchises.filter(
+                tmdb_collection_id=656
+            ).exists()
+        )
+
 
 class TMDBRefreshViewTests(TestCase):
     @classmethod
@@ -5395,7 +5656,6 @@ class WatchroomFranchiseViewTests(
             {
                 "franchise-name": "Saw",
                 "franchise-overview": "",
-                "franchise-poster_url": "",
                 "franchise-backdrop_url": "",
             },
         )
@@ -5590,4 +5850,100 @@ class WatchroomFranchiseViewTests(
             ).exists()
         )
 
+    def test_work_detail_links_to_franchise(
+        self,
+    ):
+        response = self.client.get(
+            self.series.get_absolute_url()
+        )
 
+        self.assertContains(
+            response,
+            self.franchise.get_absolute_url(),
+        )
+        self.assertContains(
+            response,
+            "Position",
+        )
+
+    def test_franchise_form_exposes_background_image(
+        self,
+    ):
+        form = FranchiseOwnerForm(
+            instance=self.franchise,
+        )
+
+        self.assertIn(
+            "backdrop_url",
+            form.fields,
+        )
+        self.assertNotIn(
+            "poster_url",
+            form.fields,
+        )
+        self.assertEqual(
+            form.fields[
+                "backdrop_url"
+            ].label,
+            "Background Image URL",
+        )
+
+
+    def test_franchise_form_exposes_background_image(
+        self,
+    ):
+        form = FranchiseOwnerForm(
+            instance=self.franchise,
+        )
+
+        self.assertIn(
+            "backdrop_url",
+            form.fields,
+        )
+        self.assertNotIn(
+            "poster_url",
+            form.fields,
+        )
+        self.assertEqual(
+            form.fields[
+                "backdrop_url"
+            ].label,
+            "Background Image URL",
+        )
+
+    def test_owner_can_update_franchise_background(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        image_url = (
+            "https://example.com/"
+            "phineas-background.jpg"
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:update_franchise",
+                kwargs={
+                    "slug": self.franchise.slug,
+                },
+            ),
+            {
+                "franchise-name": (
+                    self.franchise.name
+                ),
+                "franchise-overview": "",
+                "franchise-backdrop_url": (
+                    image_url
+                ),
+            },
+        )
+
+        self.franchise.refresh_from_db()
+
+        self.assertEqual(
+            self.franchise.backdrop_url,
+            image_url,
+        )

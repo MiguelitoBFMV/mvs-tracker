@@ -16,13 +16,18 @@ from watchroom.models import (
 )
 from watchroom.services.tmdb_client import (
     TMDBClient,
+    TMDBNotFoundError,
 )
 from watchroom.services.tmdb_normalizer import (
     TMDBNormalizationError,
+    normalize_collection_details,
     normalize_movie_details,
     normalize_series_details,
 )
-
+from watchroom.services.tmdb_collections import (
+    TMDBCollectionSyncError,
+    sync_tmdb_movie_collection,
+)
 
 VALID_IMPORT_STATUSES = {
     WatchEntry.Status.PLAN_TO_WATCH,
@@ -88,9 +93,51 @@ def fetch_tmdb_details(
                 tmdb_id
             )
 
-            return normalize_movie_details(
-                payload
+            details = (
+                normalize_movie_details(
+                    payload
+                )
             )
+
+            collection_stub = payload.get(
+                "belongs_to_collection"
+            )
+
+            if isinstance(
+                collection_stub,
+                dict,
+            ):
+                collection_id = (
+                    collection_stub.get("id")
+                )
+
+                if collection_id:
+                    try:
+                        collection_payload = (
+                            client.get_collection(
+                                collection_id
+                            )
+                        )
+                    except TMDBNotFoundError:
+                        collection_payload = None
+
+                    if collection_payload:
+                        try:
+                            details[
+                                "collection"
+                            ] = (
+                                normalize_collection_details(
+                                    collection_payload
+                                )
+                            )
+                        except (
+                            TMDBNormalizationError
+                        ):
+                            details[
+                                "collection"
+                            ] = None
+
+            return details
 
         payload = client.get_series(
             tmdb_id
@@ -396,6 +443,17 @@ def import_tmdb_work(
             work.full_clean()
             work.save()
 
+            if (
+                media_type
+                == MediaWork.MediaType.MOVIE
+            ):
+                sync_tmdb_movie_collection(
+                    work=work,
+                    collection_details=(
+                        details.get("collection")
+                    ),
+                )
+
             entry = WatchEntry.objects.create(
                 media_work=work,
                 status=status,
@@ -458,6 +516,15 @@ def import_tmdb_work(
                 "The TMDB work could not be "
                 "saved because of a database "
                 "constraint."
+            )
+        ) from error
+
+    except TMDBCollectionSyncError as error:
+        raise TMDBImportError(
+            (
+                "The movie was not imported "
+                "because its TMDB collection "
+                "could not be synchronized."
             )
         ) from error
 

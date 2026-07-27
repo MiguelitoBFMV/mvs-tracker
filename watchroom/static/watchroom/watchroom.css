@@ -1972,6 +1972,7 @@ textarea {
     display: grid;
     grid-template-columns:
         repeat(2, minmax(0, 1fr));
+    align-items: start;
     gap: 18px;
 }
 
@@ -1982,9 +1983,17 @@ textarea {
     background: var(--surface);
 }
 
+.franchise-card {
+    align-self: start;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    background: var(--surface);
+}
+
 .franchise-card-media {
     display: grid;
-    min-height: 190px;
+    aspect-ratio: 16 / 8;
     place-items: center;
     overflow: hidden;
     background: var(--surface-soft);
@@ -1997,6 +2006,16 @@ textarea {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+.franchise-card-media--backdrop img {
+    object-fit: cover;
+}
+
+.franchise-card-media--poster img {
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
 }
 
 .franchise-card-body {
@@ -2126,6 +2145,120 @@ textarea {
     .franchise-member-poster {
         width: 65px;
         height: 92px;
+    }
+}
+
+.work-franchise-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.work-franchise-link {
+    display: grid;
+    gap: 5px;
+    min-width: 190px;
+    padding: 13px 15px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+}
+
+.work-franchise-link:hover {
+    border-color: var(--accent);
+}
+
+.work-franchise-link span,
+.work-franchise-link small {
+    color: var(--muted);
+    font-size: 0.6rem;
+}
+
+.work-franchise-link strong {
+    font-size: 0.76rem;
+}
+
+.franchise-hero {
+    position: relative;
+    min-height: 330px;
+    overflow: hidden;
+    margin-bottom: 22px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+}
+
+.franchise-hero-backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.franchise-hero-overlay {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(
+            90deg,
+            rgba(3, 7, 18, 0.98) 0%,
+            rgba(3, 7, 18, 0.82) 43%,
+            rgba(3, 7, 18, 0.34) 75%,
+            rgba(3, 7, 18, 0.18) 100%
+        ),
+        linear-gradient(
+            0deg,
+            rgba(3, 7, 18, 0.55),
+            transparent 55%
+        );
+}
+
+.franchise-hero-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-height: 330px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 30px;
+    padding: 38px;
+}
+
+.franchise-hero-content > div {
+    max-width: 720px;
+}
+
+.franchise-hero-content h1 {
+    margin: 12px 0 16px;
+    font-size: clamp(
+        2.2rem,
+        6vw,
+        4.5rem
+    );
+}
+
+.franchise-hero-content p {
+    color: var(--muted);
+    line-height: 1.7;
+}
+
+@media (max-width: 700px) {
+    .franchise-hero,
+    .franchise-hero-content {
+        min-height: 280px;
+    }
+
+    .franchise-hero-content {
+        align-items: flex-end;
+        padding: 25px;
+    }
+
+    .franchise-hero-content
+    .library-hero-link {
+        display: none;
     }
 }
 

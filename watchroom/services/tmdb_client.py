@@ -348,6 +348,23 @@ class TMDBClient:
             f"movie/{tmdb_id}"
         )
 
+    def get_collection(
+        self,
+        collection_id,
+    ):
+        collection_id = (
+            self._validate_tmdb_id(
+                collection_id,
+                label=(
+                    "TMDB collection ID"
+                ),
+            )
+        )
+
+        return self.request(
+            f"collection/{collection_id}"
+        )
+
     def get_series(self, tmdb_id):
         tmdb_id = self._validate_tmdb_id(
             tmdb_id,
