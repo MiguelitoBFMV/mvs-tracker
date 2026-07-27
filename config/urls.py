@@ -10,6 +10,7 @@ urlpatterns = [
     path("accounts/", include("django.contrib.auth.urls")),
     path("", include("core.urls")),
     path("anime/", include("mal_data.urls")),
+    path("manga/", include("mal_data.manga_urls")),
     path("games/", include("games.urls")),
     path("watchroom/",include("watchroom.urls")),
 ]

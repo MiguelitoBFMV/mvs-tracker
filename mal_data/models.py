@@ -6,6 +6,16 @@ class MangaEntry(models.Model):
     # Datos base del manga en MAL
     mal_id = models.PositiveIntegerField(unique=True)
     title = models.CharField(max_length=255)
+    title_japanese = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+    )
+    title_english = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+    )
     main_picture_url = models.URLField(blank=True, null=True)
 
     media_type = models.CharField(max_length=50, blank=True, null=True)
@@ -32,6 +42,47 @@ class MangaEntry(models.Model):
 
     # Control interno de sincronización
     last_synced_at = models.DateTimeField(default=timezone.now)
+
+    @property
+    def display_title(self):
+        if self.title_japanese:
+            return (
+                f"{self.title} "
+                f"({self.title_japanese})"
+            )
+
+        return self.title
+
+    @property
+    def media_type_label(self):
+        labels = {
+            "manga": "Manga",
+            "light_novel": "Light Novel",
+            "manhwa": "Manhwa",
+            "one_shot": "One-shot",
+        }
+
+        return labels.get(
+            self.media_type,
+            self.media_type or "Unknown",
+        )
+
+
+    @property
+    def publication_status_label(self):
+        labels = {
+            "currently_publishing": (
+                "Publishing"
+            ),
+            "finished": "Finished",
+            "on_hiatus": "On Hiatus",
+            "discontinued": "Discontinued",
+        }
+
+        return labels.get(
+            self.publication_status,
+            self.publication_status or "Unknown",
+        )
 
     @property
     def personal_status_label(self):

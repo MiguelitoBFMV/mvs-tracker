@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Manga Dashboard · MAL Insights{% endblock %}
+
+{% block content %}
+<header class="hero">
+    <div class="hero-title">
+        <h1>Manga Command Center</h1>
+        <p>
+            SYSTEM STATUS:
+            {% if total_manga %}
+                OPERATIONAL
+            {% else %}
+                FOUNDATION
+            {% endif %} |
+            Source: MyAnimeList |
+            Local DB: Active
+        </p>
+    </div>
+
+    <div class="hero-meta">
+        {% if last_synced_entry %}
+            Last Sync:
+            {{ last_synced_entry.last_synced_at|date:"Y.m.d H:i:s" }}
+        {% else %}
+            Last Sync: Pending
+        {% endif %}
+        <br>
+        Mode: Manga
+    </div>
+</header>
+
+<section class="panel">
+    <header class="panel-header">
+        <h2 class="panel-title">
+            Manga Library Nodes
+        </h2>
+
+        {% if user.is_authenticated %}
+            <div class="panel-header-actions">
+                <form
+                    method="post"
+                    action="{% url 'manga_insights:sync_manga_library' %}"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        class="sync-action-button"
+                        type="submit"
+                    >
+                        Sync Manga Library
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+    </header>
+
+    <div class="panel-body">
+        <div class="stats-grid">
+            <article class="stat-card">
+                <span>Total Manga</span>
+                <strong>{{ total_manga }}</strong>
+            </article>
+
+            <article class="stat-card">
+                <span>Reading</span>
+                <strong>{{ reading_count }}</strong>
+            </article>
+
+            <article class="stat-card">
+                <span>Rereading</span>
+                <strong>{{ rereading_count }}</strong>
+            </article>
+
+            <article class="stat-card">
+                <span>Completed</span>
+                <strong>{{ completed_count }}</strong>
+            </article>
+
+            <article class="stat-card">
+                <span>Plan to Read</span>
+                <strong>{{ plan_to_read_count }}</strong>
+            </article>
+
+            <article class="stat-card">
+                <span>On Hold</span>
+                <strong>{{ on_hold_count }}</strong>
+            </article>
+
+            <article class="stat-card">
+                <span>Dropped</span>
+                <strong>{{ dropped_count }}</strong>
+            </article>
+
+            <article class="stat-card">
+                <span>Chapters Read</span>
+                <strong>{{ chapters_read }}</strong>
+            </article>
+
+            <article class="stat-card">
+                <span>Volumes Read</span>
+                <strong>{{ volumes_read }}</strong>
+            </article>
+        </div>
+
+        {% if total_manga == 0 %}
+            <p class="empty-state">
+                Manga Library has not been synchronized yet.
+            </p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {{ status_label }} · Manga · MAL Insights
+{% endblock %}
+
+{% block content %}
+<header class="hero">
+    <div class="hero-title">
+        <h1>{{ status_label }} Archive</h1>
+        <p>
+            List Status: {{ status|upper }} |
+            Source: Local MAL Sync |
+            Nodes: {{ total_entries }}
+        </p>
+    </div>
+
+    <div class="hero-meta">
+        Archive Mode: Read Only<br>
+        Sort Key: {{ sort|default:"default" }}
+    </div>
+</header>
+
+<section class="panel">
+    <header class="panel-header">
+        <h2 class="panel-title">
+            Archive Filters
+        </h2>
+
+        <span class="panel-title">
+            {{ total_entries }} Nodes
+        </span>
+    </header>
+
+    <div class="panel-body">
+        <form
+            class="archive-status-filter-form"
+            method="get"
+        >
+            {% if sort %}
+                <input
+                    type="hidden"
+                    name="sort"
+                    value="{{ sort }}"
+                >
+            {% endif %}
+
+            <div class="filter-nav">
+                <span class="filter-label">
+                    Publication
+                </span>
+
+                <select
+                    class="archive-filter-select"
+                    name="publication"
+                >
+                    <option value="">
+                        All publication states
+                    </option>
+
+                    {% for value, label in publication_options %}
+                        <option
+                            value="{{ value }}"
+                            {% if publication_filter == value %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+
+                <span class="filter-label">
+                    Type
+                </span>
+
+                <select
+                    class="archive-filter-select"
+                    name="media_type"
+                >
+                    <option value="">
+                        All types
+                    </option>
+
+                    {% for value, label in media_type_options %}
+                        <option
+                            value="{{ value }}"
+                            {% if media_type_filter == value %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+
+                <button
+                    class="secondary-button compact-button"
+                    type="submit"
+                >
+                    Apply
+                </button>
+            </div>
+
+            {% if status == "all" %}
+                <div class="filter-nav archive-filter-row">
+                    <span class="filter-label">
+                        List Status
+                    </span>
+
+                    {% for status_key, status_name in status_filter_options %}
+                        <label class="status-check-chip">
+                            <input
+                                type="checkbox"
+                                name="statuses"
+                                value="{{ status_key }}"
+                                {% if status_key in selected_statuses %}
+                                    checked
+                                {% endif %}
+                            >
+
+                            <span>
+                                {{ status_name }}
+                            </span>
+                        </label>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </form>
+    </div>
+</section>
+
+{% if page_obj.paginator.num_pages > 1 %}
+    <nav
+        class="pagination-panel"
+        aria-label="Paginación superior"
+    >
+        {% if page_obj.has_previous %}
+            <a href="?page=1{% if pagination_query %}&{{ pagination_query }}{% endif %}">
+                « First
+            </a>
+
+            <a href="?page={{ page_obj.previous_page_number }}{% if pagination_query %}&{{ pagination_query }}{% endif %}">
+                ‹ Previous
+            </a>
+        {% endif %}
+
+        <span>
+            Page {{ page_obj.number }} /
+            {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if pagination_query %}&{{ pagination_query }}{% endif %}">
+                Next ›
+            </a>
+
+            <a href="?page={{ page_obj.paginator.num_pages }}{% if pagination_query %}&{{ pagination_query }}{% endif %}">
+                Last »
+            </a>
+        {% endif %}
+    </nav>
+{% endif %}
+
+<section class="panel">
+    <header class="panel-header">
+        <h2 class="panel-title">
+            Node Registry
+        </h2>
+
+        <span class="panel-title">
+            {{ status_label }}
+        </span>
+    </header>
+
+    <div class="panel-body">
+        {% if manga_entries %}
+            <div class="table-shell">
+                <table class="archive-table">
+                    <thead>
+                        <tr>
+                            <th>
+                                <a href="?sort={% if sort == 'title' %}-title{% else %}title{% endif %}{% if sort_query %}&{{ sort_query }}{% endif %}">
+                                    Title
+                                </a>
+                            </th>
+
+                            <th>My Status</th>
+
+                            <th>
+                                <a href="?sort={% if sort == 'num_chapters_read' %}-num_chapters_read{% else %}num_chapters_read{% endif %}{% if sort_query %}&{{ sort_query }}{% endif %}">
+                                    Chapters
+                                </a>
+                            </th>
+
+                            <th>
+                                <a href="?sort={% if sort == 'num_volumes_read' %}-num_volumes_read{% else %}num_volumes_read{% endif %}{% if sort_query %}&{{ sort_query }}{% endif %}">
+                                    Volumes
+                                </a>
+                            </th>
+
+                            <th>
+                                <a href="?sort={% if sort == 'score' %}-score{% else %}score{% endif %}{% if sort_query %}&{{ sort_query }}{% endif %}">
+                                    Score
+                                </a>
+                            </th>
+
+                            <th>
+                                <a href="?sort={% if sort == 'media_type' %}-media_type{% else %}media_type{% endif %}{% if sort_query %}&{{ sort_query }}{% endif %}">
+                                    Type
+                                </a>
+                            </th>
+
+                            <th>
+                                <a href="?sort={% if sort == 'publication_status' %}-publication_status{% else %}publication_status{% endif %}{% if sort_query %}&{{ sort_query }}{% endif %}">
+                                    Publication
+                                </a>
+                            </th>
+
+                            <th>
+                                <a href="?sort={% if sort == 'updated_at_mal' %}-updated_at_mal{% else %}updated_at_mal{% endif %}{% if sort_query %}&{{ sort_query }}{% endif %}">
+                                    Updated
+                                </a>
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for manga in manga_entries %}
+                            <tr>
+                                <td>
+                                    <article class="archive-title-cell">
+                                        {% if manga.main_picture_url %}
+                                            <img
+                                                class="archive-cover"
+                                                src="{{ manga.main_picture_url }}"
+                                                alt="{{ manga.display_title }}"
+                                            >
+                                        {% else %}
+                                            <div class="archive-cover archive-cover-empty"></div>
+                                        {% endif %}
+
+                                        <div>
+                                            <a
+                                                class="archive-title"
+                                                href="https://myanimelist.net/manga/{{ manga.mal_id }}"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                {{ manga.display_title }}
+                                            </a>
+
+                                            <div class="archive-meta">
+                                                MAL ID:
+                                                {{ manga.mal_id }}
+                                            </div>
+                                        </div>
+                                    </article>
+                                </td>
+
+                                <td>
+                                    {% if manga.is_rereading %}
+                                        <span class="status-pill status-watching">
+                                            REREADING
+                                        </span>
+                                    {% elif manga.list_status == "reading" %}
+                                        <span class="status-pill status-watching">
+                                            READING
+                                        </span>
+                                    {% elif manga.list_status == "plan_to_read" %}
+                                        <span class="status-pill status-plan">
+                                            PLAN TO READ
+                                        </span>
+                                    {% elif manga.list_status == "completed" %}
+                                        <span class="status-pill status-completed">
+                                            COMPLETED
+                                        </span>
+                                    {% elif manga.list_status == "on_hold" %}
+                                        <span class="status-pill status-on-hold">
+                                            ON HOLD
+                                        </span>
+                                    {% elif manga.list_status == "dropped" %}
+                                        <span class="status-pill status-dropped">
+                                            DROPPED
+                                        </span>
+                                    {% else %}
+                                        <span class="status-pill">
+                                            {{ manga.personal_status_label|upper }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    <span class="mono-value">
+                                        {{ manga.num_chapters_read }}/
+                                        {% if manga.num_chapters > 0 %}
+                                            {{ manga.num_chapters }}
+                                        {% else %}
+                                            TBD
+                                        {% endif %}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span class="mono-value">
+                                        {{ manga.num_volumes_read }}/
+                                        {% if manga.num_volumes > 0 %}
+                                            {{ manga.num_volumes }}
+                                        {% else %}
+                                            TBD
+                                        {% endif %}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span class="mono-value">
+                                        {% if manga.score > 0 %}
+                                            {{ manga.score }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span class="status-pill">
+                                        {{ manga.media_type_label }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    {% if manga.publication_status == "currently_publishing" %}
+                                        <span class="status-pill status-live">
+                                            Publishing
+                                        </span>
+                                    {% elif manga.publication_status == "finished" %}
+                                        <span class="status-pill status-completed">
+                                            Finished
+                                        </span>
+                                    {% elif manga.publication_status == "on_hiatus" %}
+                                        <span class="status-pill status-on-hold">
+                                            On Hiatus
+                                        </span>
+                                    {% elif manga.publication_status == "discontinued" %}
+                                        <span class="status-pill status-dropped">
+                                            Discontinued
+                                        </span>
+                                    {% else %}
+                                        <span class="status-pill">
+                                            {{ manga.publication_status_label }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    <span class="mono-value">
+                                        {% if manga.updated_at_mal %}
+                                            {{ manga.updated_at_mal|date:"d M Y H:i" }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </span>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="empty-state">
+                No nodes detected for this archive.
+            </p>
+        {% endif %}
+    </div>
+</section>
+
+{% if page_obj.paginator.num_pages > 1 %}
+    <nav
+        class="pagination-panel"
+        aria-label="Paginación inferior"
+    >
+        {% if page_obj.has_previous %}
+            <a href="?page=1{% if pagination_query %}&{{ pagination_query }}{% endif %}">
+                « First
+            </a>
+
+            <a href="?page={{ page_obj.previous_page_number }}{% if pagination_query %}&{{ pagination_query }}{% endif %}">
+                ‹ Previous
+            </a>
+        {% endif %}
+
+        <span>
+            Page {{ page_obj.number }} /
+            {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if pagination_query %}&{{ pagination_query }}{% endif %}">
+                Next ›
+            </a>
+
+            <a href="?page={{ page_obj.paginator.num_pages }}{% if pagination_query %}&{{ pagination_query }}{% endif %}">
+                Last »
+            </a>
+        {% endif %}
+    </nav>
+{% endif %}
+{% endblock %}
