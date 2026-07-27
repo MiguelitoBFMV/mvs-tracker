@@ -75,6 +75,20 @@
                     Library
                 </a>
 
+                <a
+                    class="
+                        sidebar-link
+
+                        {% if active_page == 'franchises' %}
+                            sidebar-link--active
+                        {% endif %}
+                    "
+                    href="{% url 'watchroom:franchise_index' %}"
+                >
+                    <span aria-hidden="true">◆</span>
+                    Franchises
+                </a>
+
                 {% if user.is_authenticated %}
                     <a
                         class="

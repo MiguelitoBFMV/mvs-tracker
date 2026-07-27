@@ -1,0 +1,112 @@
+{% extends "watchroom/base.html" %}
+
+{% block title %}
+    Franchises
+{% endblock %}
+
+{% block module_name %}
+    Franchises · Watchroom
+{% endblock %}
+
+{% block content %}
+    <header class="library-hero">
+        <div>
+            <p class="dashboard-eyebrow">
+                Connected Works
+            </p>
+
+            <h1>Franchises</h1>
+
+            <p>
+                Movies, series, specials and
+                spin-offs grouped into their
+                wider worlds.
+            </p>
+        </div>
+
+        {% if user.is_authenticated %}
+            <a
+                href="{% url 'watchroom:create_franchise' %}"
+                class="library-hero-link"
+            >
+                Create Franchise
+            </a>
+        {% endif %}
+    </header>
+
+    {% if franchises %}
+        <section class="franchise-grid">
+            {% for franchise in franchises %}
+                <article class="franchise-card">
+                    <a
+                        href="{{ franchise.get_absolute_url }}"
+                        class="franchise-card-media"
+                    >
+                        {% if franchise.backdrop_url %}
+                            <img
+                                src="{{ franchise.backdrop_url }}"
+                                alt=""
+                            >
+                        {% elif franchise.poster_url %}
+                            <img
+                                src="{{ franchise.poster_url }}"
+                                alt=""
+                            >
+                        {% else %}
+                            <span aria-hidden="true">
+                                {{ franchise.name|slice:":2"|upper }}
+                            </span>
+                        {% endif %}
+                    </a>
+
+                    <div class="franchise-card-body">
+                        <p class="section-kicker">
+                            {{ franchise.member_count }}
+                            Works
+                        </p>
+
+                        <h2>
+                            <a href="{{ franchise.get_absolute_url }}">
+                                {{ franchise.name }}
+                            </a>
+                        </h2>
+
+                        {% if franchise.overview %}
+                            <p>
+                                {{ franchise.overview|truncatechars:150 }}
+                            </p>
+                        {% endif %}
+
+                        <footer>
+                            <span>
+                                {{ franchise.movie_count }}
+                                Movies
+                            </span>
+
+                            <span>
+                                {{ franchise.series_count }}
+                                Series
+                            </span>
+
+                            <span>
+                                {{ franchise.completed_count }}
+                                Completed
+                            </span>
+                        </footer>
+                    </div>
+                </article>
+            {% endfor %}
+        </section>
+    {% else %}
+        <article class="empty-state">
+            <span aria-hidden="true">◆</span>
+
+            <h3>No franchises yet</h3>
+
+            <p>
+                Create a franchise and connect
+                related works from the library.
+            </p>
+        </article>
+    {% endif %}
+{% endblock %}

@@ -1964,3 +1964,168 @@ textarea {
     color: #fca5a5;
 }
 
+/* =========================================================
+   Franchises
+   ========================================================= */
+
+.franchise-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.franchise-card {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    background: var(--surface);
+}
+
+.franchise-card-media {
+    display: grid;
+    min-height: 190px;
+    place-items: center;
+    overflow: hidden;
+    background: var(--surface-soft);
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 900;
+}
+
+.franchise-card-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.franchise-card-body {
+    padding: 20px;
+}
+
+.franchise-card-body h2 {
+    margin: 8px 0 12px;
+}
+
+.franchise-card-body h2 a,
+.franchise-member-body h3 a {
+    color: var(--text);
+    text-decoration: none;
+}
+
+.franchise-card-body p {
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.franchise-card-body footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.franchise-card-body footer span {
+    padding: 6px 9px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 0.62rem;
+}
+
+.franchise-summary {
+    display: grid;
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 30px;
+}
+
+.franchise-summary article {
+    display: grid;
+    gap: 5px;
+    padding: 17px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+}
+
+.franchise-summary strong {
+    color: var(--text);
+    font-size: 1.3rem;
+}
+
+.franchise-summary span {
+    color: var(--muted);
+    font-size: 0.64rem;
+}
+
+.franchise-member-list {
+    display: grid;
+    gap: 12px;
+}
+
+.franchise-member-card {
+    display: grid;
+    grid-template-columns:
+        46px 82px minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    padding: 13px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface);
+}
+
+.franchise-position {
+    color: var(--accent);
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+.franchise-member-poster {
+    display: grid;
+    width: 82px;
+    height: 116px;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--surface-soft);
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.franchise-member-poster img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.franchise-member-body p {
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+@media (max-width: 800px) {
+    .franchise-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .franchise-summary {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 560px) {
+    .franchise-member-card {
+        grid-template-columns:
+            34px 65px minmax(0, 1fr);
+    }
+
+    .franchise-member-poster {
+        width: 65px;
+        height: 92px;
+    }
+}
+

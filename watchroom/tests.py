@@ -43,6 +43,8 @@ from .forms import (
     SeasonProgressOwnerForm,
     WatchEntryOwnerForm,
     TMDBImportForm,
+    FranchiseMembershipOwnerForm,
+    FranchiseOwnerForm,
 )
 
 from unittest.mock import (
@@ -5289,6 +5291,303 @@ class TMDBRefreshViewTests(TestCase):
                 "This work is not linked "
                 "to TMDB."
             ),
+        )
+
+
+class WatchroomFranchiseViewTests(
+    TestCase
+):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects.create_user(
+                username="franchise-owner",
+                password="test-password",
+            )
+        )
+
+        cls.series = MediaWork.objects.create(
+            media_type="series",
+            title="Phineas and Ferb",
+            presentation="animation",
+        )
+        WatchEntry.objects.create(
+            media_work=cls.series,
+        )
+
+        cls.movie = MediaWork.objects.create(
+            media_type="movie",
+            title="Across the 2nd Dimension",
+            presentation="animation",
+            runtime_minutes=78,
+        )
+        WatchEntry.objects.create(
+            media_work=cls.movie,
+        )
+
+        cls.franchise = (
+            Franchise.objects.create(
+                name="Phineas and Ferb",
+            )
+        )
+        cls.membership = (
+            FranchiseMembership.objects.create(
+                franchise=cls.franchise,
+                media_work=cls.series,
+                position=1,
+                role=(
+                    FranchiseMembership
+                    .Role.MAIN
+                ),
+            )
+        )
+
+    def test_franchise_index_is_public(
+        self,
+    ):
+        response = self.client.get(
+            reverse(
+                "watchroom:franchise_index"
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertContains(
+            response,
+            "Phineas and Ferb",
+        )
+
+    def test_franchise_detail_is_public(
+        self,
+    ):
+        response = self.client.get(
+            self.franchise.get_absolute_url()
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertContains(
+            response,
+            self.series.title,
+        )
+        self.assertNotContains(
+            response,
+            "Franchise Management",
+        )
+
+    def test_owner_can_create_franchise(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:create_franchise"
+            ),
+            {
+                "franchise-name": "Saw",
+                "franchise-overview": "",
+                "franchise-poster_url": "",
+                "franchise-backdrop_url": "",
+            },
+        )
+
+        franchise = Franchise.objects.get(
+            name="Saw"
+        )
+
+        self.assertRedirects(
+            response,
+            franchise.get_absolute_url(),
+        )
+
+    def test_owner_can_add_member(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:add_franchise_member",
+                kwargs={
+                    "slug": (
+                        self.franchise.slug
+                    ),
+                },
+            ),
+            {
+                "new-member-media_work": (
+                    self.movie.pk
+                ),
+                "new-member-position": 2,
+                "new-member-role": "main",
+                "new-member-notes": "",
+            },
+        )
+
+        self.assertTrue(
+            FranchiseMembership.objects.filter(
+                franchise=self.franchise,
+                media_work=self.movie,
+                position=2,
+            ).exists()
+        )
+
+    def test_owner_can_update_membership(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:update_franchise_member",
+                kwargs={
+                    "slug": (
+                        self.franchise.slug
+                    ),
+                    "membership_id": (
+                        self.membership.pk
+                    ),
+                },
+            ),
+            {
+                (
+                    f"member-"
+                    f"{self.membership.pk}-"
+                    "media_work"
+                ): self.series.pk,
+                (
+                    f"member-"
+                    f"{self.membership.pk}-"
+                    "position"
+                ): 3,
+                (
+                    f"member-"
+                    f"{self.membership.pk}-"
+                    "role"
+                ): "special",
+                (
+                    f"member-"
+                    f"{self.membership.pk}-"
+                    "notes"
+                ): "Updated.",
+            },
+        )
+
+        self.membership.refresh_from_db()
+
+        self.assertEqual(
+            self.membership.position,
+            3,
+        )
+        self.assertEqual(
+            self.membership.role,
+            "special",
+        )
+
+    def test_removing_membership_preserves_work(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        self.client.post(
+            reverse(
+                "watchroom:remove_franchise_member",
+                kwargs={
+                    "slug": (
+                        self.franchise.slug
+                    ),
+                    "membership_id": (
+                        self.membership.pk
+                    ),
+                },
+            )
+        )
+
+        self.assertFalse(
+            FranchiseMembership.objects.filter(
+                pk=self.membership.pk,
+            ).exists()
+        )
+        self.assertTrue(
+            MediaWork.objects.filter(
+                pk=self.series.pk,
+            ).exists()
+        )
+
+    def test_nonempty_franchise_cannot_be_deleted(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:delete_franchise",
+                kwargs={
+                    "slug": (
+                        self.franchise.slug
+                    ),
+                },
+            ),
+            follow=True,
+        )
+
+        self.assertTrue(
+            Franchise.objects.filter(
+                pk=self.franchise.pk,
+            ).exists()
+        )
+        self.assertContains(
+            response,
+            "Remove every work",
+        )
+
+    def test_owner_can_delete_empty_franchise(
+        self,
+    ):
+        franchise = Franchise.objects.create(
+            name="Empty Franchise",
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "watchroom:delete_franchise",
+                kwargs={
+                    "slug": franchise.slug,
+                },
+            )
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "watchroom:franchise_index"
+            ),
+        )
+        self.assertFalse(
+            Franchise.objects.filter(
+                pk=franchise.pk,
+            ).exists()
         )
 
 
