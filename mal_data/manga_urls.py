@@ -26,4 +26,15 @@ urlpatterns = [
         sync_views.sync_manga_library_view,
         name="sync_manga_library",
     ),
+    path(
+        "sync/reading-progress/",
+        sync_views.sync_reading_progress_view,
+        name="sync_reading_progress",
+    ),
+    path(
+        "sync/manual-rescues/",
+        sync_views
+        .sync_manual_manga_rescues_view,
+        name="sync_manual_manga_rescues",
+    ),
 ]

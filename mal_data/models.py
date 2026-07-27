@@ -105,6 +105,118 @@ class MangaEntry(models.Model):
     def __str__(self):
         return f"{self.title} ({self.list_status})"
 
+
+class MangaSyncEvent(models.Model):
+    EVENT_TYPES = [
+        ("created", "Created"),
+        ("status_changed", "Status changed"),
+        ("chapter_changed", "Chapter changed"),
+        ("volume_changed", "Volume changed"),
+        ("score_changed", "Score changed"),
+    ]
+
+    manga = models.ForeignKey(
+        MangaEntry,
+        on_delete=models.CASCADE,
+        related_name="sync_events",
+        blank=True,
+        null=True,
+    )
+    mal_id = models.PositiveIntegerField()
+    title_snapshot = models.CharField(
+        max_length=255
+    )
+    event_type = models.CharField(
+        max_length=50,
+        choices=EVENT_TYPES,
+    )
+    old_value = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+    )
+    new_value = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+    )
+    created_at = models.DateTimeField(
+        default=timezone.now
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return (
+            f"{self.title_snapshot} · "
+            f"{self.event_type}: "
+            f"{self.old_value} → "
+            f"{self.new_value}"
+        )
+
+
+class ManualTrackedManga(models.Model):
+    STATUS_CHOICES = [
+        ("reading", "Reading"),
+        ("completed", "Completed"),
+        ("on_hold", "On hold"),
+        ("dropped", "Dropped"),
+        ("plan_to_read", "Plan to read"),
+    ]
+
+    mal_id = models.PositiveIntegerField(
+        unique=True
+    )
+    title_snapshot = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+    )
+    status = models.CharField(
+        max_length=50,
+        choices=STATUS_CHOICES,
+    )
+    chapters_read = models.PositiveIntegerField(
+        default=0
+    )
+    volumes_read = models.PositiveIntegerField(
+        default=0
+    )
+    score = models.PositiveIntegerField(
+        default=0
+    )
+    is_rereading = models.BooleanField(
+        default=False
+    )
+    active = models.BooleanField(
+        default=True
+    )
+    notes = models.TextField(
+        blank=True,
+        null=True,
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True
+    )
+
+    class Meta:
+        ordering = [
+            "title_snapshot",
+            "mal_id",
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.title_snapshot or self.mal_id} "
+            f"({self.status})"
+        )
+
+
 class AnimeEntry(models.Model):
     # Datos base del anime en MAL
     mal_id = models.PositiveIntegerField(unique=True)

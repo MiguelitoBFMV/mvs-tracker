@@ -12,7 +12,9 @@ from mal_data.models import (
     AnimeSyncEvent,
     MALOAuthToken,
     MangaEntry,
+    MangaSyncEvent,
     ManualTrackedAnime,
+    ManualTrackedManga
 )
 from mal_data.services.anime_list_sync import (
     sync_anime_status,
@@ -33,6 +35,10 @@ from mal_data.services.mal_oauth import (
 )
 from mal_data.services.manual_tracked_sync import (
     sync_manual_tracked_anime_entry,
+)
+from mal_data.services.manga_reading_sync import (
+    get_active_reading_entries,
+    sync_reading_progress,
 )
 
 
@@ -240,6 +246,14 @@ class MalInsightsProtectedRouteTests(TestCase):
             ),
             reverse(
                 "manga_insights:sync_manga_library"
+            ),
+            reverse(
+                "manga_insights:"
+                "sync_reading_progress"
+            ),
+            reverse(
+                "manga_insights:"
+                "sync_manual_manga_rescues"
             ),
         ]
 
@@ -1255,5 +1269,485 @@ class MangaArchiveTests(TestCase):
             response.status_code,
             404,
         )
+
+
+class MangaReadingProgressTests(TestCase):
+    def test_targets_include_reading_and_rereading(
+        self,
+    ):
+        reading = MangaEntry.objects.create(
+            mal_id=5001,
+            title="Reading",
+            list_status="reading",
+        )
+
+        rereading = MangaEntry.objects.create(
+            mal_id=5002,
+            title="Rereading",
+            list_status="completed",
+            is_rereading=True,
+        )
+
+        MangaEntry.objects.create(
+            mal_id=5003,
+            title="Completed",
+            list_status="completed",
+        )
+
+        MangaEntry.objects.create(
+            mal_id=5004,
+            title="Plan",
+            list_status="plan_to_read",
+        )
+
+        target_ids = set(
+            get_active_reading_entries()
+            .values_list(
+                "mal_id",
+                flat=True,
+            )
+        )
+
+        self.assertEqual(
+            target_ids,
+            {
+                reading.mal_id,
+                rereading.mal_id,
+            },
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_reading_sync."
+            "MyAnimeListClient"
+        )
+    )
+    def test_sync_updates_progress_and_logs(
+        self,
+        mock_client_class,
+    ):
+        manga = MangaEntry.objects.create(
+            mal_id=5100,
+            title="Active Manga",
+            list_status="reading",
+            score=8,
+            num_chapters_read=10,
+            num_volumes_read=2,
+        )
+
+        tracked_entry = (
+            ManualTrackedManga.objects.create(
+                mal_id=manga.mal_id,
+                title_snapshot=manga.title,
+                status="reading",
+                chapters_read=10,
+                volumes_read=2,
+                score=8,
+                active=True,
+            )
+        )
+
+        mal_client = Mock()
+        mal_client.fetch_manga_my_list_status.return_value = {
+            "status": "completed",
+            "score": 9,
+            "num_chapters_read": 12,
+            "num_volumes_read": 3,
+            "is_rereading": False,
+            "updated_at": (
+                "2026-07-27T16:00:00+00:00"
+            ),
+        }
+
+        mal_client.fetch_all_manga_by_status.return_value = [
+            {
+                "page": 1,
+                "entries": [],
+                "total_accumulated": 0,
+            }
+        ]
+
+        mock_client_class.return_value = (
+            mal_client
+        )
+
+        results = sync_reading_progress()
+
+        manga.refresh_from_db()
+
+        tracked_entry.refresh_from_db()
+
+        self.assertEqual(
+            tracked_entry.status,
+            "completed",
+        )
+        self.assertEqual(
+            tracked_entry.chapters_read,
+            12,
+        )
+        self.assertEqual(
+            tracked_entry.volumes_read,
+            3,
+        )
+        self.assertEqual(
+            tracked_entry.score,
+            9,
+        )
+
+        self.assertEqual(
+            manga.list_status,
+            "completed",
+        )
+        self.assertEqual(
+            manga.num_chapters_read,
+            12,
+        )
+        self.assertEqual(
+            manga.num_volumes_read,
+            3,
+        )
+        self.assertEqual(manga.score, 9)
+
+        self.assertTrue(
+            results["personal"][0]["changed"]
+        )
+        self.assertEqual(
+            results["active_after"],
+            0,
+        )
+
+        self.assertEqual(
+            results["list_checked"],
+            0,
+        )
+        self.assertEqual(
+            results["manual_checked"],
+            1,
+        )
+        self.assertEqual(
+            results["reconciled_checked"],
+            0,
+        )
+
+        event_types = set(
+            MangaSyncEvent.objects
+            .filter(manga=manga)
+            .values_list(
+                "event_type",
+                flat=True,
+            )
+        )
+
+        self.assertEqual(
+            event_types,
+            {
+                "status_changed",
+                "chapter_changed",
+                "volume_changed",
+                "score_changed",
+            },
+        )
+
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_reading_sync."
+            "MyAnimeListClient"
+        )
+    )
+    def test_normal_reading_uses_reading_list(
+        self,
+        mock_client_class,
+    ):
+        manga = MangaEntry.objects.create(
+            mal_id=5300,
+            title="Normal Reading",
+            list_status="reading",
+            num_chapters_read=10,
+            num_volumes_read=1,
+        )
+
+        reading_item = build_manga_item(
+            mal_id=manga.mal_id,
+            title=manga.title,
+            status="reading",
+            chapters_read=11,
+            volumes_read=1,
+            score=8,
+        )
+
+        mal_client = Mock()
+
+        mal_client.fetch_all_manga_by_status.return_value = [
+            {
+                "page": 1,
+                "entries": [reading_item],
+                "total_accumulated": 1,
+            }
+        ]
+
+        mock_client_class.return_value = (
+            mal_client
+        )
+
+        results = sync_reading_progress()
+
+        manga.refresh_from_db()
+
+        self.assertEqual(
+            manga.num_chapters_read,
+            11,
+        )
+        self.assertEqual(
+            results["list_checked"],
+            1,
+        )
+        self.assertEqual(
+            results["manual_checked"],
+            0,
+        )
+        self.assertEqual(
+            results["reconciled_checked"],
+            0,
+        )
+
+        mal_client.fetch_manga_my_list_status\
+            .assert_not_called()
+
+
+class MangaReadingProgressViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects
+            .create_user(
+                username="reading-owner",
+            )
+        )
+
+    @patch(
+        (
+            "mal_data.web.manga_sync."
+            "sync_reading_progress"
+        )
+    )
+    def test_authenticated_post_syncs_and_redirects(
+        self,
+        mock_sync,
+    ):
+        mock_sync.return_value = {
+            "personal": [
+                {
+                    "changed": True,
+                    "ok": True,
+                }
+            ],
+            "active_after": 1,
+        }
+
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse(
+                "manga_insights:"
+                "sync_reading_progress"
+            )
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "manga_insights:dashboard"
+            ),
+            fetch_redirect_response=False,
+        )
+
+        mock_sync.assert_called_once_with()
+
+
+class MangaCommandLogDashboardTests(TestCase):
+    def test_dashboard_displays_manga_command_log(
+        self,
+    ):
+        manga = MangaEntry.objects.create(
+            mal_id=5200,
+            title="Logged Manga",
+            list_status="reading",
+        )
+
+        MangaSyncEvent.objects.create(
+            manga=manga,
+            mal_id=manga.mal_id,
+            title_snapshot=manga.title,
+            event_type="chapter_changed",
+            old_value="CH. 4",
+            new_value="CH. 5",
+        )
+
+        response = self.client.get(
+            reverse(
+                "manga_insights:dashboard"
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertContains(
+            response,
+            "CH_UPDATE:",
+        )
+        self.assertContains(
+            response,
+            "CH. 4",
+        )
+        self.assertContains(
+            response,
+            "CH. 5",
+        )
+
+
+class ManualMangaRescueSyncViewTests(
+    TestCase
+):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects
+            .create_user(
+                username=(
+                    "manual-manga-owner"
+                ),
+            )
+        )
+
+    @patch(
+        (
+            "mal_data.web.manga_sync."
+            "sync_all_manual_tracked_manga"
+        )
+    )
+    def test_authenticated_post_syncs_rescues(
+        self,
+        mock_sync,
+    ):
+        mock_sync.return_value = [
+            {
+                "mal_id": 125255,
+                "title": (
+                    "Yankee JK "
+                    "Kuzuhana-chan"
+                ),
+                "status": "reading",
+                "created": False,
+                "ok": True,
+                "error": None,
+            }
+        ]
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                "manga_insights:"
+                "sync_manual_manga_rescues"
+            )
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "manga_insights:dashboard"
+            ),
+            fetch_redirect_response=False,
+        )
+
+        mock_sync.assert_called_once_with()
+
+
+class MangaDashboardMirrorTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects
+            .create_user(
+                username="manga-dashboard-owner",
+            )
+        )
+
+        cls.reading = MangaEntry.objects.create(
+            mal_id=6001,
+            title="Reading Spotlight",
+            title_japanese="読書スポットライト",
+            list_status="reading",
+            score=9,
+            num_chapters_read=10,
+            num_chapters=20,
+        )
+
+        MangaEntry.objects.create(
+            mal_id=6002,
+            title="Completed Manga",
+            list_status="completed",
+        )
+
+        MangaEntry.objects.create(
+            mal_id=6003,
+            title="Plan Manga",
+            list_status="plan_to_read",
+        )
+
+    def test_dashboard_uses_mirrored_command_center(
+        self,
+    ):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse("manga_insights:dashboard")
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertEqual(
+            response.context[
+                "backlog_clear_ratio"
+            ],
+            50,
+        )
+
+        self.assertEqual(
+            response.context[
+                "spotlight_manga"
+            ].mal_id,
+            self.reading.mal_id,
+        )
+
+        for content in (
+            "User Profile",
+            "Backlog Clear Ratio",
+            "JP Title Signal",
+            "Reading Progress",
+            "Manga Library Nodes",
+            "Manga Command Logs",
+            "Sync Manga Library",
+            "Sync Manual Rescues",
+            "Connect / Renew MAL",
+        ):
+            with self.subTest(content=content):
+                self.assertContains(
+                    response,
+                    content,
+                )
 
 

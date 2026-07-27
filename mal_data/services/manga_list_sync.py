@@ -1,4 +1,6 @@
+import copy
 import json
+
 from urllib.parse import urlsplit
 from datetime import datetime
 
@@ -6,7 +8,10 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from mal_data.models import MangaEntry
+from mal_data.models import (
+    MangaEntry,
+    MangaSyncEvent,
+)
 from mal_data.services.mal_client import (
     MyAnimeListClient,
 )
@@ -232,14 +237,22 @@ def sync_manga_status(
             )
 
             if manga is None:
-                MangaEntry.objects.create(
+                manga = MangaEntry.objects.create(
                     mal_id=mal_id,
                     **defaults,
+                )
+
+                create_manga_sync_events(
+                    manga=manga,
+                    previous=None,
+                    created=True,
                 )
 
                 created_count += 1
                 continue
 
+            previous = copy.copy(manga)
+            
             changed_fields = [
                 field_name
                 for field_name
@@ -278,6 +291,12 @@ def sync_manga_status(
 
             manga.save(
                 update_fields=update_fields,
+            )
+
+            create_manga_sync_events(
+                manga=manga,
+                previous=previous,
+                created=False,
             )
 
             updated_count += 1
@@ -349,6 +368,97 @@ def save_raw_json(status, entries):
         )
 
     return output_file
+
+
+def create_manga_sync_events(
+    manga,
+    previous,
+    created,
+):
+    if created:
+        MangaSyncEvent.objects.create(
+            manga=manga,
+            mal_id=manga.mal_id,
+            title_snapshot=manga.display_title,
+            event_type="created",
+            old_value="not_in_local_db",
+            new_value=manga.list_status,
+        )
+        return
+
+    if previous is None:
+        return
+
+    status_changed = (
+        previous.list_status
+        != manga.list_status
+        or previous.is_rereading
+        != manga.is_rereading
+    )
+
+    if status_changed:
+        MangaSyncEvent.objects.create(
+            manga=manga,
+            mal_id=manga.mal_id,
+            title_snapshot=manga.display_title,
+            event_type="status_changed",
+            old_value=(
+                previous.personal_status_label
+            ),
+            new_value=(
+                manga.personal_status_label
+            ),
+        )
+
+    if (
+        previous.num_chapters_read
+        != manga.num_chapters_read
+    ):
+        MangaSyncEvent.objects.create(
+            manga=manga,
+            mal_id=manga.mal_id,
+            title_snapshot=manga.display_title,
+            event_type="chapter_changed",
+            old_value=(
+                f"CH. "
+                f"{previous.num_chapters_read}"
+            ),
+            new_value=(
+                f"CH. "
+                f"{manga.num_chapters_read}"
+            ),
+        )
+
+    if (
+        previous.num_volumes_read
+        != manga.num_volumes_read
+    ):
+        MangaSyncEvent.objects.create(
+            manga=manga,
+            mal_id=manga.mal_id,
+            title_snapshot=manga.display_title,
+            event_type="volume_changed",
+            old_value=(
+                f"VOL. "
+                f"{previous.num_volumes_read}"
+            ),
+            new_value=(
+                f"VOL. "
+                f"{manga.num_volumes_read}"
+            ),
+        )
+
+    if previous.score != manga.score:
+        MangaSyncEvent.objects.create(
+            manga=manga,
+            mal_id=manga.mal_id,
+            title_snapshot=manga.display_title,
+            event_type="score_changed",
+            old_value=(
+                f"Score {previous.score}"
+            ),
+            new_value=f"Score {manga.score}",
+        )
 
 
 def parse_date(value):

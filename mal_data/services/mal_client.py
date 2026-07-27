@@ -10,6 +10,10 @@ class MyAnimeListClient:
     MANGA_LIST_URL = "https://api.myanimelist.net/v2/users/@me/mangalist"
     ANIME_DETAIL_URL = "https://api.myanimelist.net/v2/anime/{anime_id}"
     ANIME_MY_LIST_STATUS_URL = "https://api.myanimelist.net/v2/anime/{anime_id}/my_list_status"
+    MANGA_DETAIL_URL = (
+        "https://api.myanimelist.net/v2/"
+        "manga/{manga_id}"
+    )
 
     def get_headers(self, *, force_refresh=False):
         access_token = get_valid_access_token(
@@ -158,6 +162,53 @@ class MyAnimeListClient:
             paging = data.get("paging", {})
             next_url = paging.get("next")
             page += 1
+
+
+    def fetch_manga_my_list_status(
+        self,
+        manga_id,
+    ):
+        url = self.MANGA_DETAIL_URL.format(
+            manga_id=manga_id
+        )
+
+        manga_data = self.fetch_page(
+            url,
+            params={
+                "fields": "my_list_status",
+            },
+        )
+
+        return manga_data.get("my_list_status")
+
+
+    def fetch_manga_details(self, manga_id):
+        url = self.MANGA_DETAIL_URL.format(
+            manga_id=manga_id
+        )
+
+        params = {
+            "fields": ",".join(
+                [
+                    "id",
+                    "title",
+                    "main_picture",
+                    "alternative_titles",
+                    "media_type",
+                    "status",
+                    "num_volumes",
+                    "num_chapters",
+                    "start_date",
+                    "end_date",
+                ]
+            ),
+        }
+
+        return self.fetch_page(
+            url,
+            params=params,
+        )
+
 
     def fetch_anime_details(self, anime_id):
         url = self.ANIME_DETAIL_URL.format(anime_id=anime_id)
