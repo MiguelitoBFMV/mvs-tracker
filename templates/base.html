@@ -4,55 +4,140 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>{% block title %}MAL Insight Lab{% endblock %}</title>
+    <title>{% block title %}MAL Insights Lab{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'mal_data/css/app.css' %}">
 </head>
 <body>
     <div class="command-shell">
         <header class="topbar">
-            <a class="brand" href="{% url 'mal_insights:dashboard' %}">
-                <span class="brand-icon">⌁</span>
-                <span class="brand-title">MAL INSIGHT LAB</span>
-            </a>
+            <div class="brand-cluster">
+                {% if request.resolver_match.namespace == "manga_insights" %}
+                    <a
+                        class="brand"
+                        href="{% url 'manga_insights:dashboard' %}"
+                    >
+                        <span class="brand-icon">⌁</span>
+                        <span class="brand-title">MAL INSIGHTS</span>
+                    </a>
+                {% else %}
+                    <a
+                        class="brand"
+                        href="{% url 'mal_insights:dashboard' %}"
+                    >
+                        <span class="brand-icon">⌁</span>
+                        <span class="brand-title">MAL INSIGHTS</span>
+                    </a>
+                {% endif %}
 
-            <nav class="main-nav" aria-label="Navegación principal">
-                <a href="{% url 'core:home' %}">MVS Tracker</a>
+                <nav
+                    class="media-switch"
+                    aria-label="MAL Insights mode"
+                >
+                    <a
+                        class="
+                            media-switch-link
+                            {% if request.resolver_match.namespace == 'mal_insights' %}
+                                media-switch-link-active
+                            {% endif %}
+                        "
+                        href="{% url 'mal_insights:dashboard' %}"
+                        {% if request.resolver_match.namespace == "mal_insights" %}
+                            aria-current="page"
+                        {% endif %}
+                    >
+                        Anime
+                    </a>
 
-                <a href="{% url 'mal_insights:dashboard' %}">
-                    Dashboard
+                    <a
+                        class="
+                            media-switch-link
+                            {% if request.resolver_match.namespace == 'manga_insights' %}
+                                media-switch-link-active
+                            {% endif %}
+                        "
+                        href="{% url 'manga_insights:dashboard' %}"
+                        {% if request.resolver_match.namespace == "manga_insights" %}
+                            aria-current="page"
+                        {% endif %}
+                    >
+                        Manga
+                    </a>
+                </nav>
+            </div>
+
+            <nav
+                class="main-nav"
+                aria-label="Navegación principal"
+            >
+                <a href="{% url 'core:home' %}">
+                    MVS Tracker
                 </a>
 
-                <a href="{% url 'mal_insights:seasonal_board' %}">
-                    Seasonal
-                </a>
+                {% if request.resolver_match.namespace == "manga_insights" %}
+                    <a href="{% url 'manga_insights:dashboard' %}">
+                        Dashboard
+                    </a>
 
-                <a href="{% url 'mal_insights:anime_status_list' 'all' %}">
-                    All
-                </a>
+                    <a href="{% url 'manga_insights:manga_status_list' 'all' %}">
+                        All
+                    </a>
 
-                <a href="{% url 'mal_insights:anime_status_list' 'watching' %}">
-                    Watching
-                </a>
+                    <a href="{% url 'manga_insights:manga_status_list' 'reading' %}">
+                        Reading
+                    </a>
 
-                <a href="{% url 'mal_insights:anime_status_list' 'on_hold' %}">
-                    On Hold
-                </a>
+                    <a href="{% url 'manga_insights:manga_status_list' 'on_hold' %}">
+                        On Hold
+                    </a>
 
-                <a href="{% url 'mal_insights:anime_status_list' 'plan_to_watch' %}">
-                    Plan to Watch
-                </a>
+                    <a href="{% url 'manga_insights:manga_status_list' 'plan_to_read' %}">
+                        Plan to Read
+                    </a>
 
-                <a href="{% url 'mal_insights:anime_status_list' 'completed' %}">
-                    Completed
-                </a>
+                    <a href="{% url 'manga_insights:manga_status_list' 'completed' %}">
+                        Completed
+                    </a>
 
-                <a href="{% url 'mal_insights:anime_status_list' 'dropped' %}">
-                    Dropped
-                </a>
+                    <a href="{% url 'manga_insights:manga_status_list' 'dropped' %}">
+                        Dropped
+                    </a>
+                {% else %}
+                    <a href="{% url 'mal_insights:dashboard' %}">
+                        Dashboard
+                    </a>
 
-                <a href="{% url 'mal_insights:anime_search' %}">
-                    Search
-                </a>
+                    <a href="{% url 'mal_insights:seasonal_board' %}">
+                        Seasonal
+                    </a>
+
+                    <a href="{% url 'mal_insights:anime_status_list' 'all' %}">
+                        All
+                    </a>
+
+                    <a href="{% url 'mal_insights:anime_status_list' 'watching' %}">
+                        Watching
+                    </a>
+
+                    <a href="{% url 'mal_insights:anime_status_list' 'on_hold' %}">
+                        On Hold
+                    </a>
+
+                    <a href="{% url 'mal_insights:anime_status_list' 'plan_to_watch' %}">
+                        Plan to Watch
+                    </a>
+
+                    <a href="{% url 'mal_insights:anime_status_list' 'completed' %}">
+                        Completed
+                    </a>
+
+                    <a href="{% url 'mal_insights:anime_status_list' 'dropped' %}">
+                        Dropped
+                    </a>
+
+                    <a href="{% url 'mal_insights:anime_search' %}">
+                        Search
+                    </a>
+                {% endif %}
 
                 {% if user.is_staff %}
                     <a href="{% url 'admin:index' %}">

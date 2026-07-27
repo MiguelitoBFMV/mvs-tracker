@@ -1,0 +1,506 @@
+{% extends "base.html" %}
+
+{% block title %}Manga Dashboard · MAL Insights{% endblock %}
+
+{% block content %}
+<header class="hero">
+    <div class="hero-title">
+        <h1>Manga Command Center</h1>
+        <p>
+            System Status: Operational |
+            Source: MyAnimeList |
+            Local DB: Active
+        </p>
+    </div>
+
+    <div class="hero-meta">
+        {% if last_synced_entry %}
+            Last Sync:
+            {{ last_synced_entry.last_synced_at|date:"Y.m.d H:i:s" }}
+            <br>
+        {% else %}
+            Last Sync: Pending<br>
+        {% endif %}
+        Mode: Manga
+    </div>
+</header>
+
+<div class="dashboard-grid">
+    <aside
+        class="left-column"
+        aria-label="Resumen del usuario y biblioteca manga"
+    >
+        <section class="panel">
+            <header class="panel-header">
+                <h2 class="panel-title">
+                    User Profile
+                </h2>
+            </header>
+
+            <div class="panel-body">
+                <div class="profile-row">
+                    <div class="avatar-frame">
+                        MAL
+                    </div>
+
+                    <div>
+                        <p class="operator-name">
+                            Miguel
+                        </p>
+
+                        <p class="operator-rank">
+                            Rank: Manga Curator
+                        </p>
+                    </div>
+                </div>
+
+                <div class="metric-label-row">
+                    <span>Sync Status</span>
+
+                    {% if messages %}
+                        <strong>Success</strong>
+                    {% else %}
+                        <strong>Ready</strong>
+                    {% endif %}
+                </div>
+
+                <div
+                    class="progress-track"
+                    aria-hidden="true"
+                >
+                    <div
+                        class="progress-fill"
+                        style="width: 100%;"
+                    ></div>
+                </div>
+
+                {% if user.is_authenticated %}
+                    <div class="sync-actions">
+                        <form
+                            method="post"
+                            action="{% url 'manga_insights:sync_manga_library' %}"
+                        >
+                            {% csrf_token %}
+
+                            <button
+                                class="sync-action-button"
+                                type="submit"
+                            >
+                                Sync Manga Library
+                            </button>
+                        </form>
+
+                        <form
+                            method="post"
+                            action="{% url 'manga_insights:sync_manual_manga_rescues' %}"
+                        >
+                            {% csrf_token %}
+
+                            <button
+                                class="
+                                    sync-action-button
+                                    sync-action-button-secondary
+                                "
+                                type="submit"
+                            >
+                                Sync Manual Rescues
+                            </button>
+                        </form>
+
+                        <a
+                            class="
+                                sync-action-button
+                                sync-action-button-secondary
+                            "
+                            href="{% url 'mal_insights:mal_oauth_connect' %}"
+                        >
+                            Connect / Renew MAL
+                        </a>
+                    </div>
+                {% else %}
+                    <p>
+                        Login required for
+                        synchronization
+                    </p>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="panel">
+            <header class="panel-header">
+                <h2 class="panel-title">
+                    Backlog Clear Ratio
+                </h2>
+            </header>
+
+            <div class="panel-body">
+                <div
+                    class="ratio-circle"
+                    style="--value: {{ backlog_clear_ratio }}%;"
+                >
+                    <div class="ratio-inner">
+                        <div>
+                            <div class="ratio-number">
+                                {{ backlog_clear_ratio }}%
+                            </div>
+
+                            <div class="ratio-label">
+                                Archive Clear
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ratio-stats">
+                    <div class="ratio-stat">
+                        <span>Completed</span>
+                        <strong>
+                            {{ completed_count }}
+                        </strong>
+                    </div>
+
+                    <div class="ratio-stat">
+                        <span>Plan</span>
+                        <strong>
+                            {{ plan_to_read_count }}
+                        </strong>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <header class="panel-header">
+                <h2 class="panel-title">
+                    JP Title Signal
+                </h2>
+            </header>
+
+            <div class="panel-body">
+                {% if spotlight_manga %}
+                    <p class="jp-title">
+                        {{ spotlight_manga.title_japanese }}
+                    </p>
+
+                    <p class="jp-romaji">
+                        {{ spotlight_manga.title }}
+                    </p>
+
+                    <p>
+                        <a
+                            class="secondary-button"
+                            href="https://myanimelist.net/manga/{{ spotlight_manga.mal_id }}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            Show Node
+                        </a>
+                    </p>
+                {% else %}
+                    <p class="empty-state">
+                        No Japanese title signal
+                        available.
+                    </p>
+                {% endif %}
+            </div>
+        </section>
+    </aside>
+
+    <section
+        class="center-column"
+        aria-label="Progreso activo de manga"
+    >
+        <section class="panel">
+            <header class="panel-header">
+                <h2>Reading Progress</h2>
+
+                <div class="episode-signal-actions">
+                    {% if user.is_authenticated %}
+                        <form
+                            method="post"
+                            action="{% url 'manga_insights:sync_reading_progress' %}"
+                        >
+                            {% csrf_token %}
+
+                            <button
+                                class="episode-signal-sync-button"
+                                type="submit"
+                            >
+                                Sync Progress
+                            </button>
+                        </form>
+                    {% endif %}
+
+                    <a
+                        href="{% url 'manga_insights:manga_status_list' 'reading' %}"
+                    >
+                        View All
+                    </a>
+                </div>
+            </header>
+
+            <div class="panel-body">
+                {% if active_reading_entries %}
+                    <div
+                        class="
+                            protocol-list
+                            episode-signals-list
+                        "
+                    >
+                        {% for manga in active_reading_entries %}
+                            <article class="protocol-card">
+                                {% if manga.main_picture_url %}
+                                    <img
+                                        class="cover"
+                                        src="{{ manga.main_picture_url }}"
+                                        alt="{{ manga.display_title }}"
+                                    >
+                                {% else %}
+                                    <div class="cover"></div>
+                                {% endif %}
+
+                                <div>
+                                    <h3 class="protocol-title">
+                                        <a
+                                            href="https://myanimelist.net/manga/{{ manga.mal_id }}"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            {{ manga.display_title }}
+                                        </a>
+                                    </h3>
+
+                                    <div class="protocol-meta">
+                                        CHAPTER
+                                        {{ manga.num_chapters_read }}/
+                                        {% if manga.num_chapters > 0 %}
+                                            {{ manga.num_chapters }}
+                                        {% else %}
+                                            TBD
+                                        {% endif %}
+
+                                        · VOLUME
+                                        {{ manga.num_volumes_read }}/
+                                        {% if manga.num_volumes > 0 %}
+                                            {{ manga.num_volumes }}
+                                        {% else %}
+                                            TBD
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="protocol-progress-row">
+                                        <span>
+                                            Reading Progress
+                                        </span>
+
+                                        <strong>
+                                            {{ manga.num_chapters_read }}/
+                                            {% if manga.num_chapters > 0 %}
+                                                {{ manga.num_chapters }}
+                                            {% else %}
+                                                TBD
+                                            {% endif %}
+                                        </strong>
+                                    </div>
+
+                                    <div
+                                        class="progress-track"
+                                        aria-hidden="true"
+                                    >
+                                        <div
+                                            class="progress-fill"
+                                            style="width:
+                                                {% if manga.num_chapters > 0 %}
+                                                    {% widthratio manga.num_chapters_read manga.num_chapters 100 %}%
+                                                {% else %}
+                                                    8%
+                                                {% endif %}
+                                            ;"
+                                        ></div>
+                                    </div>
+
+                                    <div class="protocol-actions">
+                                        {% if manga.is_rereading %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-rewatch
+                                                "
+                                            >
+                                                Rereading
+                                            </span>
+                                        {% else %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-live
+                                                "
+                                            >
+                                                Reading
+                                            </span>
+                                        {% endif %}
+
+                                        {% if manga.publication_status == "currently_publishing" %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-live
+                                                "
+                                            >
+                                                Publishing
+                                            </span>
+                                        {% elif manga.publication_status == "finished" %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-completed
+                                                "
+                                            >
+                                                Finished
+                                            </span>
+                                        {% elif manga.publication_status == "on_hiatus" %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-on-hold
+                                                "
+                                            >
+                                                On Hiatus
+                                            </span>
+                                        {% endif %}
+
+                                        <a
+                                            class="secondary-button"
+                                            href="https://myanimelist.net/manga/{{ manga.mal_id }}"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            Details
+                                        </a>
+                                    </div>
+                                </div>
+                            </article>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="empty-state">
+                        No active reading entries.
+                    </p>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="panel">
+            <header class="panel-header">
+                <h2 class="panel-title">
+                    Manga Library Nodes
+                </h2>
+            </header>
+
+            <div class="panel-body">
+                <div class="stats-grid">
+                    <article class="stat-card">
+                        <span>Total</span>
+                        <strong>{{ total_manga }}</strong>
+                    </article>
+
+                    <article class="stat-card">
+                        <span>Reading</span>
+                        <strong>{{ reading_count }}</strong>
+                    </article>
+
+                    <article class="stat-card">
+                        <span>On Hold</span>
+                        <strong>{{ on_hold_count }}</strong>
+                    </article>
+
+                    <article class="stat-card">
+                        <span>Dropped</span>
+                        <strong>{{ dropped_count }}</strong>
+                    </article>
+
+                    <article class="stat-card">
+                        <span>Completed</span>
+                        <strong>{{ completed_count }}</strong>
+                    </article>
+
+                    <article class="stat-card">
+                        <span>Rereading</span>
+                        <strong>{{ rereading_count }}</strong>
+                    </article>
+
+                    <article class="stat-card">
+                        <span>Plan to Read</span>
+                        <strong>{{ plan_to_read_count }}</strong>
+                    </article>
+
+                    <article class="stat-card">
+                        <span>Chapters Read</span>
+                        <strong>{{ chapters_read }}</strong>
+                    </article>
+                </div>
+            </div>
+        </section>
+    </section>
+
+    <aside
+        class="right-column"
+        aria-label="Registros recientes de manga"
+    >
+        <section class="panel">
+            <header class="panel-header">
+                <h2 class="panel-title">
+                    Manga Command Logs
+                </h2>
+            </header>
+
+            <div class="panel-body">
+                <div class="command-log-scroll">
+                    {% if latest_sync_events %}
+                        <ul class="command-log">
+                            {% for event in latest_sync_events %}
+                                <li>
+                                    <time>
+                                        [{{ event.created_at|date:"H:i:s" }}]
+                                    </time>
+
+                                    <a
+                                        href="https://myanimelist.net/manga/{{ event.mal_id }}"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        &gt;&gt;&gt;
+
+                                        {% if event.event_type == "chapter_changed" %}
+                                            CH_UPDATE:
+                                        {% elif event.event_type == "volume_changed" %}
+                                            VOL_UPDATE:
+                                        {% elif event.event_type == "status_changed" %}
+                                            STATUS_UPDATE:
+                                        {% elif event.event_type == "score_changed" %}
+                                            SCORE_UPDATE:
+                                        {% elif event.event_type == "created" %}
+                                            NEW_ENTRY:
+                                        {% else %}
+                                            UPDATE:
+                                        {% endif %}
+
+                                        {{ event.title_snapshot }}
+                                        [{{ event.old_value }} →
+                                        {{ event.new_value }}]
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="empty-state">
+                            No manga command logs
+                            available.
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+    </aside>
+</div>
+{% endblock %}
