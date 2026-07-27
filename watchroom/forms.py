@@ -2,6 +2,8 @@ from django import forms
 from django.db.models import Max
 
 from .models import (
+    Franchise,
+    FranchiseMembership,
     MediaWork,
     Season,
     SeasonProgress,
@@ -849,5 +851,324 @@ class SeasonProgressOwnerForm(
             )
 
         return cleaned_data
+
+
+class TMDBSearchForm(forms.Form):
+    media_type = forms.ChoiceField(
+        choices=MediaWork.MediaType.choices,
+        initial=MediaWork.MediaType.SERIES,
+        label="Type",
+        widget=forms.Select(
+            attrs={
+                "class": "watchroom-owner-control",
+            },
+        ),
+    )
+    query = forms.CharField(
+        max_length=255,
+        label="Search TMDB",
+        widget=forms.SearchInput(
+            attrs={
+                "class": "watchroom-owner-control",
+                "placeholder": (
+                    "Phineas and Ferb, Saw..."
+                ),
+                "autocomplete": "off",
+            },
+        ),
+    )
+
+    def clean_query(self):
+        query = self.cleaned_data[
+            "query"
+        ].strip()
+
+        if not query:
+            raise forms.ValidationError(
+                "Enter a title to search."
+            )
+
+        return query
+
+
+TMDB_IMPORT_STATUS_CHOICES = (
+    (
+        WatchEntry.Status.PLAN_TO_WATCH,
+        WatchEntry.Status.PLAN_TO_WATCH.label,
+    ),
+    (
+        WatchEntry.Status.COMPLETED,
+        WatchEntry.Status.COMPLETED.label,
+    ),
+    (
+        WatchEntry.Status.DROPPED,
+        WatchEntry.Status.DROPPED.label,
+    ),
+)
+
+
+class TMDBImportForm(forms.Form):
+    presentation = forms.ChoiceField(
+        choices=MediaWork.Presentation.choices,
+        label="Presentation",
+        widget=forms.Select(
+            attrs={
+                "class": (
+                    "watchroom-owner-control"
+                ),
+            },
+        ),
+    )
+    status = forms.ChoiceField(
+        choices=TMDB_IMPORT_STATUS_CHOICES,
+        initial=(
+            WatchEntry.Status.PLAN_TO_WATCH
+        ),
+        label="Initial Status",
+        widget=forms.Select(
+            attrs={
+                "class": (
+                    "watchroom-owner-control"
+                ),
+            },
+        ),
+    )
+    notes = forms.CharField(
+        required=False,
+        label="Library Notes",
+        widget=forms.Textarea(
+            attrs={
+                "class": (
+                    "watchroom-owner-control "
+                    "watchroom-owner-textarea"
+                ),
+                "rows": 4,
+                "placeholder": (
+                    "Personal context, priority "
+                    "or viewing notes..."
+                ),
+            },
+        ),
+    )
+
+    def __init__(
+        self,
+        *args,
+        suggested_presentation=None,
+        **kwargs,
+    ):
+        super().__init__(
+            *args,
+            **kwargs,
+        )
+
+        if (
+            not self.is_bound
+            and suggested_presentation
+        ):
+            self.fields[
+                "presentation"
+            ].initial = (
+                suggested_presentation
+            )
+
+
+class FranchiseOwnerForm(
+    forms.ModelForm
+):
+    class Meta:
+        model = Franchise
+        fields = (
+            "name",
+            "overview",
+            "backdrop_url",
+        )
+        labels = {
+            "name": "Franchise Name",
+            "overview": "Overview",
+            "backdrop_url": (
+                "Background Image URL"
+            ),
+        }
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "class": (
+                        "watchroom-owner-control"
+                    ),
+                    "placeholder": (
+                        "Phineas and Ferb"
+                    ),
+                },
+            ),
+            "overview": forms.Textarea(
+                attrs={
+                    "class": (
+                        "watchroom-owner-control "
+                        "watchroom-owner-textarea"
+                    ),
+                    "rows": 5,
+                    "placeholder": (
+                        "Optional franchise "
+                        "description..."
+                    ),
+                },
+            ),
+            "backdrop_url": forms.URLInput(
+                attrs={
+                    "class": (
+                        "watchroom-owner-control"
+                    ),
+                    "placeholder": (
+                        "https://..."
+                    ),
+                },
+            ),
+        }
+
+
+class FranchiseMembershipOwnerForm(
+    forms.ModelForm
+):
+    class Meta:
+        model = FranchiseMembership
+        fields = (
+            "media_work",
+            "position",
+            "role",
+            "notes",
+        )
+        labels = {
+            "media_work": "Library Work",
+            "position": "Position",
+            "role": "Role",
+            "notes": "Membership Notes",
+        }
+        widgets = {
+            "media_work": forms.Select(
+                attrs={
+                    "class": (
+                        "watchroom-owner-control"
+                    ),
+                },
+            ),
+            "position": forms.NumberInput(
+                attrs={
+                    "class": (
+                        "watchroom-owner-control"
+                    ),
+                    "min": 1,
+                },
+            ),
+            "role": forms.Select(
+                attrs={
+                    "class": (
+                        "watchroom-owner-control"
+                    ),
+                },
+            ),
+            "notes": forms.Textarea(
+                attrs={
+                    "class": (
+                        "watchroom-owner-control "
+                        "watchroom-owner-textarea"
+                    ),
+                    "rows": 3,
+                },
+            ),
+        }
+
+    def __init__(
+        self,
+        *args,
+        franchise,
+        **kwargs,
+    ):
+        self.franchise = franchise
+
+        super().__init__(
+            *args,
+            **kwargs,
+        )
+
+        existing_memberships = (
+            FranchiseMembership.objects
+            .filter(
+                franchise=franchise,
+            )
+        )
+
+        if self.instance.pk:
+            existing_memberships = (
+                existing_memberships.exclude(
+                    pk=self.instance.pk,
+                )
+            )
+            self.fields[
+                "media_work"
+            ].disabled = True
+
+        existing_work_ids = (
+            existing_memberships.values_list(
+                "media_work_id",
+                flat=True,
+            )
+        )
+
+        self.fields[
+            "media_work"
+        ].queryset = (
+            MediaWork.objects
+            .exclude(
+                pk__in=existing_work_ids,
+            )
+            .order_by(
+                "title",
+                "pk",
+            )
+        )
+
+    def clean_media_work(self):
+        media_work = self.cleaned_data[
+            "media_work"
+        ]
+
+        duplicate_exists = (
+            FranchiseMembership.objects
+            .filter(
+                franchise=self.franchise,
+                media_work=media_work,
+            )
+            .exclude(
+                pk=self.instance.pk,
+            )
+            .exists()
+        )
+
+        if duplicate_exists:
+            raise forms.ValidationError(
+                (
+                    "This work already belongs "
+                    "to the franchise."
+                )
+            )
+
+        return media_work
+
+    def save(
+        self,
+        commit=True,
+    ):
+        membership = super().save(
+            commit=False
+        )
+        membership.franchise = (
+            self.franchise
+        )
+
+        if commit:
+            membership.save()
+
+        return membership
 
 

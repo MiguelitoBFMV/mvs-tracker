@@ -1,17 +1,26 @@
 # Watchroom — MVP Data Model and Architecture
 
-This document describes the approved MVP architecture and the completed local tracking foundation for **Watchroom — Series & Movies** inside MVS Tracker.
+This document describes the completed MVP architecture for **Watchroom — Series & Movies** inside MVS Tracker.
 
 Watchroom combines:
 
 - MAL-style lightweight progress.
 - Game Kiroku-style separation between work metadata and personal history.
-- Local-first external metadata.
+- Local-first TMDB metadata.
 - Public read-only access.
 - Authenticated owner management.
-- Movie- and series-specific rules where needed.
+- Movie- and series-specific rules.
+- Local mixed-media franchises.
+- Automatic TMDB movie-collection synchronization.
 
-The module is now operational through `watchroom.0005`. Its dashboard, library, work-detail views, manual creation workflow, season management, viewing-run transitions, and aggregate progress editing are implemented. The Watchroom regression suite contains **83 passing module tests**, and the complete four-app project suite contains **242 passing tests**. TMDB integration remains pending.
+The module is operational through `watchroom.0006`. Its dashboard, library, work-detail views, franchise views, manual owner workflows, TMDB search and import, safe refresh, viewing history, aggregate progress, and collection synchronization are implemented.
+
+Current regression checkpoint:
+
+```text
+Watchroom tests: 155 OK
+Global tests: 314 OK
+```
 
 ---
 
@@ -26,10 +35,13 @@ Watchroom tracks western and non-anime audiovisual works such as:
 - Documentary series.
 - Miniseries.
 - Streaming and television productions.
+- Independent specials with their own catalogue identity.
+- Related works grouped into franchises or movie collections.
 
 Examples include:
 
 - *Phineas and Ferb*.
+- *Phineas and Ferb the Movie: Across the 2nd Dimension*.
 - *The Amazing World of Gumball*.
 - *Kick Buttowski*.
 - *Wizards of Waverly Place*.
@@ -136,32 +148,49 @@ External requests occur only through explicit owner actions:
 Search TMDB
 Review result
 Import locally
-Link existing work
-Refresh metadata
-Refresh seasons
+Refresh metadata and seasons
+Synchronize a movie collection
 ```
 
-A normal dashboard, library, or detail request must not contact TMDB.
+A normal dashboard, library, work-detail, or franchise request does not contact TMDB.
 
-At the current checkpoint, the local-first read path is implemented. The TMDB client, search, import, linking, and refresh services are still pending.
+### Implemented TMDB Capabilities
+
+- Bearer-token client authentication.
+- Movie search.
+- Television-series search.
+- Movie details.
+- Series details.
+- Collection details.
+- Search-result normalization.
+- Movie, series, season, and collection normalization.
+- Review-before-import workflow.
+- Duplicate detection.
+- Transactional import.
+- Explicit safe refresh.
+- Automatic movie-collection synchronization.
 
 ### Attribution
 
-The required TMDB attribution will be displayed in the Watchroom or global footer.
+TMDB attribution is displayed in the Watchroom footer.
 
-Cards, dashboards, and work-detail sections will not carry repeated attribution text.
+Cards, dashboards, work details, and franchise sections do not repeat the attribution text.
 
 ---
 
 ## 5. Conceptual Model
 
 ```text
-MediaWork
-├── WatchEntry
-│   └── ViewingRun
-│       └── SeasonProgress
-└── Season
+Franchise
+└── FranchiseMembership
+    └── MediaWork
+        ├── WatchEntry
+        │   └── ViewingRun
+        │       └── SeasonProgress
+        └── Season
 ```
+
+A `MediaWork` may belong to more than one franchise through `FranchiseMembership`.
 
 ### Entity Responsibilities
 
@@ -181,9 +210,14 @@ Season
 SeasonProgress
     Stores lightweight MAL-style progress for one season
     inside one viewing run.
-```
 
-All five models in the conceptual graph are implemented.
+Franchise
+    Stores one local grouping of related works.
+
+FranchiseMembership
+    Connects a work to a franchise with position,
+    role, and optional notes.
+```
 
 Watchroom does not require these MVP models:
 
@@ -257,14 +291,14 @@ Series
 
 There is no separate `last_release_date` field in the MVP.
 
-Series completion or continuation state is represented by `external_status`.
+Series continuation state is represented by `external_status`.
 
 ### Runtime Rules
 
 - Movies may use `runtime_minutes`.
 - Series do not use a universal runtime in the MVP.
 - A movie runtime must be positive when present.
-- A series should keep `runtime_minutes=None`.
+- A series keeps `runtime_minutes=None`.
 
 ### External-ID Rule
 
@@ -406,13 +440,14 @@ watching
 paused
 ```
 
-Starting a new active run should not silently coexist with another active run.
+Starting a new active run pauses another active run when required by the service workflow.
 
 ### Date Rules
 
 - `finished_on >= started_on` when both exist.
-- Completion dates remain optional for historical entries.
-- A Watching or Paused run should not keep a finish date.
+- Dates remain optional for historical entries.
+- A Watching or Paused run does not keep a finish date.
+- Owner forms can explicitly clear stored dates back to `NULL`.
 
 ### Movie Progress
 
@@ -431,8 +466,8 @@ Rules:
 
 - Must be positive when present.
 - Must be null for series.
-- Should not exceed the known movie runtime when runtime is available.
-- Completing a movie may clear or normalise partial-minute progress.
+- Must not exceed the known movie runtime when runtime is available.
+- Completing a movie with a known runtime stores full runtime progress.
 
 ### Series Runs
 
@@ -512,10 +547,11 @@ Specials are:
 
 - Imported and stored.
 - Displayed separately.
-- Excluded from ordinary completion totals by default.
-- Available for manual progress when the owner chooses to track them.
+- Excluded from ordinary completion totals.
+- Restored by refresh when they are removed locally but remain present in TMDB.
+- Available for owner progress when the active run uses them.
 
-No separate `is_special` database field is required in the MVP.
+No separate `is_special` database field is required.
 
 ---
 
@@ -556,35 +592,132 @@ viewing_run + season
 Phineas and Ferb
 Run 1
 
-Season 1    38 / 38
-Season 2    14 / 36
-Season 3     0 / 35
+Season 1    47 / 47
+Season 2    66 / 66
+Season 3    62 / 62
+Season 4    39 / 48
 ```
 
 Derived total:
 
 ```text
-52 / 109 episodes
+214 / 261 episodes
 ```
 
-Specials are excluded from this ordinary total.
+Specials are excluded from the ordinary total.
 
 ### Rewatch Example
 
 ```text
 Run 1
-Season 1    38 / 38
-Season 2    36 / 36
+Season 1    47 / 47
+Season 2    66 / 66
 
 Run 2
-Season 1    12 / 38
+Season 1    12 / 47
 ```
 
 The second run does not overwrite the first.
 
 ---
 
-## 11. Derived Progress States
+## 11. Franchise
+
+`Franchise` represents a local grouping of related movies and series.
+
+It supports both:
+
+```text
+Mixed local franchise
+→ Phineas and Ferb series + movie + independent extras
+
+TMDB movie collection
+→ Saw + Saw II + Saw III + ...
+```
+
+### Implemented Fields
+
+| Field | Type | Nullable / blank | Description |
+|---|---|---:|---|
+| `name` | `CharField` | No | Visible franchise name. |
+| `slug` | `SlugField` | No | Stable unique local identifier. |
+| `overview` | `TextField` | Yes | Franchise description. |
+| `poster_url` | `URLField` | Yes | Vertical TMDB artwork or fallback metadata. |
+| `backdrop_url` | `URLField` | Yes | Primary horizontal franchise image. |
+| `tmdb_collection_id` | `PositiveBigIntegerField` | Yes | Unique TMDB movie-collection identity. |
+| `tmdb_payload` | `JSONField` | Yes | Stored TMDB collection payload. |
+| `tmdb_synced_at` | `DateTimeField` | Yes | Last collection synchronization. |
+| `works` | `ManyToManyField` | Yes | Works connected through `FranchiseMembership`. |
+| `created_at` | `DateTimeField` | No | Local creation timestamp. |
+| `updated_at` | `DateTimeField` | No | Last modification timestamp. |
+
+### Image Rule
+
+```text
+backdrop_url
+→ Primary franchise artwork
+→ Franchise index card
+→ Franchise detail hero
+→ Editable by the owner
+
+poster_url
+→ Auxiliary TMDB metadata
+→ Fallback when no backdrop exists
+```
+
+The owner form exposes one manual image field:
+
+```text
+Background Image URL
+→ backdrop_url
+```
+
+### Deletion Rule
+
+A franchise can be deleted through the owner interface only when it has no memberships.
+
+Deleting an empty franchise does not delete any `MediaWork`.
+
+---
+
+## 12. FranchiseMembership
+
+`FranchiseMembership` connects one `MediaWork` to one `Franchise`.
+
+### Implemented Fields
+
+| Field | Type | Nullable / blank | Description |
+|---|---|---:|---|
+| `franchise` | `ForeignKey` | No | Parent franchise. |
+| `media_work` | `ForeignKey` | No | Connected movie or series. |
+| `position` | `PositiveIntegerField` | No | Manual or TMDB-derived order. |
+| `role` | `CharField` | No | Relationship role. |
+| `notes` | `TextField` | Yes | Optional membership context. |
+| `created_at` | `DateTimeField` | No | Creation timestamp. |
+| `updated_at` | `DateTimeField` | No | Last modification timestamp. |
+
+### Role Choices
+
+```text
+main
+spin_off
+special
+extra
+other
+```
+
+### Rules
+
+- One work appears at most once inside the same franchise.
+- `position > 0`.
+- A work may belong to multiple franchises.
+- Removing a membership preserves both the franchise and the work.
+- Deleting a work removes its memberships.
+- Existing manual positions and roles are not overwritten by later TMDB collection synchronization.
+
+---
+
+## 13. Derived Progress States
 
 ### Movie
 
@@ -608,7 +741,7 @@ A series may display:
 
 ```text
 12 / 38
-52 / 109
+214 / 261
 Up to Date
 1 episode behind
 Ready to complete
@@ -639,47 +772,85 @@ refresh adds one episode
 → 1 episode behind
 ```
 
-A metadata refresh must never mark a series Completed automatically.
+A metadata refresh never marks a series Completed automatically.
 
-An explicit owner season-progress update may complete the active run when every known regular season reaches its canonical episode total. Season 0 / Specials do not participate in this automatic completion rule.
+An explicit owner season-progress update completes the active run when every known regular season reaches its canonical episode total. Season 0 / Specials do not participate in this completion rule.
 
 ---
 
-## 12. Import and Refresh Workflow
+## 14. Search and Import Workflow
 
-### Search and Import
-
-```text
-Search TMDB
-        ↓
-Choose Movie or Series result
-        ↓
-Review title and metadata
-        ↓
-Choose initial personal status
-        ↓
-Save MediaWork locally
-        ↓
-Create WatchEntry
-        ↓
-When Series:
-import Season summaries
-```
-
-### Link Existing Local Work
+### Search
 
 ```text
-Select TMDB result
+Owner opens Search TMDB
         ↓
-Select local work without TMDB identity
+Selects Movie or Series
         ↓
-Update metadata
+TMDB search runs explicitly
         ↓
-Preserve slug, WatchEntry,
-ViewingRuns, SeasonProgress, and notes
+Results are normalized
+        ↓
+Already imported works are marked locally
 ```
 
-### Refresh Work
+Searching does not write to the database.
+
+### Review and Import
+
+```text
+Select Review & Import
+        ↓
+Fetch complete TMDB details
+        ↓
+When Movie:
+fetch and normalize collection details when present
+        ↓
+Review metadata and seasons
+        ↓
+Choose presentation and initial personal status
+        ↓
+Transactional local import
+```
+
+Supported import statuses:
+
+```text
+plan_to_watch
+completed
+dropped
+```
+
+Watching and Paused are assigned through a `ViewingRun`.
+
+### Imported Records
+
+Every successful import creates:
+
+```text
+MediaWork
+WatchEntry
+```
+
+A series also imports its season summaries.
+
+A Completed movie creates a completed first run and uses the known runtime as full progress.
+
+A Completed series creates a completed first run and full `SeasonProgress` for every known regular season. Specials remain excluded.
+
+### Duplicate Protection
+
+The importer rejects another work with the same:
+
+```text
+media_type + tmdb_id
+```
+
+The review route redirects to the existing local detail when the work is already imported.
+
+---
+
+## 15. Safe Refresh Workflow
 
 An explicit owner refresh may update:
 
@@ -695,33 +866,112 @@ An explicit owner refresh may update:
 - Networks.
 - Stored TMDB payload.
 - Sync timestamp.
+- Movie runtime.
+- Season names.
+- Season episode totals.
+- Season air dates.
+- Season posters.
+- Missing seasons.
+- Movie-collection metadata and membership.
 
-### Refresh Seasons
+A refresh does not modify:
 
-An explicit owner season refresh may:
+- Presentation selected by the owner.
+- `WatchEntry.status`.
+- Personal notes.
+- `ViewingRun` history.
+- Run dates.
+- Movie progress.
+- `SeasonProgress`.
+- Local slugs.
+- Existing manual franchise roles or positions.
 
-- Create missing seasons.
-- Update season names.
-- Update canonical episode totals.
-- Update air dates.
-- Update season posters.
-- Preserve local `SeasonProgress`.
+### Runtime Protection
 
-A refresh must not:
+When TMDB returns a movie runtime lower than stored progress:
 
-- Delete personal history.
-- Lower `episodes_watched` silently.
-- Renumber local runs.
-- Mark the work Completed automatically.
-- Split or merge local progress without an explicit migration rule.
+```text
+Incoming runtime < maximum recorded movie progress
+→ preserve local runtime
+```
 
-When a refreshed episode total becomes lower than existing progress, the operation must surface a conflict for owner review instead of corrupting progress.
+### Episode-Total Protection
+
+When TMDB returns an episode total lower than stored progress:
+
+```text
+Incoming total < maximum stored SeasonProgress
+→ preserve local episode total
+```
+
+### Missing-Season Rule
+
+A refresh does not delete local seasons absent from the current TMDB response.
+
+When TMDB returns a season that is missing locally, the season is created again. This includes Season 0 / Specials.
+
+### Automatic Completion Rule
+
+Refresh never completes a series automatically, even when refreshed totals match current progress.
+
+Completion remains an explicit owner progress action.
 
 ---
 
-## 13. Current Public Read Architecture
+## 16. Franchise and TMDB Collection Synchronization
 
-The public views share a common optimized read layer under `watchroom/web/common.py`.
+TMDB movie collections and local franchises are related but not identical concepts.
+
+### Automatic Movie Collection
+
+When a movie belongs to a TMDB collection:
+
+```text
+Import or refresh movie
+        ↓
+Fetch collection details
+        ↓
+Create or reuse Franchise by tmdb_collection_id
+        ↓
+Update collection metadata
+        ↓
+Add movie as Main membership
+        ↓
+Use collection release order as position
+```
+
+Example:
+
+```text
+Saw Collection
+1 · Saw
+2 · Saw II
+3 · Saw III
+```
+
+A second movie from the same collection reuses the existing `Franchise`.
+
+### Mixed Local Franchise
+
+TMDB movie collections do not connect television series and movies into one cross-media franchise.
+
+That relationship is managed locally.
+
+Example:
+
+```text
+Phineas and Ferb
+1 · Phineas and Ferb · Main · Series
+2 · Across the 2nd Dimension · Special · Movie
+```
+
+The owner can add, reorder, relabel, annotate, or remove memberships without changing the underlying library works.
+
+---
+
+## 17. Public Read Architecture
+
+The public views share an optimized read layer under `watchroom/web/common.py`.
 
 It:
 
@@ -741,21 +991,29 @@ watchroom/web/
 ├── common.py
 ├── dashboard.py
 ├── detail.py
+├── franchises.py
 ├── library.py
-└── owner.py
+├── owner.py
+└── tmdb.py
 ```
 
-Viewing-state changes are centralized in:
+Service responsibilities are separated as:
 
 ```text
-watchroom/services/viewing.py
+watchroom/services/
+├── tmdb_client.py
+├── tmdb_collections.py
+├── tmdb_importer.py
+├── tmdb_normalizer.py
+├── tmdb_refresh.py
+└── viewing.py
 ```
 
 Normal GET requests remain read only. Owner mutations use authenticated POST endpoints and CSRF validation.
 
 ---
 
-## 14. Database Constraints
+## 18. Database Constraints
 
 Implemented constraints include:
 
@@ -771,12 +1029,16 @@ Implemented constraints include:
 - Unique `Season(media_work, season_number)`.
 - Unique `SeasonProgress(viewing_run, season)`.
 - Non-negative `episodes_watched`.
+- Unique `Franchise.slug`.
+- Unique positive `Franchise.tmdb_collection_id` when present.
+- Unique `FranchiseMembership(franchise, media_work)`.
+- Positive franchise membership position.
 
 Cross-model limits such as `episodes_watched <= episode_count` remain model/form validation because they depend on another row.
 
 ---
 
-## 15. Owner and Public Access
+## 19. Owner and Public Access
 
 Public visitors may:
 
@@ -786,20 +1048,26 @@ Public visitors may:
 - View seasons and aggregate progress.
 - View first-watch and rewatch history.
 - View completed historical progress.
+- Browse the franchise index.
+- Open franchise details and connected works.
 
 The authenticated owner may:
 
 - Create a local movie or series.
+- Permanently delete a work and its local history.
 - Edit personal status and notes before run history controls the entry.
 - Add, edit, and safely delete eligible seasons.
 - Start a first watch or rewatch.
 - Pause, resume, complete, or drop an active run.
-- Edit run dates, notes, and movie-minute progress.
+- Edit or clear run dates.
+- Edit run notes and movie-minute progress.
 - Update season progress for the active series run.
-- Trigger automatic active-run completion through explicit full regular-season progress.
-- Preserve and view completed historical progress without editing it accidentally.
-
-TMDB search, import, linking, and refresh actions remain pending.
+- Search TMDB.
+- Review and import a TMDB work.
+- Refresh imported metadata and seasons.
+- Create and edit franchises.
+- Add, edit, reorder, relabel, annotate, and remove franchise memberships.
+- Delete an empty franchise.
 
 Implemented mutating endpoints require:
 
@@ -813,20 +1081,23 @@ Normal GET requests remain read only.
 
 ---
 
-## 16. Routes
+## 20. Routes
 
-### Implemented Public Routes
+### Public Routes
 
 ```text
-/watchroom/                         Dashboard
-/watchroom/library/                 Library
-/watchroom/library/<slug>/          Work detail
+/watchroom/                                         Dashboard
+/watchroom/library/                                 Library
+/watchroom/library/<slug>/                          Work detail
+/watchroom/franchises/                              Franchise index
+/watchroom/franchises/<slug>/                       Franchise detail
 ```
 
-### Implemented Owner Routes
+### Owner Work Routes
 
 ```text
 /watchroom/library/create/
+/watchroom/library/<slug>/delete/
 /watchroom/library/<slug>/entry/update/
 /watchroom/library/<slug>/seasons/create/
 /watchroom/library/<slug>/seasons/<id>/update/
@@ -837,7 +1108,7 @@ Normal GET requests remain read only.
 /watchroom/library/<slug>/runs/<id>/progress/<season_id>/update/
 ```
 
-The run transition action is validated by the service layer and supports:
+The run transition action supports:
 
 ```text
 pause
@@ -846,13 +1117,30 @@ complete
 drop
 ```
 
-### Planned TMDB Routes
+### Owner TMDB Routes
 
-Final route names remain open, but the future workflow will include search, import review, linking, metadata refresh, and season refresh.
+```text
+/watchroom/search/
+/watchroom/import/<media_type>/<tmdb_id>/
+/watchroom/library/<slug>/tmdb/refresh/
+```
+
+### Owner Franchise Routes
+
+```text
+/watchroom/franchises/create/
+/watchroom/franchises/<slug>/update/
+/watchroom/franchises/<slug>/delete/
+/watchroom/franchises/<slug>/members/add/
+/watchroom/franchises/<slug>/members/<membership_id>/update/
+/watchroom/franchises/<slug>/members/<membership_id>/remove/
+```
 
 ---
 
-## 17. Implemented Public Dashboard
+## 21. Public Interface
+
+### Dashboard
 
 The dashboard is available at `/watchroom/`.
 
@@ -873,19 +1161,7 @@ Current sections:
 - Owner or read-only access state.
 - TMDB attribution footer.
 
-The dashboard uses local PostgreSQL data and shared prefetched query helpers. It does not require episode-level rows or external API requests.
-
-Example card state:
-
-```text
-Phineas and Ferb
-Watching
-Season 1 · 12 / 38
-```
-
----
-
-## 18. Implemented Public Library and Detail Views
+### Library
 
 The library is available at `/watchroom/library/`.
 
@@ -919,6 +1195,8 @@ Each library card shows:
 - Current progress.
 - Viewing-run count.
 
+### Work Detail
+
 The work-detail page shows:
 
 - Poster and optional backdrop.
@@ -930,11 +1208,28 @@ The work-detail page shows:
 - Current run progress.
 - First-watch and rewatch history.
 - Up to Date when the active run matches all imported non-special episodes.
+- Connected franchises with role and position.
 - Public 404 behaviour for unknown slugs.
+
+### Franchise Index and Detail
+
+The franchise index shows:
+
+- Primary horizontal artwork from `backdrop_url`.
+- Franchise name and overview.
+- Movie, Series, Completed, and total-work counts.
+
+The franchise detail shows:
+
+- Background-image hero.
+- Franchise summary metrics.
+- Connected works in manual or TMDB-derived order.
+- Work type, role, status, and membership notes.
+- Owner controls only when authenticated.
 
 ---
 
-## 19. Implemented Local Owner Workflows
+## 22. Owner Workflows
 
 ### Manual Work Creation
 
@@ -953,6 +1248,20 @@ The owner can create a local Movie or Series with:
 Watching and Paused cannot be selected before a viewing run exists.
 
 Creating a historical Completed or Dropped work creates the corresponding first historical run.
+
+### Work Deletion
+
+The owner can permanently delete a work.
+
+The deletion removes:
+
+- `WatchEntry`.
+- Seasons.
+- Viewing runs.
+- Season progress.
+- Franchise memberships.
+
+The franchise records themselves remain.
 
 ### Season Management
 
@@ -999,38 +1308,54 @@ Saving full progress for every known regular season through an explicit owner ac
 
 Completed historical progress is displayed but cannot be edited until a new rewatch run begins.
 
+### Franchise Management
+
+The owner can:
+
+- Create a local franchise.
+- Edit its name, overview, and primary background image.
+- Add any local movie or series.
+- Set position.
+- Set role.
+- Add membership notes.
+- Update existing memberships.
+- Remove a work without deleting it.
+- Delete the franchise after every membership is removed.
+
 ---
 
-## 20. Decisions Outside the MVP
+## 23. Decisions Outside the MVP
 
-The initial MVP excludes:
+The completed MVP excludes:
 
 - Per-episode database rows.
 - Per-episode watch history.
 - Episode-segment tracking.
 - Automatic scrobbling.
-- Streaming-provider synchronisation.
-- Permanent background TMDB synchronisation.
+- Streaming-provider synchronization.
+- Permanent background TMDB synchronization.
 - Multiple users.
 - Ratings and reviews beyond personal notes.
 - Cast and crew databases.
 - Awards tracking.
 - Subtitle or audio-language tracking.
-- Exact playback-position synchronisation.
+- Exact playback-position synchronization.
 - Automatic Completed transitions after metadata refresh.
 - Separate progress engines for cartoons, documentaries, or miniseries.
 - Separate TV Movie behaviour.
-- Automatic franchise or collection modelling.
+- Automatic cross-media franchise discovery.
+- Automatic import of every missing movie in a collection.
 
 These may be added later only when they provide clear value.
 
 ---
 
-## 21. Future Extensions
+## 24. Future Extensions
 
 Possible post-MVP additions:
 
-- Collections and franchises.
+- Link an existing manual work to TMDB.
+- Discover missing local works from a TMDB movie collection.
 - Streaming availability for Chile.
 - TMDB / JustWatch provider attribution.
 - Favourite works.
@@ -1040,10 +1365,11 @@ Possible post-MVP additions:
 - Cross-module Hibi Log activity.
 - Watch-time analytics.
 - MAL Insights and Watchroom combined viewing statistics.
+- Multiple users.
 
 ---
 
-## 22. Implementation Progress
+## 25. Implementation Progress
 
 ```text
 [x] Create Watchroom Django app
@@ -1062,32 +1388,52 @@ Possible post-MVP additions:
 [x] Remove duplicate season-progress dates
 [x] Add explicit full-progress series completion
 [x] Protect completed historical progress from editing
+[x] Add permanent work deletion
 [x] Add public and owner permission hardening
-[x] Validate local workflows manually
-[x] Reach 83 Watchroom tests
-[x] Reach 242 global tests
-[x] Complete local foundation documentation
-[ ] Add TMDB client and search
-[ ] Add local TMDB import and linking
-[ ] Add metadata and season refresh
-[ ] Validate imported data
-[ ] Complete the Watchroom MVP
+[x] Implement TMDB client and normalizers
+[x] Add TMDB movie and series search
+[x] Add review-before-import workflow
+[x] Add local transactional import
+[x] Add duplicate protection
+[x] Add safe metadata and season refresh
+[x] Add runtime and episode-total preservation
+[x] Restore missing seasons and Specials during refresh
+[x] Implement Franchise and FranchiseMembership
+[x] Add public franchise index and detail views
+[x] Add owner franchise and membership management
+[x] Support mixed Movie / Series franchises
+[x] Add automatic TMDB movie-collection synchronization
+[x] Add background-image franchise cards and heroes
+[x] Reach 155 Watchroom tests
+[x] Reach 314 global tests
+[x] Validate Saw Collection automatically
+[x] Validate Phineas and Ferb as a mixed local franchise
+[x] Complete the Watchroom MVP
 ```
 
 ---
-## 23. Current Implementation Checkpoint
+
+## 26. Current Implementation Checkpoint
 
 ```text
 Document: watchroom-data-model.md
 Module: Watchroom
-Stage: Local tracking foundation complete
-Status: Ready to merge from feat/watchroom-foundation
-Current migration: watchroom.0005
-Watchroom tests: 83 OK
-Global tests: 242 OK
-Active public routes: Dashboard, Library, Work Detail
-Active owner workflows: Manual creation, entry, seasons, runs, transitions, progress
-Primary source: TMDB selected; integration pending
+Stage: MVP complete
+Status: Ready to merge from feat/watchroom-tmdb-integration
+Current migration: watchroom.0006
+Watchroom tests: 155 OK
+Global tests: 314 OK
+Active public routes: Dashboard, Library, Work Detail, Franchise Index, Franchise Detail
+Active owner workflows: Manual creation, deletion, entry, seasons, runs, transitions, progress, TMDB search/import/refresh, franchise management
+Primary source: TMDB
+TMDB client: Complete
+TMDB search: Complete
+TMDB import: Complete
+TMDB refresh: Complete
+Local franchises: Complete
+Mixed Movie/Series franchises: Complete
+TMDB movie collections: Complete
+Primary franchise image: backdrop_url
 Storage strategy: Local-first
 Progress style: MAL-like aggregate progress
 History style: Game Kiroku-like ViewingRun history
@@ -1095,7 +1441,6 @@ Primary types: Movie and Series
 SeasonProgress dates: Excluded
 Episode rows: Excluded
 TMDB attribution: Footer
-Next branch: TMDB integration
 ```
 
-The local foundation is ready to merge into `main`. TMDB integration should continue in a separate feature branch so external-data work remains isolated from the completed local tracking system.
+Watchroom is ready to merge into `main`. Post-MVP work should continue in separate feature branches so optional integrations remain isolated from the completed tracking system.

@@ -28,6 +28,18 @@ MAL_ACCESS_TOKEN = os.getenv("MAL_ACCESS_TOKEN")
 IGDB_CLIENT_ID = os.getenv("IGDB_CLIENT_ID")
 IGDB_CLIENT_SECRET = os.getenv("IGDB_CLIENT_SECRET")
 
+TMDB_READ_ACCESS_TOKEN = os.getenv(
+    "TMDB_READ_ACCESS_TOKEN"
+)
+TMDB_LANGUAGE = os.getenv(
+    "TMDB_LANGUAGE",
+    "en-US",
+)
+TMDB_REGION = os.getenv(
+    "TMDB_REGION",
+    "CL",
+)
+
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")

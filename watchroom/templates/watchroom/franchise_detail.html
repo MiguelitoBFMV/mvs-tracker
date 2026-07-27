@@ -1,0 +1,273 @@
+{% extends "watchroom/base.html" %}
+
+{% block title %}
+    {{ franchise.name }}
+{% endblock %}
+
+{% block module_name %}
+    Franchise · Watchroom
+{% endblock %}
+
+{% block content %}
+    <header class="franchise-hero">
+        {% if franchise.backdrop_url %}
+            <img
+                class="franchise-hero-backdrop"
+                src="{{ franchise.backdrop_url }}"
+                alt=""
+            >
+        {% elif franchise.poster_url %}
+            <img
+                class="franchise-hero-backdrop"
+                src="{{ franchise.poster_url }}"
+                alt=""
+            >
+        {% endif %}
+
+        <div
+            class="franchise-hero-overlay"
+            aria-hidden="true"
+        ></div>
+
+        <div class="franchise-hero-content">
+            <div>
+                <p class="dashboard-eyebrow">
+                    Franchise
+                </p>
+
+                <h1>{{ franchise.name }}</h1>
+
+                {% if franchise.overview %}
+                    <p>
+                        {{ franchise.overview }}
+                    </p>
+                {% endif %}
+            </div>
+
+            <a
+                href="{% url 'watchroom:franchise_index' %}"
+                class="library-hero-link"
+            >
+                All Franchises
+            </a>
+        </div>
+    </header>
+
+    <section class="franchise-summary">
+        <article>
+            <strong>{{ franchise.member_count }}</strong>
+            <span>Works</span>
+        </article>
+
+        <article>
+            <strong>{{ franchise.movie_count }}</strong>
+            <span>Movies</span>
+        </article>
+
+        <article>
+            <strong>{{ franchise.series_count }}</strong>
+            <span>Series</span>
+        </article>
+
+        <article>
+            <strong>{{ franchise.completed_count }}</strong>
+            <span>Completed</span>
+        </article>
+    </section>
+
+    <section class="franchise-members">
+        <header class="section-heading">
+            <div>
+                <p class="section-kicker">
+                    Viewing Order
+                </p>
+
+                <h2>Connected Works</h2>
+            </div>
+        </header>
+
+        {% if franchise.member_items %}
+            <div class="franchise-member-list">
+                {% for membership in franchise.member_items %}
+                    <article class="franchise-member-card">
+                        <strong class="franchise-position">
+                            {{ membership.position }}
+                        </strong>
+
+                        <a
+                            href="{{ membership.media_work.get_absolute_url }}"
+                            class="franchise-member-poster"
+                        >
+                            {% if membership.media_work.poster_url %}
+                                <img
+                                    src="{{ membership.media_work.poster_url }}"
+                                    alt=""
+                                >
+                            {% else %}
+                                <span aria-hidden="true">
+                                    {{ membership.media_work.title|slice:":2"|upper }}
+                                </span>
+                            {% endif %}
+                        </a>
+
+                        <div class="franchise-member-body">
+                            <div class="media-card-labels">
+                                <span>
+                                    {{ membership.media_work.get_media_type_display }}
+                                </span>
+
+                                <span>
+                                    {{ membership.get_role_display }}
+                                </span>
+
+                                {% if membership.entry %}
+                                    <span>
+                                        {{ membership.entry.get_status_display }}
+                                    </span>
+                                {% endif %}
+                            </div>
+
+                            <h3>
+                                <a href="{{ membership.media_work.get_absolute_url }}">
+                                    {{ membership.media_work.title }}
+                                </a>
+                            </h3>
+
+                            {% if membership.notes %}
+                                <p>{{ membership.notes }}</p>
+                            {% endif %}
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <article class="empty-state">
+                <span aria-hidden="true">◇</span>
+
+                <h3>No connected works</h3>
+
+                <p>
+                    Add movies or series from
+                    the local Watchroom library.
+                </p>
+            </article>
+        {% endif %}
+    </section>
+
+    {% if user.is_authenticated %}
+        <section class="owner-controls">
+            <header class="section-heading">
+                <div>
+                    <p class="section-kicker">
+                        Private Controls
+                    </p>
+
+                    <h2>Franchise Management</h2>
+                </div>
+            </header>
+
+            <article class="owner-panel">
+                <h3>Edit Franchise</h3>
+
+                <form
+                    method="post"
+                    action="{% url 'watchroom:update_franchise' franchise.slug %}"
+                >
+                    {% csrf_token %}
+
+                    {{ franchise_form.as_p }}
+
+                    <div class="owner-form-actions">
+                        <button type="submit">
+                            Save Franchise
+                        </button>
+                    </div>
+                </form>
+            </article>
+
+            <article class="owner-panel">
+                <h3>Add Library Work</h3>
+
+                <form
+                    method="post"
+                    action="{% url 'watchroom:add_franchise_member' franchise.slug %}"
+                >
+                    {% csrf_token %}
+
+                    {{ new_membership_form.as_p }}
+
+                    <div class="owner-form-actions">
+                        <button type="submit">
+                            Add to Franchise
+                        </button>
+                    </div>
+                </form>
+            </article>
+
+            {% for membership in franchise.member_items %}
+                <article class="owner-panel">
+                    <h3>
+                        {{ membership.position }} ·
+                        {{ membership.media_work.title }}
+                    </h3>
+
+                    <form
+                        method="post"
+                        action="{% url 'watchroom:update_franchise_member' franchise.slug membership.pk %}"
+                    >
+                        {% csrf_token %}
+
+                        {{ membership.owner_form.as_p }}
+
+                        <div class="owner-form-actions">
+                            <button type="submit">
+                                Save Membership
+                            </button>
+                        </div>
+                    </form>
+
+                    <form
+                        method="post"
+                        action="{% url 'watchroom:remove_franchise_member' franchise.slug membership.pk %}"
+                        class="owner-form-actions"
+                    >
+                        {% csrf_token %}
+
+                        <button
+                            type="submit"
+                            class="owner-delete-work-button"
+                        >
+                            Remove from Franchise
+                        </button>
+                    </form>
+                </article>
+            {% endfor %}
+
+            {% if not franchise.member_items %}
+                <article class="owner-panel owner-danger-panel">
+                    <h3>Delete Franchise</h3>
+
+                    <p class="owner-panel-note">
+                        Deleting this empty franchise
+                        does not affect library works.
+                    </p>
+
+                    <form
+                        method="post"
+                        action="{% url 'watchroom:delete_franchise' franchise.slug %}"
+                        class="owner-form-actions"
+                    >
+                        {% csrf_token %}
+
+                        <button
+                            type="submit"
+                            class="owner-delete-work-button"
+                        >
+                            Delete Empty Franchise
+                        </button>
+                    </form>
+                </article>
+            {% endif %}
+        </section>
+    {% endif %}
+{% endblock %}

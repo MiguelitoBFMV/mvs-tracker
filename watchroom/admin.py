@@ -1,12 +1,100 @@
 from django.contrib import admin
 
 from .models import (
+    Franchise,
+    FranchiseMembership,
     MediaWork,
     Season,
     SeasonProgress,
     ViewingRun,
     WatchEntry,
 )
+
+
+class FranchiseMembershipInline(
+    admin.TabularInline
+):
+    model = FranchiseMembership
+    extra = 0
+    autocomplete_fields = (
+        "media_work",
+    )
+    fields = (
+        "media_work",
+        "position",
+        "role",
+        "notes",
+    )
+
+
+@admin.register(Franchise)
+class FranchiseAdmin(
+    admin.ModelAdmin
+):
+    list_display = (
+        "name",
+        "tmdb_collection_id",
+        "member_count",
+        "updated_at",
+    )
+    search_fields = (
+        "name",
+        "tmdb_collection_id",
+    )
+    readonly_fields = (
+        "slug",
+        "tmdb_synced_at",
+        "created_at",
+        "updated_at",
+    )
+    inlines = (
+        FranchiseMembershipInline,
+    )
+
+    @admin.display(
+        description="Works"
+    )
+    def member_count(
+        self,
+        franchise,
+    ):
+        return (
+            franchise.memberships
+            .count()
+        )
+
+
+@admin.register(
+    FranchiseMembership
+)
+class FranchiseMembershipAdmin(
+    admin.ModelAdmin
+):
+    list_display = (
+        "franchise",
+        "position",
+        "media_work",
+        "role",
+        "updated_at",
+    )
+    list_filter = (
+        "role",
+        "media_work__media_type",
+        "media_work__presentation",
+    )
+    search_fields = (
+        "franchise__name",
+        "media_work__title",
+        "media_work__original_title",
+    )
+    autocomplete_fields = (
+        "franchise",
+        "media_work",
+    )
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+    )
 
 
 @admin.register(MediaWork)

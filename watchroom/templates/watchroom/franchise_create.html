@@ -1,0 +1,47 @@
+{% extends "watchroom/base.html" %}
+
+{% block title %}
+    Create Franchise
+{% endblock %}
+
+{% block module_name %}
+    Create Franchise · Watchroom
+{% endblock %}
+
+{% block content %}
+    <header class="library-hero">
+        <div>
+            <p class="dashboard-eyebrow">
+                Local Organisation
+            </p>
+
+            <h1>Create Franchise</h1>
+
+            <p>
+                Group related movies, series,
+                specials and spin-offs.
+            </p>
+        </div>
+
+        <a
+            href="{% url 'watchroom:franchise_index' %}"
+            class="library-hero-link"
+        >
+            Back to Franchises
+        </a>
+    </header>
+
+    <section class="owner-panel">
+        <form method="post">
+            {% csrf_token %}
+
+            {{ form.as_p }}
+
+            <div class="owner-form-actions">
+                <button type="submit">
+                    Create Franchise
+                </button>
+            </div>
+        </form>
+    </section>
+{% endblock %}

@@ -1,0 +1,279 @@
+{% extends "watchroom/base.html" %}
+
+{% block title %}
+    Review & Import
+{% endblock %}
+
+{% block module_name %}
+    TMDB Import · Watchroom
+{% endblock %}
+
+{% block content %}
+    <header class="library-hero">
+        <div>
+            <p class="dashboard-eyebrow">
+                External Metadata
+            </p>
+
+            <h1>Review &amp; Import</h1>
+
+            <p>
+                Review the complete TMDB metadata
+                before adding it to the local library.
+            </p>
+        </div>
+
+        <a
+            href="{% url 'watchroom:tmdb_search' %}"
+            class="library-hero-link"
+        >
+            Back to Search
+        </a>
+    </header>
+
+    {% if import_error %}
+        <article class="tmdb-search-error">
+            <strong>TMDB Import Failed</strong>
+            <p>{{ import_error }}</p>
+        </article>
+    {% endif %}
+
+    {% if details %}
+        <article class="tmdb-import-review">
+            <section class="tmdb-import-summary">
+                <div class="tmdb-import-poster">
+                    {% if details.poster_url %}
+                        <img
+                            src="{{ details.poster_url }}"
+                            alt=""
+                        >
+                    {% else %}
+                        <span aria-hidden="true">
+                            {{ details.title|slice:":2"|upper }}
+                        </span>
+                    {% endif %}
+                </div>
+
+                <div class="tmdb-import-metadata">
+                    <div class="media-card-labels">
+                        <span>
+                            {{ details.media_type|title }}
+                        </span>
+
+                        {% if details.first_release_date %}
+                            <span>
+                                {{ details.first_release_date|date:"Y" }}
+                            </span>
+                        {% endif %}
+
+                        {% if details.external_status %}
+                            <span>
+                                {{ details.external_status }}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <h2>{{ details.title }}</h2>
+
+                    {% if details.original_title and details.original_title != details.title %}
+                        <p class="tmdb-original-title">
+                            {{ details.original_title }}
+                        </p>
+                    {% endif %}
+
+                    {% if details.overview %}
+                        <p class="tmdb-import-overview">
+                            {{ details.overview }}
+                        </p>
+                    {% endif %}
+
+                    <dl class="tmdb-import-facts">
+                        <div>
+                            <dt>TMDB ID</dt>
+                            <dd>{{ details.tmdb_id }}</dd>
+                        </div>
+
+                        <div>
+                            <dt>Original Language</dt>
+                            <dd>
+                                {{ details.original_language|default:"Unknown" }}
+                            </dd>
+                        </div>
+
+                        {% if details.runtime_minutes %}
+                            <div>
+                                <dt>Runtime</dt>
+                                <dd>
+                                    {{ details.runtime_minutes }}
+                                    minutes
+                                </dd>
+                            </div>
+                        {% endif %}
+
+                        {% if details.origin_countries %}
+                            <div>
+                                <dt>Origin</dt>
+                                <dd>
+                                    {{ details.origin_countries|join:", " }}
+                                </dd>
+                            </div>
+                        {% endif %}
+
+                        {% if details.networks %}
+                            <div>
+                                <dt>Networks</dt>
+                                <dd>
+                                    {{ details.networks|join:", " }}
+                                </dd>
+                            </div>
+                        {% endif %}
+
+                        {% if details.genres %}
+                            <div>
+                                <dt>Genres</dt>
+                                <dd>
+                                    {{ details.genres|join:", " }}
+                                </dd>
+                            </div>
+                        {% endif %}
+
+                        {% if details.collection %}
+                            <div>
+                                <dt>Movie Collection</dt>
+                                <dd>
+                                    {{ details.collection.name }}
+                                </dd>
+                            </div>
+                        {% endif %}
+                    </dl>
+                </div>
+            </section>
+
+            {% if details.media_type == "series" %}
+                <section class="tmdb-import-seasons">
+                    <header class="section-heading">
+                        <div>
+                            <p class="section-kicker">
+                                Canonical Structure
+                            </p>
+
+                            <h2>
+                                {{ details.seasons|length }}
+                                Seasons
+                            </h2>
+                        </div>
+                    </header>
+
+                    {% if details.seasons %}
+                        <div class="tmdb-season-review-grid">
+                            {% for season in details.seasons %}
+                                <article class="tmdb-season-review-card">
+                                    <strong>
+                                        {% if season.season_number == 0 %}
+                                            Specials
+                                        {% elif season.name %}
+                                            {{ season.name }}
+                                        {% else %}
+                                            Season {{ season.season_number }}
+                                        {% endif %}
+                                    </strong>
+
+                                    <span>
+                                        {{ season.episode_count }}
+                                        episodes
+                                    </span>
+
+                                    {% if season.air_date %}
+                                        <small>
+                                            {{ season.air_date|date:"Y-m-d" }}
+                                        </small>
+                                    {% endif %}
+                                </article>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="owner-panel-note">
+                            TMDB did not return season
+                            information for this series.
+                        </p>
+                    {% endif %}
+                </section>
+            {% endif %}
+
+            <section class="tmdb-import-owner-panel">
+                <header>
+                    <p class="owner-panel-kicker">
+                        Local Library
+                    </p>
+
+                    <h2>Import Settings</h2>
+                </header>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="owner-form-error">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+
+                    <div class="owner-form-grid">
+                        <label class="owner-field">
+                            <span>
+                                {{ form.presentation.label }}
+                            </span>
+
+                            {{ form.presentation }}
+
+                            {% for error in form.presentation.errors %}
+                                <strong class="owner-form-error">
+                                    {{ error }}
+                                </strong>
+                            {% endfor %}
+                        </label>
+
+                        <label class="owner-field">
+                            <span>
+                                {{ form.status.label }}
+                            </span>
+
+                            {{ form.status }}
+
+                            {% for error in form.status.errors %}
+                                <strong class="owner-form-error">
+                                    {{ error }}
+                                </strong>
+                            {% endfor %}
+                        </label>
+                    </div>
+
+                    <label class="owner-field">
+                        <span>
+                            {{ form.notes.label }}
+                        </span>
+
+                        {{ form.notes }}
+
+                        {% for error in form.notes.errors %}
+                            <strong class="owner-form-error">
+                                {{ error }}
+                            </strong>
+                        {% endfor %}
+                    </label>
+
+                    <p class="owner-panel-note">
+                        Watching and Paused are assigned
+                        through viewing runs after import.
+                    </p>
+
+                    <div class="owner-form-actions">
+                        <button type="submit">
+                            Import to Watchroom
+                        </button>
+                    </div>
+                </form>
+            </section>
+        </article>
+    {% endif %}
+{% endblock %}

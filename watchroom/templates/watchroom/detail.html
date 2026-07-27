@@ -150,6 +150,42 @@
             </aside>
         </section>
 
+        {% if franchise_memberships %}
+            <section class="detail-section">
+                <header class="section-heading">
+                    <div>
+                        <p class="section-kicker">
+                            Connected Worlds
+                        </p>
+
+                        <h2>Franchises</h2>
+                    </div>
+                </header>
+
+                <div class="work-franchise-list">
+                    {% for membership in franchise_memberships %}
+                        <a
+                            href="{{ membership.franchise.get_absolute_url }}"
+                            class="work-franchise-link"
+                        >
+                            <span>
+                                {{ membership.get_role_display }}
+                            </span>
+
+                            <strong>
+                                {{ membership.franchise.name }}
+                            </strong>
+
+                            <small>
+                                Position
+                                {{ membership.position }}
+                            </small>
+                        </a>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
         {% if work.media_type == "series" %}
             <section class="detail-section">
                 <header class="section-heading">
@@ -703,7 +739,19 @@
                                             {{ run.owner_form.started_on.label }}
                                         </span>
 
-                                        {{ run.owner_form.started_on }}
+                                        <div class="owner-date-control">
+                                            {{ run.owner_form.started_on }}
+
+                                            <button
+                                                type="button"
+                                                class="owner-date-clear"
+                                                onclick="
+                                                    this.previousElementSibling.value = '';
+                                                "
+                                            >
+                                                Clear
+                                            </button>
+                                        </div>
 
                                         {% for error in run.owner_form.started_on.errors %}
                                             <strong class="owner-form-error">
@@ -721,7 +769,19 @@
                                                 {{ run.owner_form.finished_on.label }}
                                             </span>
 
-                                            {{ run.owner_form.finished_on }}
+                                            <div class="owner-date-control">
+                                                {{ run.owner_form.finished_on }}
+
+                                                <button
+                                                    type="button"
+                                                    class="owner-date-clear"
+                                                    onclick="
+                                                        this.previousElementSibling.value = '';
+                                                    "
+                                                >
+                                                    Clear
+                                                </button>
+                                            </div>
 
                                             {% for error in run.owner_form.finished_on.errors %}
                                                 <strong class="owner-form-error">
@@ -903,6 +963,84 @@
                     </article>
                 {% endif %}
             {% endif %}
+
+            {% if work.tmdb_id %}
+                <article class="owner-panel">
+                    <header class="owner-panel-heading">
+                        <div>
+                            <p class="section-kicker">
+                                External Metadata
+                            </p>
+
+                            <h3>TMDB Sync</h3>
+                        </div>
+
+                        {% if work.tmdb_synced_at %}
+                            <span class="owner-panel-state">
+                                Last synced
+                                {{ work.tmdb_synced_at|date:"Y-m-d H:i" }}
+                            </span>
+                        {% endif %}
+                    </header>
+
+                    <p class="owner-panel-note">
+                        Refresh titles, descriptions, images,
+                        runtime, external status and canonical
+                        season metadata without changing personal
+                        status, runs or progress.
+                    </p>
+
+                    <form
+                        method="post"
+                        action="{% url 'watchroom:refresh_tmdb' work.slug %}"
+                        class="owner-form-actions"
+                    >
+                        {% csrf_token %}
+
+                        <button type="submit">
+                            Refresh from TMDB
+                        </button>
+                    </form>
+                </article>
+            {% endif %}
+
+            <article class="owner-panel owner-danger-panel">
+                <header class="owner-panel-heading">
+                    <div>
+                        <p class="section-kicker">
+                            Danger Zone
+                        </p>
+
+                        <h3>Delete Work</h3>
+                    </div>
+                </header>
+
+                <p class="owner-panel-note">
+                    Permanently delete this work, its library
+                    entry, seasons, viewing runs and progress.
+                    This action cannot be undone.
+                </p>
+
+                <form
+                    method="post"
+                    action="{% url 'watchroom:delete_work' work.slug %}"
+                    class="owner-delete-form"
+                    onsubmit="
+                        return confirm(
+                            'Permanently delete {{ work.title|escapejs }} and all its history?'
+                        );
+                    "
+                >
+                    {% csrf_token %}
+
+                    <button
+                        type="submit"
+                        class="owner-delete-work-button"
+                    >
+                        Delete Work Permanently
+                    </button>
+                </form>
+            </article>
         </section>
     {% endif %}
 {% endblock %}

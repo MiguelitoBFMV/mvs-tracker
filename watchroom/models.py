@@ -238,6 +238,236 @@ class MediaWork(models.Model):
         return candidate
 
 
+class Franchise(models.Model):
+    name = models.CharField(
+        max_length=255,
+        db_index=True,
+    )
+    slug = models.SlugField(
+        max_length=255,
+        unique=True,
+        editable=False,
+    )
+    overview = models.TextField(
+        blank=True,
+    )
+    poster_url = models.URLField(
+        max_length=500,
+        blank=True,
+    )
+    backdrop_url = models.URLField(
+        max_length=500,
+        blank=True,
+    )
+    tmdb_collection_id = (
+        models.PositiveBigIntegerField(
+            blank=True,
+            null=True,
+            unique=True,
+        )
+    )
+    tmdb_payload = models.JSONField(
+        default=dict,
+        blank=True,
+    )
+    tmdb_synced_at = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+    works = models.ManyToManyField(
+        MediaWork,
+        through="FranchiseMembership",
+        related_name="franchises",
+        blank=True,
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        ordering = (
+            "name",
+            "pk",
+        )
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        tmdb_collection_id__isnull=True
+                    )
+                    | Q(
+                        tmdb_collection_id__gt=0
+                    )
+                ),
+                name=(
+                    "watchroom_franchise_tmdb_"
+                    "collection_positive_or_null"
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        return reverse(
+            "watchroom:franchise_detail",
+            kwargs={
+                "slug": self.slug,
+            },
+        )
+
+    def save(
+        self,
+        *args,
+        **kwargs,
+    ):
+        if not self.slug:
+            self.slug = (
+                self._build_unique_slug()
+            )
+
+        super().save(
+            *args,
+            **kwargs,
+        )
+
+    def _build_unique_slug(self):
+        slug_field = (
+            self._meta.get_field(
+                "slug"
+            )
+        )
+        max_length = (
+            slug_field.max_length
+        )
+
+        base_slug = slugify(
+            self.name
+        )
+
+        if not base_slug:
+            base_slug = (
+                "franchise-local"
+            )
+
+        base_slug = base_slug[
+            :max_length
+        ]
+        candidate = base_slug
+        counter = 2
+
+        while (
+            Franchise.objects
+            .filter(
+                slug=candidate,
+            )
+            .exclude(
+                pk=self.pk,
+            )
+            .exists()
+        ):
+            suffix = f"-{counter}"
+            available_length = (
+                max_length
+                - len(suffix)
+            )
+            candidate = (
+                f"{base_slug[:available_length]}"
+                f"{suffix}"
+            )
+            counter += 1
+
+        return candidate
+
+
+class FranchiseMembership(
+    models.Model
+):
+    class Role(models.TextChoices):
+        MAIN = "main", "Main"
+        SPIN_OFF = (
+            "spin_off",
+            "Spin-off",
+        )
+        SPECIAL = (
+            "special",
+            "Special",
+        )
+        EXTRA = "extra", "Extra"
+        OTHER = "other", "Other"
+
+    franchise = models.ForeignKey(
+        Franchise,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    media_work = models.ForeignKey(
+        MediaWork,
+        on_delete=models.CASCADE,
+        related_name=(
+            "franchise_memberships"
+        ),
+    )
+    position = (
+        models.PositiveIntegerField(
+            default=1,
+        )
+    )
+    role = models.CharField(
+        max_length=16,
+        choices=Role.choices,
+        default=Role.MAIN,
+    )
+    notes = models.TextField(
+        blank=True,
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        ordering = (
+            "franchise_id",
+            "position",
+            "pk",
+        )
+        constraints = [
+            models.UniqueConstraint(
+                fields=(
+                    "franchise",
+                    "media_work",
+                ),
+                name=(
+                    "watchroom_unique_"
+                    "franchise_work"
+                ),
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    position__gt=0,
+                ),
+                name=(
+                    "watchroom_franchise_"
+                    "position_positive"
+                ),
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.franchise.name} "
+            f"— {self.position}. "
+            f"{self.media_work.title}"
+        )
+
+
 class Season(models.Model):
     media_work = models.ForeignKey(
         MediaWork,

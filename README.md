@@ -24,13 +24,13 @@ The project began as MAL Insight Lab, a personal MyAnimeList analytics dashboard
 
 MVS Tracker is in active development.
 
-The application currently runs locally and uses Supabase PostgreSQL as its shared database. MAL Insights and Game Kiroku are available, and Watchroom now has a complete local tracking foundation with public views and authenticated owner workflows.
+The application currently runs locally and uses Supabase PostgreSQL as its shared database. MAL Insights, Game Kiroku, and Watchroom are available. Game Kiroku and Watchroom have completed their MVP scope.
 
 The anime side of MAL Insights is functionally stable and includes automatic MyAnimeList OAuth renewal, optimized synchronization workflows, manual rescue support for entries omitted by the MAL list API, and unified Episode Signals for normal and manually rescued entries.
 
-Game Kiroku has completed its MVP. The module now combines a local-first IGDB workflow, replay-aware playthrough history, additional-content tracking, a dedicated Platinum Collection, franchise timelines, completed-import history, and configurable competitive-rank tracking.
+Game Kiroku combines a local-first IGDB workflow, replay-aware playthrough history, additional-content tracking, a dedicated Platinum Collection, franchise timelines, completed-import history, and configurable competitive-rank tracking.
 
-Watchroom is under active development. Its local foundation now includes the Django app, core data model, dashboard, searchable library, work-detail pages, manual work creation, season management, viewing runs, rewatches, transitions, movie-minute progress, and MAL-style aggregate series progress. TMDB search, import, linking, and refresh services remain pending.
+Watchroom combines local movie and series tracking with viewing-run history, MAL-style season progress, TMDB search and import, safe metadata refresh, mixed-media franchises, and automatic TMDB movie-collection synchronization.
 
 The platform supports two access levels:
 
@@ -168,7 +168,7 @@ Routes:
 
 ### Watchroom
 
-Status: **Available — local tracking foundation complete**
+Status: **Available — MVP complete**
 
 Descriptor: **Series & Movies**
 
@@ -189,10 +189,10 @@ mixed
 other
 ```
 
-Implemented features include:
+Current features include:
 
-- Dedicated Django app with migrations through `watchroom.0005`.
-- Local `MediaWork`, `WatchEntry`, `Season`, `ViewingRun`, and `SeasonProgress` models.
+- Dedicated Django app with migrations through `watchroom.0006`.
+- Local `MediaWork`, `WatchEntry`, `Season`, `ViewingRun`, `SeasonProgress`, `Franchise`, and `FranchiseMembership` models.
 - Movie and Series as the only progress engines.
 - Presentation classification for Animation, Live Action, Documentary, Mixed, and Other.
 - Stable local slugs and type-scoped TMDB identities.
@@ -201,6 +201,7 @@ Implemented features include:
 - Filters for type, personal status, presentation, and active rewatches.
 - Ordering by title, recent updates, and release date.
 - Public movie and series detail pages.
+- Public franchise index and franchise detail pages.
 - Season 0 / Specials stored separately from ordinary completion totals.
 - Canonical episode totals without per-episode database rows.
 - MAL-style aggregate series progress such as `12 / 38`.
@@ -215,34 +216,62 @@ Implemented features include:
 - Completed series progress remains visible but read only until a new rewatch starts.
 - Derived Rewatching, Rewatch Paused, and Up to Date display states.
 - Manual local movie and series creation.
-- Owner editing for personal status and notes before viewing history exists.
+- Owner editing and permanent work deletion.
 - Owner season creation, editing, safe deletion, and protection for seasons referenced by progress.
-- Owner run creation, detail editing, transitions, notes, and dates.
+- Owner run creation, detail editing, transitions, notes, and optional dates.
 - Owner season-progress upserts for the active run only.
+- TMDB client with bearer-token authentication and normalized movie, series, season, and collection payloads.
+- Owner-only TMDB search with Movie / Series selection and imported-work detection.
+- Review-before-import workflow for movies and series.
+- Transactional TMDB import with duplicate protection.
+- Completed movie imports initialized with full runtime progress when known.
+- Completed series imports initialized with full progress for known regular seasons.
+- Explicit safe TMDB refresh for metadata, runtime, images, external status, and canonical seasons.
+- Refresh protection for personal status, notes, runs, dates, movie progress, and season progress.
+- Episode totals and movie runtimes preserved when incoming TMDB values would fall below stored progress.
+- Missing local seasons, including Specials, restored when TMDB returns them again.
+- Manual mixed-media franchises that can combine movies, series, specials, spin-offs, and extras.
+- Ordered franchise memberships with roles and optional notes.
+- Automatic TMDB movie-collection creation and reuse during movie import or refresh.
+- Existing manual franchise positions and roles preserved during TMDB synchronization.
+- Franchise background images based on `backdrop_url`, with TMDB poster metadata retained as a fallback.
+- Safe franchise deletion that preserves library works.
 - Shared optimized query and decoration helpers for dashboard, library, and detail views.
-- Shared viewing-state service for run creation, transitions, entry-status synchronization, and series completion.
+- Shared services for viewing state, TMDB import, refresh, normalization, and collection synchronization.
 - TMDB attribution in the Watchroom footer.
 - Public read-only access.
 - Authenticated, POST-only, CSRF-protected write actions.
-- **83 passing Watchroom tests** covering models, constraints, forms, services, routes, permissions, dashboard, library, detail, owner workflows, transitions, and history.
+- **155 passing Watchroom tests** covering models, constraints, forms, services, TMDB workflows, routes, permissions, dashboard, library, detail, owner workflows, transitions, history, and franchises.
 
-TMDB has been selected as the future local-first import and refresh source. Its API client, search, import, linking, metadata refresh, and season refresh are intentionally deferred to the next development branch.
+TMDB is treated as an explicit import and synchronization source. Normal Watchroom pages read from Supabase PostgreSQL and do not contact TMDB automatically.
 
 Routes:
 
 ```text
-/watchroom/                                              Dashboard
-/watchroom/library/                                      Library
-/watchroom/library/create/                               Owner manual creation
-/watchroom/library/<slug>/                               Work detail
-/watchroom/library/<slug>/entry/update/                  Owner entry update
-/watchroom/library/<slug>/seasons/create/                Owner season creation
-/watchroom/library/<slug>/seasons/<id>/update/           Owner season update
-/watchroom/library/<slug>/seasons/<id>/delete/           Owner season deletion
-/watchroom/library/<slug>/runs/create/                   Owner run creation
-/watchroom/library/<slug>/runs/<id>/update/              Owner run update
-/watchroom/library/<slug>/runs/<id>/<action>/            Owner run transition
-/watchroom/library/<slug>/runs/<id>/progress/<id>/update/ Owner season progress
+/watchroom/                                                    Dashboard
+/watchroom/library/                                            Library
+/watchroom/library/create/                                     Owner manual creation
+/watchroom/library/<slug>/                                     Work detail
+/watchroom/library/<slug>/delete/                              Owner permanent deletion
+/watchroom/library/<slug>/entry/update/                        Owner entry update
+/watchroom/library/<slug>/seasons/create/                      Owner season creation
+/watchroom/library/<slug>/seasons/<id>/update/                 Owner season update
+/watchroom/library/<slug>/seasons/<id>/delete/                 Owner season deletion
+/watchroom/library/<slug>/runs/create/                         Owner run creation
+/watchroom/library/<slug>/runs/<id>/update/                    Owner run update
+/watchroom/library/<slug>/runs/<id>/<action>/                  Owner run transition
+/watchroom/library/<slug>/runs/<id>/progress/<id>/update/      Owner season progress
+/watchroom/library/<slug>/tmdb/refresh/                        Owner TMDB refresh
+/watchroom/search/                                             Owner TMDB search
+/watchroom/import/<media_type>/<tmdb_id>/                      Owner TMDB import review
+/watchroom/franchises/                                         Franchise index
+/watchroom/franchises/create/                                  Owner franchise creation
+/watchroom/franchises/<slug>/                                  Franchise detail
+/watchroom/franchises/<slug>/update/                           Owner franchise update
+/watchroom/franchises/<slug>/delete/                           Owner empty-franchise deletion
+/watchroom/franchises/<slug>/members/add/                      Owner membership creation
+/watchroom/franchises/<slug>/members/<id>/update/              Owner membership update
+/watchroom/franchises/<slug>/members/<id>/remove/              Owner membership removal
 ```
 
 ### Music
@@ -307,24 +336,28 @@ Planned route:
 ## Platform Routes
 
 ```text
-/                                  MVS Tracker module selector
-/accounts/login/                   Owner login
-/accounts/logout/                  Owner logout
-/anime/                            MAL Insights
-/games/                            Game Kiroku dashboard
-/games/library/                    Game Kiroku library
-/games/library/<slug>/             Game Kiroku game detail
-/games/platinum/                   Game Kiroku Platinum Collection
-/games/franchises/                 Game Kiroku franchise list
-/games/franchises/<slug>/          Game Kiroku franchise detail
-/games/igdb/search/                Owner-only IGDB search
-/games/igdb/<igdb_id>/import/      Owner-only IGDB import review
-/watchroom/                        Watchroom dashboard
-/watchroom/library/                Watchroom library
-/watchroom/library/<slug>/         Watchroom work detail
-/music/                            Music — planned
-/activity/                         Hibi Log — planned
-/admin/                            Django administration
+/                                          MVS Tracker module selector
+/accounts/login/                           Owner login
+/accounts/logout/                          Owner logout
+/anime/                                    MAL Insights
+/games/                                    Game Kiroku dashboard
+/games/library/                            Game Kiroku library
+/games/library/<slug>/                     Game Kiroku game detail
+/games/platinum/                           Game Kiroku Platinum Collection
+/games/franchises/                         Game Kiroku franchise list
+/games/franchises/<slug>/                  Game Kiroku franchise detail
+/games/igdb/search/                        Owner-only IGDB search
+/games/igdb/<igdb_id>/import/              Owner-only IGDB import review
+/watchroom/                                Watchroom dashboard
+/watchroom/library/                        Watchroom library
+/watchroom/library/<slug>/                 Watchroom work detail
+/watchroom/franchises/                     Watchroom franchise index
+/watchroom/franchises/<slug>/              Watchroom franchise detail
+/watchroom/search/                         Owner-only TMDB search
+/watchroom/import/<type>/<tmdb_id>/        Owner-only TMDB import review
+/music/                                    Music — planned
+/activity/                                 Hibi Log — planned
+/admin/                                    Django administration
 ```
 
 Hibi Log will serve as the future cross-module activity dashboard, so a separate global `/dashboard/` route is not currently planned.
@@ -354,7 +387,7 @@ Opening a normal page never triggers an automatic synchronization.
 - AniList GraphQL API
 - IGDB API
 - Twitch application authentication for IGDB
-- TMDB API — selected for Watchroom; integration pending
+- TMDB API with application bearer-token authentication
 - Last.fm API — planned
 - HTML
 - CSS
@@ -394,22 +427,7 @@ mvs-tracker/
 │   │   └── playthrough_state.py
 │   ├── static/games/
 │   ├── templates/games/
-│   │   ├── base.html
-│   │   ├── dashboard.html
-│   │   ├── detail.html
-│   │   ├── franchise_detail.html
-│   │   ├── franchise_list.html
-│   │   ├── igdb_import.html
-│   │   ├── igdb_search.html
-│   │   ├── library.html
-│   │   └── platinum.html
 │   ├── web/
-│   │   ├── dashboard.py
-│   │   ├── detail.py
-│   │   ├── franchise.py
-│   │   ├── igdb.py
-│   │   ├── library.py
-│   │   └── platinum.py
 │   ├── admin.py
 │   ├── apps.py
 │   ├── forms.py
@@ -421,22 +439,8 @@ mvs-tracker/
 │   ├── management/commands/
 │   ├── migrations/
 │   ├── services/
-│   │   ├── anime_list_sync.py
-│   │   ├── anilist_airing_sync.py
-│   │   ├── episode_signal_sync.py
-│   │   ├── mal_client.py
-│   │   ├── mal_oauth.py
-│   │   ├── manual_tracked_sync.py
-│   │   └── ...
 │   ├── static/mal_data/
 │   ├── web/
-│   │   ├── dashboard.py
-│   │   ├── library.py
-│   │   ├── oauth.py
-│   │   ├── relations.py
-│   │   ├── search.py
-│   │   ├── seasonal.py
-│   │   └── sync.py
 │   ├── admin.py
 │   ├── apps.py
 │   ├── models.py
@@ -446,6 +450,11 @@ mvs-tracker/
 ├── watchroom/
 │   ├── migrations/
 │   ├── services/
+│   │   ├── tmdb_client.py
+│   │   ├── tmdb_collections.py
+│   │   ├── tmdb_importer.py
+│   │   ├── tmdb_normalizer.py
+│   │   ├── tmdb_refresh.py
 │   │   └── viewing.py
 │   ├── static/watchroom/
 │   ├── templates/watchroom/
@@ -453,13 +462,20 @@ mvs-tracker/
 │   │   ├── create_work.html
 │   │   ├── dashboard.html
 │   │   ├── detail.html
-│   │   └── library.html
+│   │   ├── franchise_create.html
+│   │   ├── franchise_detail.html
+│   │   ├── franchise_index.html
+│   │   ├── library.html
+│   │   ├── tmdb_import.html
+│   │   └── tmdb_search.html
 │   ├── web/
 │   │   ├── common.py
 │   │   ├── dashboard.py
 │   │   ├── detail.py
+│   │   ├── franchises.py
 │   │   ├── library.py
-│   │   └── owner.py
+│   │   ├── owner.py
+│   │   └── tmdb.py
 │   ├── admin.py
 │   ├── apps.py
 │   ├── forms.py
@@ -483,7 +499,7 @@ mvs-tracker/
 
 The technical Django app name `mal_data` is intentionally preserved to avoid unnecessary migration and database table changes. Its public module name is **MAL Insights**.
 
-Watchroom now has an active Django app, public local-data views, and authenticated owner workflows. Music and Hibi Log do not yet have Django apps; their selector cards continue to define the remaining platform roadmap.
+Watchroom is an active Django app with a completed MVP, local-first TMDB workflows, public franchise views, and authenticated owner management. Music and Hibi Log do not yet have Django apps; their selector cards continue to define the remaining platform roadmap.
 
 ## Environment Variables
 
@@ -501,12 +517,18 @@ MAL_REDIRECT_URI=http://127.0.0.1:8000/anime/oauth/mal/callback/
 IGDB_CLIENT_ID=your-twitch-client-id
 IGDB_CLIENT_SECRET=your-twitch-client-secret
 
+TMDB_READ_ACCESS_TOKEN=your-tmdb-read-access-token
+TMDB_LANGUAGE=en-US
+TMDB_REGION=CL
+
 ALLOWED_HOSTS=127.0.0.1,localhost
 ```
 
 MyAnimeList access and refresh tokens are obtained through the owner-only OAuth flow and stored in the database. A permanent `MAL_ACCESS_TOKEN` is no longer required in `.env`.
 
 The Redirect URL configured in the MyAnimeList API client must match `MAL_REDIRECT_URI` exactly, including host, port, path, and trailing slash.
+
+`TMDB_READ_ACCESS_TOKEN` must contain only the API Read Access Token. Do not prefix the stored value with `Bearer`; the Watchroom client builds the authorization header.
 
 ## Local Setup
 
@@ -631,7 +653,7 @@ python manage.py test \
 
 The test database is created and destroyed automatically. It does not modify Supabase.
 
-The current four-app regression checkpoint contains **242 passing tests** across `core`, `mal_data`, `games`, and `watchroom`. Watchroom contributes **83 module tests**.
+The current four-app regression checkpoint contains **314 passing tests** across `core`, `mal_data`, `games`, and `watchroom`. Watchroom contributes **155 module tests**.
 
 The MAL Insights regression suite covers:
 
@@ -661,7 +683,7 @@ The Game Kiroku regression suite covers:
 - Lazy tier-editor rendering for large configurations.
 - Rocket League and REDSEC preset creation, normalization, dry runs, history preservation, and idempotence.
 
-The Watchroom regression suite currently covers:
+The Watchroom regression suite covers:
 
 - Movie and Series metadata rules.
 - Stable unique slugs and type-scoped TMDB identities.
@@ -673,11 +695,13 @@ The Watchroom regression suite currently covers:
 - Aggregate `SeasonProgress`, cross-series validation, episode-count limits, and active-run-only editing.
 - Automatic series completion after explicit full regular-season progress.
 - Completed-series progress visibility without historical editing.
-- Owner forms for local work creation, entries, seasons, runs, and season progress.
+- Manual creation, editing, permanent deletion, and safe season management.
+- TMDB client authentication, endpoints, errors, normalization, search, import review, duplicate protection, and safe refresh.
+- Movie-collection normalization, automatic franchise creation, franchise reuse, and refresh-time linking.
+- Runtime and episode-total preservation when external values conflict with stored progress.
+- Public dashboard, library, work detail, franchise index, and franchise detail views.
+- Mixed Movie / Series franchises, ordering, roles, notes, background images, membership management, and safe deletion.
 - Login, POST-only, CSRF-backed, cross-work, and 404 protections.
-- Public dashboard metrics and TMDB footer attribution.
-- Public library search, type, status, presentation, rewatch filters, and ordering.
-- Public movie and series detail pages, seasons, specials, runtime, progress, history, and owner-control rendering.
 - Core selector behavior for Watchroom as an available module.
 
 ## Data Sources
@@ -709,18 +733,25 @@ Imported metadata and raw payloads are stored locally in Supabase. Normal page l
 
 ### TMDB
 
-Selected metadata source for Watchroom movies and series.
+Primary metadata and collection source for Watchroom movies and series.
 
-The planned integration will use explicit owner actions to:
+TMDB is used through explicit owner actions to:
 
-- Search movies and series.
-- Review the correct work.
-- Import metadata locally.
-- Link metadata to an existing manual record.
-- Refresh work metadata.
-- Refresh season summaries and canonical episode totals.
+- Search for movies and television series.
+- Review complete metadata before import.
+- Import a new local `MediaWork` and `WatchEntry`.
+- Import canonical season summaries for series.
+- Detect already imported works.
+- Refresh stored titles, descriptions, dates, runtime, images, external status, genres, countries, networks, and raw payloads.
+- Create missing seasons and restore locally removed seasons or Specials when TMDB returns them again.
+- Preserve local runtime and episode totals when lower external values would conflict with stored progress.
+- Detect movie collections.
+- Create or reuse local franchises for TMDB movie collections.
+- Add imported or refreshed movies to the correct collection position.
 
-Normal Watchroom page loads already read only from local PostgreSQL data. TMDB requests will not become a permanent page-rendering dependency.
+Imported metadata and raw payloads are stored locally in Supabase. Normal Watchroom page loads do not require a TMDB request.
+
+Linking an already existing manual work to TMDB remains a post-MVP extension.
 
 ### Last.fm
 
@@ -796,8 +827,8 @@ Planned primary listening-data source for the music module. Music will be the fi
 ### Watchroom
 
 - [x] Define the module name and descriptor.
-- [x] Select TMDB as the future metadata source.
-- [x] Create the Django app and migrations through `watchroom.0005`.
+- [x] Select TMDB as the metadata source.
+- [x] Create the Django app and migrations through `watchroom.0006`.
 - [x] Implement `MediaWork`, `WatchEntry`, `Season`, `ViewingRun`, and `SeasonProgress`.
 - [x] Add Movie and Series behaviour types.
 - [x] Add Animation, Live Action, Documentary, Mixed, and Other presentation classes.
@@ -807,20 +838,32 @@ Planned primary listening-data source for the music module. Music will be the fi
 - [x] Build the public dashboard and module navigation.
 - [x] Build the searchable and filterable public library.
 - [x] Build public movie and series detail pages.
-- [x] Add seasons, specials, runs, and derived progress displays.
+- [x] Add seasons, Specials, runs, and derived progress displays.
 - [x] Add authenticated owner forms and POST-only write actions.
-- [x] Add local work creation and personal-status editing.
+- [x] Add local work creation, personal-status editing, and permanent deletion.
 - [x] Add season creation, editing, protected deletion, and progress-safe count validation.
-- [x] Add viewing-run creation, transitions, notes, dates, and movie-minute progress.
+- [x] Add viewing-run creation, transitions, notes, optional dates, and movie-minute progress.
 - [x] Add active-run-only season-progress editing and automatic explicit completion.
 - [x] Preserve historical Completed state across rewatches.
 - [x] Add the TMDB attribution footer.
-- [x] Complete local UI validation and owner-workflow hardening.
-- [x] Reach 83 passing Watchroom tests and 242 passing global tests.
-- [x] Complete the local foundation branch.
-- [ ] Implement the TMDB client and search.
-- [ ] Add TMDB import, linking, metadata refresh, and season refresh.
-- [ ] Validate imported data and complete the Watchroom MVP.
+- [x] Implement the TMDB client and normalized movie, series, season, and collection payloads.
+- [x] Add owner-only TMDB search and imported-work detection.
+- [x] Add review-before-import for movies and series.
+- [x] Add transactional TMDB import and duplicate protection.
+- [x] Add safe metadata and season refresh.
+- [x] Preserve personal status, runs, dates, notes, and progress during refresh.
+- [x] Add runtime and episode-total conflict protection.
+- [x] Implement `Franchise` and `FranchiseMembership`.
+- [x] Add public franchise index and detail pages.
+- [x] Add owner franchise and membership management.
+- [x] Support mixed Movie / Series franchises.
+- [x] Add automatic TMDB movie-collection synchronization.
+- [x] Add franchise ordering, roles, notes, and background images.
+- [x] Reach 155 passing Watchroom tests and 314 passing global tests.
+- [x] Complete and validate the Watchroom MVP.
+- [ ] Add optional linking from an existing manual work to TMDB.
+- [ ] Add missing-work discovery from TMDB movie collections.
+- [ ] Add streaming-provider availability.
 - [ ] Connect Watchroom activity to Hibi Log.
 
 ### Music
@@ -871,6 +914,7 @@ Never commit:
 - MAL access tokens
 - MAL refresh tokens
 - IGDB client secrets
+- TMDB read access tokens
 - API tokens
 - Raw private API responses
 - Local virtual environments

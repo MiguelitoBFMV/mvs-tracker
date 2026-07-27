@@ -4,6 +4,8 @@ from .web import dashboard as dashboard_views
 from .web import detail as detail_views
 from .web import library as library_views
 from .web import owner as owner_views
+from .web import tmdb as tmdb_views
+from .web import franchises as franchise_views
 
 app_name = "watchroom"
 
@@ -13,6 +15,71 @@ urlpatterns = [
         "",
         dashboard_views.dashboard,
         name="dashboard",
+    ),
+    path(
+        "search/",
+        tmdb_views.search_tmdb,
+        name="tmdb_search",
+    ),
+    path(
+        (
+            "import/"
+            "<str:media_type>/"
+            "<int:tmdb_id>/"
+        ),
+        tmdb_views.review_tmdb_import,
+        name="tmdb_import",
+    ),
+    path(
+        "franchises/",
+        franchise_views.franchise_index,
+        name="franchise_index",
+    ),
+    path(
+        "franchises/create/",
+        franchise_views.create_franchise,
+        name="create_franchise",
+    ),
+    path(
+        "franchises/<slug:slug>/",
+        franchise_views.franchise_detail,
+        name="franchise_detail",
+    ),
+    path(
+        "franchises/<slug:slug>/update/",
+        franchise_views.update_franchise,
+        name="update_franchise",
+    ),
+    path(
+        "franchises/<slug:slug>/delete/",
+        franchise_views.delete_franchise,
+        name="delete_franchise",
+    ),
+    path(
+        (
+            "franchises/<slug:slug>/"
+            "members/add/"
+        ),
+        franchise_views.add_franchise_member,
+        name="add_franchise_member",
+    ),
+    path(
+        (
+            "franchises/<slug:slug>/"
+            "members/<int:membership_id>/"
+            "update/"
+        ),
+        franchise_views.update_franchise_member,
+        name="update_franchise_member",
+    ),
+    path(
+        (
+            "franchises/<slug:slug>/"
+            "members/<int:membership_id>/"
+            "remove/"
+        ),
+        franchise_views.remove_franchise_member,
+        name="remove_franchise_member",
     ),
     path(
         "library/",
@@ -36,9 +103,9 @@ urlpatterns = [
     ),
     path(
         (
-            "library/<slug:slug>/"
-            "seasons/<int:season_id>/update/"
-        ),
+        "library/<slug:slug>/"
+        "seasons/<int:season_id>/update/"
+            ),
         owner_views.update_season,
         name="update_season",
     ),
@@ -82,9 +149,21 @@ urlpatterns = [
         name="update_season_progress",
     ),
     path(
+        (
+            "library/<slug:slug>/"
+            "tmdb/refresh/"
+        ),
+        tmdb_views.refresh_tmdb_work,
+        name="refresh_tmdb",
+    ),
+    path(
+        "library/<slug:slug>/delete/",
+        owner_views.delete_work,
+        name="delete_work",
+    ),
+    path(
         "library/<slug:slug>/",
         detail_views.detail,
         name="detail",
     ),
-    
 ]
