@@ -1,20 +1,33 @@
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+from decimal import Decimal
+from io import StringIO
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import (
+    SimpleTestCase,
+    TestCase,
+)
 from django.urls import reverse
 from django.utils import timezone
+from django.core.management import (
+    call_command,
+)
+from django.core.management.base import (
+    CommandError,
+)
 
 from mal_data.models import (
     AnimeEntry,
     AnimeSyncEvent,
     MALOAuthToken,
+    MangaChapterSignal,
     MangaEntry,
+    MangaSourceLink,
     MangaSyncEvent,
     ManualTrackedAnime,
-    ManualTrackedManga
+    ManualTrackedManga,
 )
 from mal_data.services.anime_list_sync import (
     sync_anime_status,
@@ -40,7 +53,28 @@ from mal_data.services.manga_reading_sync import (
     get_active_reading_entries,
     sync_reading_progress,
 )
+from mal_data.services.manga_chapter_signal_sync import (
+    get_actionable_chapter_signals,
+    sync_canonical_chapter_signals,
+)
+from mal_data.services.manga_source_matching import (
+    source_title_score,
+)
+from mal_data.services.manga_sources.weeb_central import (
+    WeebCentralClient,
+)
+from mal_data.services.manga_source_signal_sync import (
+    sync_all_external_chapter_signals,
+    sync_external_chapter_signal,
+)
+from mal_data.services.manga_sources.manga_plus import (
+    MangaPlusClient,
+)
 
+from mal_data.services.manga_source_resolver import (
+    MangaSourceFetchError,
+    fetch_latest_saved_chapter,
+)
 
 def build_anime_item(
     *,
@@ -1531,22 +1565,79 @@ class MangaReadingProgressViewTests(TestCase):
     @patch(
         (
             "mal_data.web.manga_sync."
+            "get_actionable_chapter_signals"
+        )
+    )
+    @patch(
+        (
+            "mal_data.web.manga_sync."
+            "sync_all_external_chapter_signals"
+        )
+    )
+    @patch(
+        (
+            "mal_data.web.manga_sync."
+            "sync_canonical_chapter_signals"
+        )
+    )
+    @patch(
+        (
+            "mal_data.web.manga_sync."
             "sync_reading_progress"
         )
     )
     def test_authenticated_post_syncs_and_redirects(
         self,
-        mock_sync,
+        mock_reading_sync,
+        mock_signal_sync,
+        mock_external_sync,
+        mock_get_actionable,
     ):
-        mock_sync.return_value = {
+        mock_reading_sync.return_value = {
             "personal": [
                 {
                     "changed": True,
                     "ok": True,
                 }
             ],
+            "list_checked": 1,
+            "manual_checked": 0,
+            "reconciled_checked": 0,
             "active_after": 1,
         }
+
+        mock_signal_sync.return_value = {
+            "targets": 1,
+            "created": 1,
+            "updated": 0,
+            "unchanged": 0,
+            "actionable": 1,
+        }
+
+        mock_external_sync.return_value = {
+            "targets": 1,
+            "created": 0,
+            "updated": 1,
+            "unchanged": 0,
+            "empty": 0,
+            "errors": 0,
+            "fallbacks": 0,
+            "results": [
+                {
+                    "mal_id": 162479,
+                    "title": "Kagurabachi",
+                    "provider": "weeb_central",
+                    "status": "updated",
+                    "ok": True,
+                    "error": None,
+                    "used_fallback": False,
+                }
+            ],
+        }
+
+        mock_get_actionable.return_value = [
+            Mock(),
+        ]
 
         self.client.force_login(self.owner)
 
@@ -1565,7 +1656,10 @@ class MangaReadingProgressViewTests(TestCase):
             fetch_redirect_response=False,
         )
 
-        mock_sync.assert_called_once_with()
+        mock_reading_sync.assert_called_once_with()
+        mock_signal_sync.assert_called_once_with()
+        mock_external_sync.assert_called_once_with()
+        mock_get_actionable.assert_called_once_with()
 
 
 class MangaCommandLogDashboardTests(TestCase):
@@ -1672,6 +1766,177 @@ class ManualMangaRescueSyncViewTests(
         mock_sync.assert_called_once_with()
 
 
+class MangaCanonicalChapterSignalTests(
+    TestCase
+):
+    def test_finished_reading_exposes_pending_total(
+        self,
+    ):
+        manga = MangaEntry.objects.create(
+            mal_id=6101,
+            title="Finished Reading",
+            list_status="reading",
+            publication_status="finished",
+            num_chapters_read=42,
+            num_chapters=71,
+        )
+
+        results = (
+            sync_canonical_chapter_signals()
+        )
+
+        signal = (
+            MangaChapterSignal.objects.get(
+                manga=manga
+            )
+        )
+
+        self.assertEqual(
+            signal.canonical_target_chapter,
+            71,
+        )
+        self.assertEqual(
+            signal.chapters_to_complete,
+            29,
+        )
+        self.assertEqual(
+            signal.pending_chapters,
+            29,
+        )
+        self.assertTrue(signal.has_signal)
+        self.assertEqual(
+            signal.signal_kind,
+            "canonical",
+        )
+
+        self.assertEqual(
+            results["targets"],
+            1,
+        )
+        self.assertEqual(
+            results["actionable"],
+            1,
+        )
+
+    def test_sync_targets_reading_and_rereading_only(
+        self,
+    ):
+        reading = MangaEntry.objects.create(
+            mal_id=6102,
+            title="Publishing Reading",
+            list_status="reading",
+            publication_status=(
+                "currently_publishing"
+            ),
+            num_chapters_read=10,
+            num_chapters=0,
+        )
+
+        rereading = MangaEntry.objects.create(
+            mal_id=6103,
+            title="Finished Rereading",
+            list_status="completed",
+            is_rereading=True,
+            publication_status="finished",
+            num_chapters_read=5,
+            num_chapters=20,
+        )
+
+        MangaEntry.objects.create(
+            mal_id=6104,
+            title="Inactive Completed",
+            list_status="completed",
+            publication_status="finished",
+            num_chapters_read=5,
+            num_chapters=20,
+        )
+
+        results = (
+            sync_canonical_chapter_signals()
+        )
+
+        signal_ids = set(
+            MangaChapterSignal.objects
+            .values_list(
+                "mal_id",
+                flat=True,
+            )
+        )
+
+        self.assertEqual(
+            signal_ids,
+            {
+                reading.mal_id,
+                rereading.mal_id,
+            },
+        )
+        self.assertEqual(
+            results["targets"],
+            2,
+        )
+        self.assertEqual(
+            results["actionable"],
+            1,
+        )
+
+    def test_live_publishing_signal_precedes_finished(
+        self,
+    ):
+        publishing = (
+            MangaEntry.objects.create(
+                mal_id=6105,
+                title="Weekly Publishing",
+                list_status="reading",
+                publication_status=(
+                    "currently_publishing"
+                ),
+                num_chapters_read=10,
+            )
+        )
+
+        finished = MangaEntry.objects.create(
+            mal_id=6106,
+            title="Finished Backlog",
+            list_status="reading",
+            publication_status="finished",
+            num_chapters_read=42,
+            num_chapters=71,
+        )
+
+        MangaChapterSignal.objects.create(
+            manga=publishing,
+            mal_id=publishing.mal_id,
+            latest_available_chapter=12,
+            availability_source_type=(
+                "external"
+            ),
+            availability_source_name=(
+                "Test Source"
+            ),
+        )
+
+        MangaChapterSignal.objects.create(
+            manga=finished,
+            mal_id=finished.mal_id,
+            canonical_total_chapters=71,
+        )
+
+        signals = (
+            get_actionable_chapter_signals()
+        )
+
+        self.assertEqual(
+            [
+                signal.mal_id
+                for signal in signals
+            ],
+            [
+                publishing.mal_id,
+                finished.mal_id,
+            ],
+        )
+
+
 class MangaDashboardMirrorTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -1691,6 +1956,12 @@ class MangaDashboardMirrorTests(TestCase):
             score=9,
             num_chapters_read=10,
             num_chapters=20,
+        )
+
+        MangaChapterSignal.objects.create(
+            manga=cls.reading,
+            mal_id=cls.reading.mal_id,
+            canonical_total_chapters=20,
         )
 
         MangaEntry.objects.create(
@@ -1737,7 +2008,8 @@ class MangaDashboardMirrorTests(TestCase):
             "User Profile",
             "Backlog Clear Ratio",
             "JP Title Signal",
-            "Reading Progress",
+            "Chapter Signals",
+            "TO COMPLETE",
             "Manga Library Nodes",
             "Manga Command Logs",
             "Sync Manga Library",
@@ -1749,5 +2021,932 @@ class MangaDashboardMirrorTests(TestCase):
                     response,
                     content,
                 )
+
+
+class WeebCentralClientTests(
+    SimpleTestCase
+):
+    def test_parse_search_candidates(self):
+        html = """
+        <article>
+            <section>
+                <a
+                    href="/series/SOURCE123/Kagurabachi"
+                >
+                    <picture>
+                        <source
+                            srcset="/covers/kagurabachi.webp"
+                        >
+                    </picture>
+
+                    <div>
+                        Metadata
+                    </div>
+
+                    <div>
+                        Kagurabachi
+                    </div>
+                </a>
+            </section>
+        </article>
+        """
+
+        candidates = (
+            WeebCentralClient
+            .parse_search_html(html)
+        )
+
+        self.assertEqual(
+            len(candidates),
+            1,
+        )
+        self.assertEqual(
+            candidates[0].source_id,
+            "SOURCE123",
+        )
+        self.assertEqual(
+            candidates[0].title,
+            "Kagurabachi",
+        )
+        self.assertEqual(
+            candidates[0].url,
+            (
+                "https://weebcentral.com/"
+                "series/SOURCE123/"
+                "Kagurabachi"
+            ),
+        )
+
+    def test_parse_chapter_list(self):
+        html = """
+        <div x-data="chapter-list">
+            <a href="/chapters/CHAPTER126">
+                <span class="flex">
+                    <span>Chapter 126</span>
+                </span>
+
+                <time
+                    datetime="2026-07-26T15:05:59Z"
+                ></time>
+            </a>
+
+            <a href="/chapters/CHAPTER1255">
+                <span class="flex">
+                    <span>Chapter 125.5</span>
+                </span>
+            </a>
+        </div>
+        """
+
+        chapters = (
+            WeebCentralClient
+            .parse_chapter_list_html(html)
+        )
+
+        self.assertEqual(
+            len(chapters),
+            2,
+        )
+        self.assertEqual(
+            chapters[0].number,
+            Decimal("126"),
+        )
+        self.assertEqual(
+            chapters[1].number,
+            Decimal("125.5"),
+        )
+
+    def test_exact_source_title_scores_first(
+        self,
+    ):
+        self.assertEqual(
+            source_title_score(
+                "Kagurabachi",
+                "Kagurabachi",
+            ),
+            100.0,
+        )
+
+        self.assertGreater(
+            source_title_score(
+                "Kagurabachi",
+                "Kagurabachi Official",
+            ),
+            source_title_score(
+                "Kagurabachi",
+                "Blue Lock",
+            ),
+        )
+
+
+class FakeMangaPlusAPI:
+    def __init__(self):
+        self.secret = "test-secret"
+
+    def getTitleDetail(self, title_id):
+        return {
+            "titleDetailView": {
+                "title": {
+                    "titleId": str(
+                        title_id
+                    ),
+                    "name": "Kagurabachi",
+                    "portraitImageUrl": (
+                        "https://example.test/"
+                        "kagurabachi.jpg"
+                    ),
+                },
+                "chapterListV2": [
+                    {
+                        "chapterId": (
+                            "1012600"
+                        ),
+                        "name": "#126",
+                        "startTimeStamp": (
+                            "1785078000"
+                        ),
+                    },
+                    {
+                        "chapterId": (
+                            "1012500"
+                        ),
+                        "name": "#125",
+                        "startTimeStamp": (
+                            "1784473200"
+                        ),
+                    },
+                ],
+            }
+        }
+
+    def getSearchTitles(self):
+        return {
+            "searchView": {
+                "allTitlesGroup": [
+                    {
+                        "titles": [
+                            {
+                                "titleId": (
+                                    "100274"
+                                ),
+                                "name": (
+                                    "Kagurabachi"
+                                ),
+                                "portraitImageUrl": (
+                                    "https://"
+                                    "example.test/"
+                                    "cover.jpg"
+                                ),
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+
+
+class MangaPlusClientTests(
+    SimpleTestCase
+):
+    def setUp(self):
+        self.client = MangaPlusClient(
+            api_client=FakeMangaPlusAPI()
+        )
+
+    def test_direct_title_id_search(self):
+        candidates = self.client.search(
+            "100274"
+        )
+
+        self.assertEqual(
+            len(candidates),
+            1,
+        )
+        self.assertEqual(
+            candidates[0].source_id,
+            "100274",
+        )
+        self.assertEqual(
+            candidates[0].title,
+            "Kagurabachi",
+        )
+        self.assertEqual(
+            candidates[0].url,
+            (
+                "https://"
+                "mangaplus.shueisha.co.jp/"
+                "titles/100274"
+            ),
+        )
+
+    def test_text_catalog_search(self):
+        candidates = self.client.search(
+            "Kagurabachi"
+        )
+
+        self.assertEqual(
+            len(candidates),
+            1,
+        )
+        self.assertEqual(
+            candidates[0].source_id,
+            "100274",
+        )
+
+    def test_fetch_latest_chapter(self):
+        latest = (
+            self.client
+            .fetch_latest_chapter(
+                (
+                    "https://"
+                    "mangaplus.shueisha.co.jp/"
+                    "titles/100274"
+                )
+            )
+        )
+
+        self.assertIsNotNone(latest)
+        self.assertEqual(
+            latest.number,
+            Decimal("126"),
+        )
+        self.assertEqual(
+            latest.label,
+            "#126",
+        )
+
+
+class InspectMangaSourceCommandTests(
+    TestCase
+):
+    def setUp(self):
+        self.manga = MangaEntry.objects.create(
+            mal_id=162479,
+            title="Kagurabachi",
+            title_japanese="カグラバチ",
+            list_status="reading",
+            publication_status=(
+                "currently_publishing"
+            ),
+        )
+
+    def create_source_link(
+        self,
+        *,
+        provider="weeb_central",
+        priority=1,
+        active=True,
+    ):
+        return MangaSourceLink.objects.create(
+            manga=self.manga,
+            provider=provider,
+            source_id=(
+                f"{provider}-source-id"
+            ),
+            source_title="Kagurabachi",
+            source_url=(
+                "https://example.test/"
+                f"{provider}/kagurabachi"
+            ),
+            match_score=Decimal("100"),
+            search_query="Kagurabachi",
+            priority=priority,
+            active=active,
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_resolver."
+            "build_provider_client"
+        )
+    )
+    def test_uses_highest_priority_active_source(
+        self,
+        mock_build_client,
+    ):
+        self.create_source_link(
+            provider="weeb_central",
+            priority=2,
+        )
+        self.create_source_link(
+            provider="manga_plus",
+            priority=1,
+        )
+
+        client = Mock()
+        client.fetch_latest_chapter.return_value = (
+            SimpleNamespace(
+                number=Decimal("68"),
+                label="Chapter 68",
+                url=(
+                    "https://example.test/"
+                    "chapters/68"
+                ),
+                published_at=None,
+            )
+        )
+
+        mock_build_client.return_value = (
+            client
+        )
+
+        output = StringIO()
+
+        call_command(
+            "inspect_manga_source",
+            self.manga.mal_id,
+            stdout=output,
+        )
+
+        mock_build_client.assert_called_once_with(
+            "manga_plus"
+        )
+
+        client.fetch_latest_chapter\
+            .assert_called_once_with(
+                (
+                    "https://example.test/"
+                    "manga_plus/kagurabachi"
+                )
+            )
+
+        command_output = output.getvalue()
+
+        self.assertIn(
+            "Provider: manga_plus",
+            command_output,
+        )
+        self.assertIn(
+            "Priority: 1",
+            command_output,
+        )
+        self.assertIn(
+            "Latest chapter: 68",
+            command_output,
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_resolver."
+            "build_provider_client"
+        )
+    )
+    def test_explicit_provider_overrides_priority(
+        self,
+        mock_build_client,
+    ):
+        self.create_source_link(
+            provider="weeb_central",
+            priority=2,
+        )
+
+        client = Mock()
+        client.fetch_latest_chapter.return_value = (
+            SimpleNamespace(
+                number=Decimal("67"),
+                label="Chapter 67",
+                url=(
+                    "https://example.test/"
+                    "chapters/67"
+                ),
+                published_at=None,
+            )
+        )
+
+        mock_build_client.return_value = (
+            client
+        )
+
+        output = StringIO()
+
+        call_command(
+            "inspect_manga_source",
+            self.manga.mal_id,
+            provider="weeb_central",
+            stdout=output,
+        )
+
+        mock_build_client.assert_called_once_with(
+            "weeb_central"
+        )
+
+        self.assertIn(
+            "Provider: weeb_central",
+            output.getvalue(),
+        )
+        self.assertIn(
+            "Latest chapter: 67",
+            output.getvalue(),
+        )
+
+    def test_inactive_source_is_not_used(
+        self,
+    ):
+        self.create_source_link(
+            active=False
+        )
+
+        with self.assertRaisesMessage(
+            CommandError,
+            (
+                "No active saved manga "
+                "source exists"
+            ),
+        ):
+            call_command(
+                "inspect_manga_source",
+                self.manga.mal_id,
+            )
+
+
+class MangaExternalChapterSignalTests(
+    TestCase
+):
+    def setUp(self):
+        self.manga = MangaEntry.objects.create(
+            mal_id=162479,
+            title="Kagurabachi",
+            list_status="reading",
+            publication_status=(
+                "currently_publishing"
+            ),
+            num_chapters_read=65,
+        )
+
+        self.source_link = (
+            MangaSourceLink.objects.create(
+                manga=self.manga,
+                provider="weeb_central",
+                source_id="SOURCE123",
+                source_title="Kagurabachi",
+                source_url=(
+                    "https://weebcentral.com/"
+                    "series/SOURCE123/"
+                    "Kagurabachi"
+                ),
+                priority=1,
+                active=True,
+            )
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_signal_sync."
+            "fetch_latest_saved_chapter"
+        )
+    )
+    def test_creates_external_chapter_signal(
+        self,
+        mock_fetch_latest,
+    ):
+        mock_fetch_latest.return_value = (
+            self.source_link,
+            SimpleNamespace(
+                source_id="CHAPTER68",
+                label="Chapter 68",
+                number=Decimal("68"),
+                url=(
+                    "https://weebcentral.com/"
+                    "chapters/CHAPTER68"
+                ),
+                published_at=None,
+            ),
+            [
+                {
+                    "provider": "weeb_central",
+                    "priority": 1,
+                    "status": "success",
+                    "ok": True,
+                    "error": None,
+                }
+            ],
+        )
+
+        result = (
+            sync_external_chapter_signal(
+                self.manga
+            )
+        )
+
+        signal = (
+            MangaChapterSignal.objects.get(
+                manga=self.manga
+            )
+        )
+
+        self.assertTrue(
+            result["created"]
+        )
+        self.assertTrue(
+            result["changed"]
+        )
+        self.assertEqual(
+            signal.latest_available_chapter,
+            Decimal("68"),
+        )
+        self.assertEqual(
+            signal.availability_source_type,
+            "external",
+        )
+        self.assertEqual(
+            signal.availability_source_name,
+            "Weeb Central",
+        )
+        self.assertEqual(
+            signal.pending_chapters,
+            Decimal("3"),
+        )
+        self.assertIsNotNone(
+            signal.external_checked_at
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_signal_sync."
+            "fetch_latest_saved_chapter"
+        )
+    )
+    def test_preserves_canonical_total(
+        self,
+        mock_fetch_latest,
+    ):
+        MangaChapterSignal.objects.create(
+            manga=self.manga,
+            mal_id=self.manga.mal_id,
+            canonical_total_chapters=100,
+        )
+
+        mock_fetch_latest.return_value = (
+            self.source_link,
+            SimpleNamespace(
+                source_id="CHAPTER68",
+                label="Chapter 68",
+                number=Decimal("68"),
+                url=(
+                    "https://weebcentral.com/"
+                    "chapters/CHAPTER68"
+                ),
+                published_at=None,
+            ),
+            [
+                {
+                    "provider": "weeb_central",
+                    "priority": 1,
+                    "status": "success",
+                    "ok": True,
+                    "error": None,
+                }
+            ],
+        )
+
+        sync_external_chapter_signal(
+            self.manga
+        )
+
+        signal = (
+            MangaChapterSignal.objects.get(
+                manga=self.manga
+            )
+        )
+
+        self.assertEqual(
+            signal.canonical_total_chapters,
+            100,
+        )
+        self.assertEqual(
+            signal.latest_available_chapter,
+            Decimal("68"),
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_signal_sync."
+            "fetch_latest_saved_chapter"
+        )
+    )
+    def test_no_chapters_does_not_create_signal(
+        self,
+        mock_fetch_latest,
+    ):
+        mock_fetch_latest.return_value = (
+            self.source_link,
+            None,
+            [
+                {
+                    "provider": "weeb_central",
+                    "priority": 1,
+                    "status": "empty",
+                    "ok": True,
+                    "error": None,
+                }
+            ],
+        )
+
+        result = (
+            sync_external_chapter_signal(
+                self.manga
+            )
+        )
+
+        self.assertFalse(
+            result["created"]
+        )
+        self.assertFalse(
+            result["changed"]
+        )
+        self.assertFalse(
+            MangaChapterSignal.objects
+            .filter(
+                manga=self.manga
+            )
+            .exists()
+        )
+
+
+class MangaExternalChapterSignalBatchTests(
+    TestCase
+):
+    def create_target(
+        self,
+        *,
+        mal_id,
+        title,
+        list_status="reading",
+        active_source=True,
+    ):
+        manga = MangaEntry.objects.create(
+            mal_id=mal_id,
+            title=title,
+            list_status=list_status,
+            publication_status=(
+                "currently_publishing"
+            ),
+        )
+
+        source_link = (
+            MangaSourceLink.objects.create(
+                manga=manga,
+                provider="weeb_central",
+                source_id=(
+                    f"SOURCE-{mal_id}"
+                ),
+                source_title=title,
+                source_url=(
+                    "https://weebcentral.com/"
+                    f"series/SOURCE-{mal_id}/"
+                    f"{title}"
+                ),
+                priority=1,
+                active=active_source,
+            )
+        )
+
+        return manga, source_link
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_signal_sync."
+            "sync_external_chapter_signal"
+        )
+    )
+    def test_continues_after_individual_error(
+        self,
+        mock_sync_external,
+    ):
+        first_manga, first_source = (
+            self.create_target(
+                mal_id=7001,
+                title="Alpha Manga",
+            )
+        )
+
+        second_manga, second_source = (
+            self.create_target(
+                mal_id=7002,
+                title="Beta Manga",
+            )
+        )
+
+        def fake_sync(manga):
+            if manga == first_manga:
+                raise RuntimeError(
+                    "Provider unavailable"
+                )
+
+            return {
+                "source_link": second_source,
+                "latest_chapter": (
+                    SimpleNamespace(
+                        number=Decimal("12")
+                    )
+                ),
+                "signal": None,
+                "created": False,
+                "changed": False,
+            }
+
+        mock_sync_external.side_effect = (
+            fake_sync
+        )
+
+        results = (
+            sync_all_external_chapter_signals()
+        )
+
+        self.assertEqual(
+            results["targets"],
+            2,
+        )
+        self.assertEqual(
+            results["errors"],
+            1,
+        )
+        self.assertEqual(
+            results["unchanged"],
+            1,
+        )
+        self.assertEqual(
+            mock_sync_external.call_count,
+            2,
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_signal_sync."
+            "sync_external_chapter_signal"
+        )
+    )
+    def test_ignores_inactive_sources(
+        self,
+        mock_sync_external,
+    ):
+        self.create_target(
+            mal_id=7003,
+            title="Inactive Source",
+            active_source=False,
+        )
+
+        results = (
+            sync_all_external_chapter_signals()
+        )
+
+        self.assertEqual(
+            results["targets"],
+            0,
+        )
+
+        mock_sync_external.assert_not_called()
+
+
+class MangaSourceFallbackTests(
+    TestCase
+):
+    def setUp(self):
+        self.manga = MangaEntry.objects.create(
+            mal_id=162479,
+            title="Kagurabachi",
+            list_status="reading",
+        )
+
+        MangaSourceLink.objects.create(
+            manga=self.manga,
+            provider="manga_plus",
+            source_id="100274",
+            source_title="Kagurabachi",
+            source_url=(
+                "https://"
+                "mangaplus.shueisha.co.jp/"
+                "titles/100274"
+            ),
+            priority=1,
+            active=True,
+        )
+
+        MangaSourceLink.objects.create(
+            manga=self.manga,
+            provider="weeb_central",
+            source_id="SOURCE123",
+            source_title="Kagurabachi",
+            source_url=(
+                "https://weebcentral.com/"
+                "series/SOURCE123/"
+                "Kagurabachi"
+            ),
+            priority=2,
+            active=True,
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_resolver."
+            "build_provider_client"
+        )
+    )
+    def test_uses_fallback_when_primary_fails(
+        self,
+        mock_build_client,
+    ):
+        manga_plus_client = Mock()
+        manga_plus_client\
+            .fetch_latest_chapter\
+            .side_effect = RuntimeError(
+                "MANGA Plus unavailable"
+            )
+
+        weeb_central_client = Mock()
+        weeb_central_client\
+            .fetch_latest_chapter\
+            .return_value = (
+                SimpleNamespace(
+                    number=Decimal("126")
+                )
+            )
+
+        clients = {
+            "manga_plus": (
+                manga_plus_client
+            ),
+            "weeb_central": (
+                weeb_central_client
+            ),
+        }
+
+        mock_build_client.side_effect = (
+            lambda provider: clients[
+                provider
+            ]
+        )
+
+        (
+            source_link,
+            latest_chapter,
+            attempts,
+        ) = fetch_latest_saved_chapter(
+            self.manga
+        )
+
+        self.assertEqual(
+            source_link.provider,
+            "weeb_central",
+        )
+        self.assertEqual(
+            latest_chapter.number,
+            Decimal("126"),
+        )
+        self.assertEqual(
+            len(attempts),
+            2,
+        )
+        self.assertEqual(
+            attempts[0]["status"],
+            "error",
+        )
+        self.assertEqual(
+            attempts[1]["status"],
+            "success",
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_resolver."
+            "build_provider_client"
+        )
+    )
+    def test_explicit_provider_does_not_fallback(
+        self,
+        mock_build_client,
+    ):
+        client = Mock()
+        client.fetch_latest_chapter.side_effect = (
+            RuntimeError(
+                "MANGA Plus unavailable"
+            )
+        )
+
+        mock_build_client.return_value = (
+            client
+        )
+
+        with self.assertRaises(
+            MangaSourceFetchError
+        ):
+            fetch_latest_saved_chapter(
+                self.manga,
+                provider="manga_plus",
+            )
+
+        mock_build_client\
+            .assert_called_once_with(
+                "manga_plus"
+            )
 
 

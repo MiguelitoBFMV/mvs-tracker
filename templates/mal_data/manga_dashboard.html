@@ -212,7 +212,7 @@
     >
         <section class="panel">
             <header class="panel-header">
-                <h2>Reading Progress</h2>
+                <h2>Chapter Signals</h2>
 
                 <div class="episode-signal-actions">
                     {% if user.is_authenticated %}
@@ -226,7 +226,7 @@
                                 class="episode-signal-sync-button"
                                 type="submit"
                             >
-                                Sync Progress
+                                Sync Signals
                             </button>
                         </form>
                     {% endif %}
@@ -240,151 +240,184 @@
             </header>
 
             <div class="panel-body">
-                {% if active_reading_entries %}
+                {% if chapter_signal_entries %}
                     <div
                         class="
                             protocol-list
                             episode-signals-list
                         "
                     >
-                        {% for manga in active_reading_entries %}
-                            <article class="protocol-card">
-                                {% if manga.main_picture_url %}
-                                    <img
-                                        class="cover"
-                                        src="{{ manga.main_picture_url }}"
-                                        alt="{{ manga.display_title }}"
-                                    >
-                                {% else %}
-                                    <div class="cover"></div>
-                                {% endif %}
-
-                                <div>
-                                    <h3 class="protocol-title">
-                                        <a
-                                            href="https://myanimelist.net/manga/{{ manga.mal_id }}"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                        {% for signal in chapter_signal_entries %}
+                            {% with manga=signal.manga %}
+                                <article class="protocol-card">
+                                    {% if manga.main_picture_url %}
+                                        <img
+                                            class="cover"
+                                            src="{{ manga.main_picture_url }}"
+                                            alt="{{ manga.display_title }}"
                                         >
-                                            {{ manga.display_title }}
-                                        </a>
-                                    </h3>
+                                    {% else %}
+                                        <div class="cover"></div>
+                                    {% endif %}
 
-                                    <div class="protocol-meta">
-                                        CHAPTER
-                                        {{ manga.num_chapters_read }}/
-                                        {% if manga.num_chapters > 0 %}
-                                            {{ manga.num_chapters }}
-                                        {% else %}
-                                            TBD
-                                        {% endif %}
+                                    <div>
+                                        <h3 class="protocol-title">
+                                            <a
+                                                href="https://myanimelist.net/manga/{{ manga.mal_id }}"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                {{ manga.display_title }}
+                                            </a>
+                                        </h3>
 
-                                        · VOLUME
-                                        {{ manga.num_volumes_read }}/
-                                        {% if manga.num_volumes > 0 %}
-                                            {{ manga.num_volumes }}
-                                        {% else %}
-                                            TBD
-                                        {% endif %}
-                                    </div>
-
-                                    <div class="protocol-progress-row">
-                                        <span>
-                                            Reading Progress
-                                        </span>
-
-                                        <strong>
-                                            {{ manga.num_chapters_read }}/
-                                            {% if manga.num_chapters > 0 %}
-                                                {{ manga.num_chapters }}
+                                        <div class="protocol-meta">
+                                            {% if signal.has_live_availability %}
+                                                READ
+                                                {{ manga.num_chapters_read }}
+                                                · AVAILABLE
+                                                {{ signal.target_chapter|floatformat:"-2" }}
+                                                · PENDING
+                                                +{{ signal.pending_chapters|floatformat:"-2" }}
                                             {% else %}
-                                                TBD
+                                                READ
+                                                {{ manga.num_chapters_read }}
+                                                · TOTAL
+                                                {{ signal.canonical_target_chapter }}
+                                                · TO COMPLETE
+                                                +{{ signal.chapters_to_complete }}
                                             {% endif %}
-                                        </strong>
-                                    </div>
+                                        </div>
 
-                                    <div
-                                        class="progress-track"
-                                        aria-hidden="true"
-                                    >
-                                        <div
-                                            class="progress-fill"
-                                            style="width:
-                                                {% if manga.num_chapters > 0 %}
-                                                    {% widthratio manga.num_chapters_read manga.num_chapters 100 %}%
+                                        <div class="protocol-progress-row">
+                                            <span>
+                                                {% if signal.has_live_availability %}
+                                                    Chapter Signal
                                                 {% else %}
-                                                    8%
+                                                    Canonical Completion
                                                 {% endif %}
-                                            ;"
-                                        ></div>
-                                    </div>
+                                            </span>
 
-                                    <div class="protocol-actions">
-                                        {% if manga.is_rereading %}
-                                            <span
-                                                class="
-                                                    status-pill
-                                                    status-rewatch
-                                                "
-                                            >
-                                                Rereading
-                                            </span>
-                                        {% else %}
-                                            <span
-                                                class="
-                                                    status-pill
-                                                    status-live
-                                                "
-                                            >
-                                                Reading
-                                            </span>
-                                        {% endif %}
+                                            <strong>
+                                                {{ manga.num_chapters_read }}/
+                                                {{ signal.target_chapter|floatformat:"-2" }}
+                                            </strong>
+                                        </div>
 
-                                        {% if manga.publication_status == "currently_publishing" %}
-                                            <span
-                                                class="
-                                                    status-pill
-                                                    status-live
-                                                "
-                                            >
-                                                Publishing
-                                            </span>
-                                        {% elif manga.publication_status == "finished" %}
-                                            <span
-                                                class="
-                                                    status-pill
-                                                    status-completed
-                                                "
-                                            >
-                                                Finished
-                                            </span>
-                                        {% elif manga.publication_status == "on_hiatus" %}
-                                            <span
-                                                class="
-                                                    status-pill
-                                                    status-on-hold
-                                                "
-                                            >
-                                                On Hiatus
-                                            </span>
-                                        {% endif %}
-
-                                        <a
-                                            class="secondary-button"
-                                            href="https://myanimelist.net/manga/{{ manga.mal_id }}"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                        <div
+                                            class="episode-signal-track"
+                                            aria-hidden="true"
                                         >
-                                            Details
-                                        </a>
+                                            {% if signal.canonical_target_chapter > 0 %}
+                                                <div
+                                                    class="episode-seen-fill"
+                                                    style="width:
+                                                        {% widthratio manga.num_chapters_read signal.canonical_target_chapter 100 %}%;
+                                                    "
+                                                ></div>
+
+                                                <div
+                                                    class="episode-pending-fill"
+                                                    style="width:
+                                                        {% widthratio signal.pending_chapters signal.canonical_target_chapter 100 %}%;
+                                                    "
+                                                ></div>
+                                            {% elif signal.target_chapter %}
+                                                <div
+                                                    class="episode-seen-fill"
+                                                    style="width:
+                                                        {% widthratio manga.num_chapters_read signal.target_chapter 100 %}%;
+                                                    "
+                                                ></div>
+
+                                                <div
+                                                    class="episode-pending-fill"
+                                                    style="width:
+                                                        {% widthratio signal.pending_chapters signal.target_chapter 100 %}%;
+                                                    "
+                                                ></div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="protocol-actions">
+                                            {% if signal.has_live_availability %}
+                                                <span
+                                                    class="
+                                                        status-pill
+                                                        status-live
+                                                    "
+                                                >
+                                                    +{{ signal.pending_chapters|floatformat:"-2" }}
+                                                    CH
+                                                </span>
+
+                                                <span class="status-pill">
+                                                    {{ signal.availability_source_name|default:"External Source" }}
+                                                </span>
+                                            {% else %}
+                                                <span
+                                                    class="
+                                                        status-pill
+                                                        status-on-hold
+                                                    "
+                                                >
+                                                    +{{ signal.chapters_to_complete }}
+                                                    CH
+                                                </span>
+
+                                                <span class="status-pill">
+                                                    Canonical Total
+                                                </span>
+                                            {% endif %}
+
+                                            {% if manga.publication_status == "currently_publishing" %}
+                                                <span
+                                                    class="
+                                                        status-pill
+                                                        status-live
+                                                    "
+                                                >
+                                                    Publishing
+                                                </span>
+                                            {% elif manga.publication_status == "finished" %}
+                                                <span
+                                                    class="
+                                                        status-pill
+                                                        status-completed
+                                                    "
+                                                >
+                                                    Finished
+                                                </span>
+                                            {% elif manga.publication_status == "on_hiatus" %}
+                                                <span
+                                                    class="
+                                                        status-pill
+                                                        status-on-hold
+                                                    "
+                                                >
+                                                    On Hiatus
+                                                </span>
+                                            {% endif %}
+
+                                            <a
+                                                class="secondary-button"
+                                                href="https://myanimelist.net/manga/{{ manga.mal_id }}"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                Details
+                                            </a>
+                                        </div>
                                     </div>
-                                </div>
-                            </article>
+                                </article>
+                            {% endwith %}
                         {% endfor %}
                     </div>
                 {% else %}
                     <p class="empty-state">
-                        No active reading entries.
+                        No pending chapter signals.
+                        Run Sync Signals to build the
+                        canonical signal registry.
                     </p>
                 {% endif %}
             </div>
