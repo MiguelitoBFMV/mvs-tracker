@@ -18,6 +18,13 @@ from mal_data.services.manga_reading_sync import (
 from mal_data.services.manual_tracked_manga_sync import (
     sync_all_manual_tracked_manga,
 )
+from mal_data.services.manga_chapter_signal_sync import (
+    get_actionable_chapter_signals,
+    sync_canonical_chapter_signals,
+)
+from mal_data.services.manga_source_signal_sync import (
+    sync_all_external_chapter_signals,
+)
 
 @login_required
 @require_POST
@@ -81,6 +88,19 @@ def sync_reading_progress_view(request):
 
     try:
         results = sync_reading_progress()
+
+        signal_results = (
+            sync_canonical_chapter_signals()
+        )
+
+        external_results = (
+            sync_all_external_chapter_signals()
+        )
+
+        actionable_count = len(
+            get_actionable_chapter_signals()
+        )
+
         personal_results = results["personal"]
 
         changed_count = sum(
@@ -96,6 +116,18 @@ def sync_reading_progress_view(request):
         ]
 
         error_count = len(error_results)
+
+        external_error_results = [
+            result
+            for result in external_results[
+                "results"
+            ]
+            if not result["ok"]
+        ]
+
+        external_error_count = len(
+            external_error_results
+        )
 
         elapsed_seconds = (
             perf_counter() - started_at
@@ -113,12 +145,36 @@ def sync_reading_progress_view(request):
             f"Changes: {changed_count} · "
             f"Active: "
             f"{results['active_after']} · "
-            f"Errors: {error_count} · "
+            f"Signals: "
+            f"{signal_results['targets']} · "
+            f"Pending: "
+            f"{actionable_count} · "
+            f"External targets: "
+            f"{external_results['targets']} · "
+            f"External created: "
+            f"{external_results['created']} · "
+            f"External updated: "
+            f"{external_results['updated']} · "
+            f"External unchanged: "
+            f"{external_results['unchanged']} · "
+            f"External empty: "
+            f"{external_results['empty']} · "
+            f"External errors: "
+            f"{external_error_count} · "
             f"Time: {elapsed_seconds:.1f}s"
+            f"External fallbacks: "
+            f"{external_results['fallbacks']} · "
         )
 
-        if error_results:
-            first_error = error_results[0]
+        if (
+            error_results
+            or external_error_results
+        ):
+            first_error = (
+                error_results[0]
+                if error_results
+                else external_error_results[0]
+            )
 
             message += (
                 " · First error: "
@@ -130,6 +186,7 @@ def sync_reading_progress_view(request):
                 request,
                 message,
             )
+
         else:
             messages.success(
                 request,

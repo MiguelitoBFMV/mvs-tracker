@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 
+from decimal import Decimal
 
 class MangaEntry(models.Model):
     # Datos base del manga en MAL
@@ -214,6 +215,265 @@ class ManualTrackedManga(models.Model):
         return (
             f"{self.title_snapshot or self.mal_id} "
             f"({self.status})"
+        )
+
+
+class MangaSourceLink(models.Model):
+    manga = models.ForeignKey(
+        MangaEntry,
+        on_delete=models.CASCADE,
+        related_name="source_links",
+    )
+
+    provider = models.CharField(
+        max_length=50,
+    )
+    source_id = models.CharField(
+        max_length=255,
+    )
+    source_title = models.CharField(
+        max_length=255,
+    )
+    source_url = models.URLField(
+        max_length=500,
+    )
+    thumbnail_url = models.URLField(
+        max_length=500,
+        blank=True,
+    )
+
+    match_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+    )
+    search_query = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    active = models.BooleanField(
+        default=True,
+    )
+    raw_data = models.JSONField(
+        default=dict,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+    priority = models.PositiveSmallIntegerField(
+        default=1,
+    )
+
+    is_official = models.BooleanField(
+        default=False,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "manga",
+                    "provider",
+                ],
+                name=(
+                    "unique_manga_provider_"
+                    "source_link"
+                ),
+            ),
+        ]
+        ordering = [
+            "manga__title",
+            "provider",
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.manga.title} · "
+            f"{self.provider}: "
+            f"{self.source_title}"
+        )
+
+
+class MangaChapterSignal(models.Model):
+    SOURCE_TYPES = [
+        (
+            "canonical",
+            "Canonical total",
+        ),
+        (
+            "external",
+            "External source",
+        ),
+        (
+            "manual",
+            "Manual",
+        ),
+    ]
+
+    manga = models.OneToOneField(
+        MangaEntry,
+        on_delete=models.CASCADE,
+        related_name="chapter_signal",
+    )
+    mal_id = models.PositiveIntegerField(
+        unique=True
+    )
+
+    # Total canónico conocido por MAL.
+    canonical_total_chapters = (
+        models.PositiveIntegerField(
+            default=0
+        )
+    )
+
+    # Último capítulo disponible en una
+    # fuente externa. Será usado en el
+    # siguiente bloque.
+    latest_available_chapter = (
+        models.DecimalField(
+            max_digits=8,
+            decimal_places=2,
+            blank=True,
+            null=True,
+        )
+    )
+
+    availability_source_type = (
+        models.CharField(
+            max_length=30,
+            choices=SOURCE_TYPES,
+            default="canonical",
+        )
+    )
+    availability_source_name = (
+        models.CharField(
+            max_length=100,
+            blank=True,
+        )
+    )
+    availability_source_url = (
+        models.URLField(
+            blank=True,
+        )
+    )
+
+    release_schedule = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+    next_release_at = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+    external_checked_at = (
+        models.DateTimeField(
+            blank=True,
+            null=True,
+        )
+    )
+
+    raw_data = models.JSONField(
+        default=dict,
+        blank=True,
+    )
+    last_synced_at = models.DateTimeField(
+        default=timezone.now
+    )
+
+    @property
+    def canonical_target_chapter(self):
+        return (
+            self.canonical_total_chapters
+            or self.manga.num_chapters
+            or 0
+        )
+
+    @property
+    def target_chapter(self):
+        if (
+            self.latest_available_chapter
+            is not None
+        ):
+            return (
+                self.latest_available_chapter
+            )
+
+        canonical_total = (
+            self.canonical_target_chapter
+        )
+
+        if canonical_total <= 0:
+            return None
+
+        return Decimal(canonical_total)
+
+    @property
+    def chapters_to_complete(self):
+        canonical_total = (
+            self.canonical_target_chapter
+        )
+
+        if canonical_total <= 0:
+            return 0
+
+        return max(
+            canonical_total
+            - self.manga.num_chapters_read,
+            0,
+        )
+
+    @property
+    def pending_chapters(self):
+        target = self.target_chapter
+
+        if target is None:
+            return Decimal("0")
+
+        pending = (
+            target
+            - Decimal(
+                self.manga.num_chapters_read
+            )
+        )
+
+        return max(
+            pending,
+            Decimal("0"),
+        )
+
+    @property
+    def has_live_availability(self):
+        return (
+            self.latest_available_chapter
+            is not None
+        )
+
+    @property
+    def has_signal(self):
+        return self.pending_chapters > 0
+
+    @property
+    def signal_kind(self):
+        if self.has_live_availability:
+            return "live"
+
+        return "canonical"
+
+    class Meta:
+        ordering = [
+            "manga__title",
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.manga.title} · "
+            f"{self.signal_kind} signal"
         )
 
 

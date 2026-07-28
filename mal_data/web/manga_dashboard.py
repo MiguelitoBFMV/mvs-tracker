@@ -5,6 +5,9 @@ from mal_data.models import (
     MangaEntry,
     MangaSyncEvent,
 )
+from mal_data.services.manga_chapter_signal_sync import (
+    get_actionable_chapter_signals,
+)
 
 
 def manga_dashboard(request):
@@ -47,16 +50,10 @@ def manga_dashboard(request):
         metrics["volumes_read"] or 0
     )
 
-    active_reading_entries = (
-        manga_entries
-        .filter(
-            Q(list_status="reading")
-            | Q(is_rereading=True)
+    chapter_signal_entries = (
+        get_actionable_chapter_signals(
+            limit=15
         )
-        .order_by(
-            "-updated_at_mal",
-            "title",
-        )[:15]
     )
 
     backlog_total = (
@@ -107,8 +104,8 @@ def manga_dashboard(request):
 
     context = {
         **metrics,
-        "active_reading_entries": (
-            active_reading_entries
+        "chapter_signal_entries": (
+            chapter_signal_entries
         ),
         "backlog_clear_ratio": (
             backlog_clear_ratio
