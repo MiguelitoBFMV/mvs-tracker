@@ -28,6 +28,8 @@ The application currently runs locally and uses Supabase PostgreSQL as its share
 
 The anime side of MAL Insights is functionally stable and includes automatic MyAnimeList OAuth renewal, optimized synchronization workflows, manual rescue support for entries omitted by the MAL list API, and unified Episode Signals for normal and manually rescued entries.
 
+The manga side of MAL Insights is now operational. It includes the public Manga Command Center, status archives, optimized MAL library synchronization, Reading and Rereading progress synchronization, manual rescues, Manga Command Logs, canonical completion signals, and live Chapter Signals backed by persistent external source links. MANGA Plus can be used as the preferred official source for supported titles, while Weeb Central can act as a lower-priority source or automatic fallback.
+
 Game Kiroku combines a local-first IGDB workflow, replay-aware playthrough history, additional-content tracking, a dedicated Platinum Collection, franchise timelines, completed-import history, and configurable competitive-rank tracking.
 
 Watchroom combines local movie and series tracking with viewing-run history, MAL-style season progress, TMDB search and import, safe metadata refresh, mixed-media franchises, and automatic TMDB movie-collection synchronization.
@@ -43,9 +45,9 @@ Public registration is intentionally disabled.
 
 ### MAL Insights
 
-Status: **Available — anime workflow functionally complete**
+Status: **Available — anime stable; manga foundation and Chapter Signals operational**
 
-MAL Insights is the anime and manga analytics module connected to MyAnimeList and enriched with AniList metadata.
+MAL Insights is the anime and manga analytics module connected to MyAnimeList and enriched with AniList and explicit chapter-availability sources.
 
 Current anime features include:
 
@@ -70,19 +72,44 @@ Current anime features include:
 - A single forced token refresh and retry after a MAL `401 invalid_token` response.
 - Public read-only mode.
 - Owner-only synchronization and write actions.
-- Automated regression tests for OAuth, MAL sync, Episode Signals, manual rescues, routes, and permissions.
 
-The current synchronization controls are intentionally separated:
+Current manga features include:
 
-- **Sync MAL Library** updates the five MAL list statuses, personal progress, scores, Command Logs, Broadcast Watchlist data, and the local status context used by Sequel Radar.
-- **Sync Signals** checks only locally active Watching and Rewatching entries, including active manual rescues, then updates personal MAL progress and AniList airing information.
-- **Sync Manual Rescues** rebuilds and refreshes entries that the normal MAL list endpoint omits.
+- Public Manga Command Center and Anime / Manga world switch.
+- Manga archive by All, Reading, On Hold, Plan to Read, Completed, and Dropped status.
+- Reading and Rereading support.
+- Optimized MAL manga-library synchronization.
+- Active reading-progress refresh from MAL.
+- Persistent `ManualTrackedManga` rescues for entries omitted by the MAL list API.
+- Manga Command Logs for status, chapter, volume, and score changes.
+- Canonical completion signals for finished manga.
+- Live Chapter Signals for publishing manga.
+- Persistent `MangaSourceLink` records per manga and provider.
+- Configurable source priority where lower numbers are preferred.
+- MANGA Plus and Weeb Central provider support.
+- Automatic fallback through active sources in priority order.
+- Explicit provider override for inspection and synchronization.
+- Latest-available and pending-chapter calculations, including decimal chapters.
+- Batch external synchronization with per-title error isolation.
+- Provider attempts and fallback usage stored with the signal metadata.
+- Public read-only visibility and owner-only synchronization actions.
+
+The synchronization controls remain explicit:
+
+- **Anime — Sync MAL Library** updates the five MAL anime-list statuses, personal progress, scores, Command Logs, Broadcast Watchlist data, and the local context used by Sequel Radar.
+- **Anime — Sync Signals** refreshes active Watching and Rewatching progress and AniList airing information.
+- **Anime — Sync Manual Rescues** rebuilds and refreshes anime entries omitted by the normal MAL list endpoint.
+- **Manga — Sync Manga Library** updates the five MAL manga-list statuses and local archive.
+- **Manga — Sync Signals** refreshes active Reading and Rereading progress, canonical totals, and linked external chapter sources.
+- **Manga — Sync Manual Rescues** rebuilds and refreshes omitted manga entries.
 - **Connect / Renew MAL** starts the owner-only OAuth authorization flow when the account must be connected again.
 
-Route:
+Routes:
 
 ```text
-/anime/
+/anime/                                  Anime Command Center
+/manga/                                  Manga Command Center
+/manga/status/<status>/                  Manga archive by status
 ```
 
 ### Game Kiroku / ゲーム記録
@@ -339,7 +366,9 @@ Planned route:
 /                                          MVS Tracker module selector
 /accounts/login/                           Owner login
 /accounts/logout/                          Owner logout
-/anime/                                    MAL Insights
+/anime/                                    MAL Insights — Anime
+/manga/                                    MAL Insights — Manga
+/manga/status/<status>/                    Manga archive by status
 /games/                                    Game Kiroku dashboard
 /games/library/                            Game Kiroku library
 /games/library/<slug>/                     Game Kiroku game detail
@@ -385,6 +414,8 @@ Opening a normal page never triggers an automatic synchronization.
 - MyAnimeList API v2
 - OAuth 2.0 with PKCE and refresh tokens
 - AniList GraphQL API
+- MANGA Plus chapter metadata integration
+- Weeb Central HTML chapter metadata integration
 - IGDB API
 - Twitch application authentication for IGDB
 - TMDB API with application bearer-token authentication
@@ -394,6 +425,8 @@ Opening a normal page never triggers an automatic synchronization.
 - Django Authentication
 - python-dotenv
 - requests
+- Beautiful Soup
+- Protocol Buffers
 - dj-database-url
 
 ## Project Structure
@@ -490,6 +523,7 @@ mvs-tracker/
 │
 ├── docs/
 │   ├── game-kiroku-data-model.md
+│   ├── mal-insights-data-model.md
 │   └── watchroom-data-model.md
 │
 ├── manage.py
@@ -514,6 +548,9 @@ MAL_CLIENT_ID=your-mal-client-id
 MAL_CLIENT_SECRET=your-mal-client-secret
 MAL_REDIRECT_URI=http://127.0.0.1:8000/anime/oauth/mal/callback/
 
+MANGAPLUS_DEVICE_ID=your-generated-device-uuid
+MANGAPLUS_DEVICE_SECRET=optional-existing-device-secret
+
 IGDB_CLIENT_ID=your-twitch-client-id
 IGDB_CLIENT_SECRET=your-twitch-client-secret
 
@@ -527,6 +564,8 @@ ALLOWED_HOSTS=127.0.0.1,localhost
 MyAnimeList access and refresh tokens are obtained through the owner-only OAuth flow and stored in the database. A permanent `MAL_ACCESS_TOKEN` is no longer required in `.env`.
 
 The Redirect URL configured in the MyAnimeList API client must match `MAL_REDIRECT_URI` exactly, including host, port, path, and trailing slash.
+
+`MANGAPLUS_DEVICE_ID` identifies the local MANGA Plus client installation. `MANGAPLUS_DEVICE_SECRET` is optional when an existing registered secret is available. Both values are local credentials and must not be committed.
 
 `TMDB_READ_ACCESS_TOKEN` must contain only the API Read Access Token. Do not prefix the stored value with `Bearer`; the Watchroom client builds the authorization header.
 
@@ -550,7 +589,9 @@ After logging in as the owner, use **Connect / Renew MAL** once to authorize the
 
 ## MAL Insights Synchronization
 
-### Sync MAL Library
+MAL Insights keeps Anime and Manga synchronization explicit and separated by responsibility.
+
+### Anime — Sync MAL Library
 
 Fetches the five MAL anime-list statuses and updates the local archive.
 
@@ -565,9 +606,9 @@ Updated: 1
 Unchanged: 674
 ```
 
-### Sync Signals
+### Anime — Sync Signals
 
-Processes only locally active Watching and Rewatching entries, regardless of whether they came from the normal MAL list endpoint or a manual rescue.
+Processes only locally active Watching and Rewatching entries, including active manual rescues.
 
 For each active entry it:
 
@@ -578,11 +619,30 @@ For each active entry it:
 - Refreshes AniList airing data.
 - Recalculates aired, pending, and next-episode information.
 
-### Sync Manual Rescues
+### Anime — Sync Manual Rescues
 
 Refreshes active `ManualTrackedAnime` records and reconstructs their local `AnimeEntry` data when necessary.
 
 This workflow exists for rare cases where an anime appears in the user's real MAL list but is omitted by the normal MAL list API response.
+
+### Manga — Sync Manga Library
+
+Fetches the five MAL manga-list statuses and updates the local manga archive using the same Created, Updated, and Unchanged strategy.
+
+### Manga — Sync Signals
+
+The Manga Sync Signals action performs:
+
+1. Active Reading and Rereading progress synchronization from MAL.
+2. Canonical chapter-signal synchronization.
+3. External source synchronization for manga with active `MangaSourceLink` records.
+4. Final actionable-signal ordering and pending-chapter calculation.
+
+External titles are processed independently. One provider or title failure does not stop the remaining manga from being synchronized.
+
+### Manga — Sync Manual Rescues
+
+Refreshes active `ManualTrackedManga` records and reconstructs omitted local `MangaEntry` data when necessary.
 
 ### Rescue an omitted anime
 
@@ -590,9 +650,39 @@ This workflow exists for rare cases where an anime appears in the user's real MA
 python manage.py rescue_anime_entry MAL_ID   --status watching   --episodes-watched 1   --sync-airing
 ```
 
-The rescue command creates or updates the local anime entry, stores a persistent manual tracker, and optionally retrieves AniList airing information.
+### Manga Chapter Signal commands
 
-After the initial rescue, normal progress updates for active rescued anime are handled by **Sync Signals**.
+Search for source candidates:
+
+```bash
+python manage.py search_manga_source MAL_ID   --provider manga_plus   --query SOURCE_ID_OR_URL
+```
+
+Save one result and assign priority:
+
+```bash
+python manage.py search_manga_source MAL_ID   --provider manga_plus   --query SOURCE_ID_OR_URL   --save 1   --priority 1
+```
+
+Inspect the preferred active source without modifying data:
+
+```bash
+python manage.py inspect_manga_source MAL_ID
+```
+
+Inspect one explicit provider without fallback:
+
+```bash
+python manage.py inspect_manga_source MAL_ID   --provider weeb_central
+```
+
+Synchronize one external Chapter Signal:
+
+```bash
+python manage.py sync_manga_source_signal MAL_ID
+```
+
+When no provider override is supplied, active sources are tried in ascending priority order. A lower-priority source becomes the fallback when a preferred source fails or returns no usable chapters.
 
 ## Game Kiroku Maintenance Commands
 
@@ -642,18 +732,12 @@ The preset command preserves existing history, creates missing modes and tiers, 
 MVS Tracker uses an isolated SQLite in-memory database for automated tests.
 
 ```bash
-python manage.py test \
-  core \
-  mal_data \
-  games \
-  watchroom \
-  --settings=config.test_settings \
-  --verbosity=2
+python manage.py test   core   mal_data   games   watchroom   --settings=config.test_settings   --verbosity=2
 ```
 
 The test database is created and destroyed automatically. It does not modify Supabase.
 
-The current four-app regression checkpoint contains **314 passing tests** across `core`, `mal_data`, `games`, and `watchroom`. Watchroom contributes **155 module tests**.
+The current four-app regression checkpoint contains **349 passing tests** across `core`, `mal_data`, `games`, and `watchroom`. MAL Insights contributes **46 module tests**, and Watchroom contributes **155 module tests**.
 
 The MAL Insights regression suite covers:
 
@@ -661,10 +745,16 @@ The MAL Insights regression suite covers:
 - OAuth token exchange and storage.
 - Automatic refresh of expired MAL tokens.
 - A single refresh and retry after a MAL 401 response.
-- Created, Updated, and Unchanged MAL Library synchronization paths.
-- Watching, Rewatching, and manual-rescue Episode Signal selection.
-- Progress synchronization and Command Log generation.
-- Manual rescue synchronization from real MAL progress.
+- Created, Updated, and Unchanged MAL library synchronization paths.
+- Watching, Rewatching, Reading, Rereading, and manual-rescue target selection.
+- Anime and manga progress synchronization.
+- Anime and manga Command Log generation.
+- Canonical and live Chapter Signals.
+- MANGA Plus and Weeb Central parsing and normalization.
+- Persistent source links and configurable provider priority.
+- Explicit provider overrides and automatic fallback.
+- External signal updates, canonical-total preservation, and batch error isolation.
+- Anime and Manga dashboard synchronization integration.
 
 The Game Kiroku regression suite covers:
 
@@ -714,7 +804,19 @@ MyAnimeList OAuth credentials are handled through an owner-authorized flow. Acce
 
 ### AniList
 
-Public metadata and discovery source for airing data, native titles, streaming links, seasonal anime, and search.
+Public metadata and discovery source for anime airing data, native titles, streaming links, seasonal anime, and search.
+
+### MANGA Plus
+
+Preferred official chapter-availability source for supported Shueisha manga.
+
+MVS Tracker stores the selected title link locally and reads recent chapter metadata only during explicit inspection or Chapter Signal synchronization. The latest available chapter is enough to calculate pending progress even when only a limited recent chapter window is exposed.
+
+### Weeb Central
+
+External manga chapter metadata source.
+
+A title can use Weeb Central as its primary source or keep it as a lower-priority fallback. Search results, source IDs, URLs, chapter numbers, labels, timestamps, and selected links are normalized before being stored locally.
 
 ### IGDB
 
@@ -859,7 +961,7 @@ Planned primary listening-data source for the music module. Music will be the fi
 - [x] Support mixed Movie / Series franchises.
 - [x] Add automatic TMDB movie-collection synchronization.
 - [x] Add franchise ordering, roles, notes, and background images.
-- [x] Reach 155 passing Watchroom tests and 314 passing global tests.
+- [x] Reach 155 passing Watchroom tests and validate the MVP in the global regression suite.
 - [x] Complete and validate the Watchroom MVP.
 - [ ] Add optional linking from an existing manual work to TMDB.
 - [ ] Add missing-work discovery from TMDB movie collections.
@@ -897,11 +999,23 @@ Planned primary listening-data source for the music module. Music will be the fi
 - [x] Synchronize active Episode Signal progress directly from MAL.
 - [x] Generate Command Logs for rescued-entry progress changes.
 - [x] Add persistent manual rescue fallbacks for MAL list API omissions.
-- [x] Add regression tests for OAuth and synchronization workflows.
-- [ ] Expand manga support.
-- [ ] Add manga archive views.
-- [ ] Explore chapter availability signals.
-- [ ] Detect when a manually rescued anime begins appearing normally in the MAL list API.
+- [x] Add the Anime / Manga world switch.
+- [x] Build the Manga Command Center and public status archives.
+- [x] Add optimized manga-library synchronization.
+- [x] Add Reading and Rereading progress synchronization.
+- [x] Add Manga Command Logs.
+- [x] Add persistent manual manga rescues.
+- [x] Add canonical completion signals.
+- [x] Add persistent external manga source links.
+- [x] Add MANGA Plus and Weeb Central providers.
+- [x] Add source priority, explicit provider overrides, and automatic fallback.
+- [x] Integrate external Chapter Signals into the Manga Sync Signals action.
+- [x] Validate the four-app suite at 349 passing tests.
+- [ ] Build owner UI for manga source search, linking, activation, and priority management.
+- [ ] Add Manga Relations.
+- [ ] Add the Anime ↔ Manga adaptation bridge.
+- [ ] Expand source support only where a real reading workflow requires it.
+- [ ] Detect when a manually rescued anime or manga begins appearing normally in the MAL list API.
 - [ ] Improve entries without confirmed MAL IDs.
 
 ## Security
@@ -915,6 +1029,7 @@ Never commit:
 - MAL refresh tokens
 - IGDB client secrets
 - TMDB read access tokens
+- MANGA Plus device IDs or device secrets
 - API tokens
 - Raw private API responses
 - Local virtual environments
