@@ -88,6 +88,9 @@ from mal_data.services.manga_source_management import (
 from mal_data.services.manga_source_coverage import (
     build_manga_source_coverage,
 )
+from mal_data.services.manga_sources.manga_fire import (
+    MangaFireClient,
+)
 
 def build_anime_item(
     *,
@@ -4279,3 +4282,295 @@ class MangaSourceCoverageViewTests(
         )
 
 
+class MangaFireClientTests(
+    SimpleTestCase
+):
+    def build_client(
+        self,
+        *payloads,
+        status_codes=None,
+    ):
+        session = Mock()
+        session.headers = {}
+
+        resolved_status_codes = (
+            status_codes
+            or [200] * len(payloads)
+        )
+
+        responses = []
+
+        for payload, status_code in zip(
+            payloads,
+            resolved_status_codes,
+        ):
+            response = Mock()
+            response.status_code = (
+                status_code
+            )
+            response.json.return_value = (
+                payload
+            )
+            responses.append(response)
+
+        session.get.side_effect = (
+            responses
+        )
+
+        return (
+            MangaFireClient(
+                session=session
+            ),
+            session,
+        )
+
+    def test_extracts_new_and_legacy_title_ids(
+        self,
+    ):
+        self.assertEqual(
+            MangaFireClient.extract_title_id(
+                (
+                    "https://mangafire.to/"
+                    "title/v92q7-kagurabachii"
+                )
+            ),
+            "v92q7",
+        )
+
+        self.assertEqual(
+            MangaFireClient.extract_title_id(
+                (
+                    "https://mangafire.to/"
+                    "manga/kagurabachii.v92q7"
+                )
+            ),
+            "v92q7",
+        )
+
+        self.assertEqual(
+            MangaFireClient.extract_title_id(
+                "v92q7"
+            ),
+            "v92q7",
+        )
+
+    def test_search_parses_api_candidates(
+        self,
+    ):
+        client, session = (
+            self.build_client(
+                {
+                    "items": [
+                        {
+                            "title": (
+                                "Kagurabachi"
+                            ),
+                            "url": (
+                                "/title/"
+                                "v92q7-"
+                                "kagurabachii"
+                            ),
+                            "poster": {
+                                "medium": (
+                                    "/poster/"
+                                    "kagurabachi.jpg"
+                                ),
+                            },
+                        },
+                    ],
+                    "meta": {
+                        "hasNext": False,
+                    },
+                }
+            )
+        )
+
+        candidates = client.search(
+            "Kagurabachi"
+        )
+
+        self.assertEqual(
+            len(candidates),
+            1,
+        )
+        self.assertEqual(
+            candidates[0].source_id,
+            "v92q7",
+        )
+        self.assertEqual(
+            candidates[0].title,
+            "Kagurabachi",
+        )
+        self.assertEqual(
+            candidates[0].url,
+            (
+                "https://mangafire.to/"
+                "title/v92q7-"
+                "kagurabachii"
+            ),
+        )
+
+        called_url = session.get.call_args.args[0]
+        called_params = dict(
+            session.get.call_args.kwargs["params"]
+        )
+
+        self.assertEqual(
+            called_url,
+            "https://mangafire.to/api/titles",
+        )
+        self.assertEqual(
+            called_params["keyword"],
+            "Kagurabachi",
+        )
+        self.assertEqual(
+            called_params["language"],
+            "en",
+        )
+        self.assertEqual(
+            called_params["limit"],
+            "30",
+        )
+        self.assertEqual(
+            called_params["page"],
+            "1",
+        )
+        self.assertTrue(
+            called_params["vrf"],
+        )
+
+    def test_direct_url_fetches_title_detail(
+        self,
+    ):
+        client, session = (
+            self.build_client(
+                {
+                    "data": {
+                        "title": (
+                            "Kagurabachi"
+                        ),
+                        "url": (
+                            "/title/"
+                            "v92q7-"
+                            "kagurabachii"
+                        ),
+                        "poster": {
+                            "large": (
+                                "/poster/"
+                                "large.jpg"
+                            ),
+                        },
+                    },
+                }
+            )
+        )
+
+        candidates = client.search(
+            (
+                "https://mangafire.to/"
+                "title/v92q7-"
+                "kagurabachii"
+            )
+        )
+
+        self.assertEqual(
+            candidates[0].source_id,
+            "v92q7",
+        )
+
+        called_url = session.get.call_args.args[0]
+        called_params = dict(
+            session.get.call_args.kwargs["params"]
+        )
+
+        self.assertEqual(
+            called_url,
+            (
+                "https://mangafire.to/"
+                "api/titles/v92q7"
+            ),
+        )
+        self.assertTrue(
+            called_params["vrf"],
+        )
+
+
+    def test_latest_chapter_uses_highest_number(
+        self,
+    ):
+        client, _session = (
+            self.build_client(
+                {
+                    "items": [
+                        {
+                            "id": 9316858,
+                            "number": "126",
+                            "name": "",
+                            "createdAt": (
+                                1785100000
+                            ),
+                        },
+                        {
+                            "id": 8072566,
+                            "number": "125",
+                            "name": "",
+                            "createdAt": (
+                                1784500000
+                            ),
+                        },
+                    ],
+                    "meta": {
+                        "hasNext": False,
+                    },
+                }
+            )
+        )
+
+        latest = (
+            client.fetch_latest_chapter(
+                (
+                    "https://mangafire.to/"
+                    "title/v92q7-"
+                    "kagurabachii"
+                )
+            )
+        )
+
+        self.assertEqual(
+            latest.source_id,
+            "9316858",
+        )
+        self.assertEqual(
+            str(latest.number),
+            "126",
+        )
+        self.assertEqual(
+            latest.url,
+            (
+                "https://mangafire.to/"
+                "title/v92q7-"
+                "kagurabachii/"
+                "chapter/9316858"
+            ),
+        )
+        self.assertIsNotNone(
+            latest.published_at
+        )
+
+    def test_http_403_has_controlled_error(
+        self,
+    ):
+        client, _session = (
+            self.build_client(
+                {},
+                status_codes=[403],
+            )
+        )
+
+        with self.assertRaisesMessage(
+            RuntimeError,
+            "MangaFire rejected the request",
+        ):
+            client.search(
+                "Kagurabachi"
+            )

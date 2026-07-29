@@ -1,19 +1,24 @@
-from mal_data.services.manga_sources.weeb_central import (
-    WeebCentralClient,
+from mal_data.services.manga_sources.manga_fire import (
+    MangaFireClient,
 )
 from mal_data.services.manga_sources.manga_plus import (
     MangaPlusClient,
+)
+from mal_data.services.manga_sources.weeb_central import (
+    WeebCentralClient,
 )
 
 
 PROVIDER_CLIENTS = {
     "manga_plus": MangaPlusClient,
     "weeb_central": WeebCentralClient,
+    "manga_fire": MangaFireClient,
 }
 
 PROVIDER_LABELS = {
     "manga_plus": "MANGA Plus",
     "weeb_central": "Weeb Central",
+    "manga_fire": "MangaFire",
 }
 
 OFFICIAL_PROVIDERS = {
@@ -24,6 +29,7 @@ OFFICIAL_PROVIDERS = {
 def is_official_provider(provider):
     return provider in OFFICIAL_PROVIDERS
 
+
 def get_provider_label(provider):
     return PROVIDER_LABELS.get(
         provider,
@@ -33,9 +39,12 @@ def get_provider_label(provider):
         ).title(),
     )
 
+
 def build_provider_client(provider):
-    client_class = PROVIDER_CLIENTS.get(
-        provider
+    client_class = (
+        PROVIDER_CLIENTS.get(
+            provider
+        )
     )
 
     if client_class is None:

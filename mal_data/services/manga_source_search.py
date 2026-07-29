@@ -58,6 +58,8 @@ def resolve_source_query(
 def resolve_score_query(
     manga,
     query,
+    *,
+    client=None,
 ):
     direct_lookup = (
         query.isdigit()
@@ -68,6 +70,25 @@ def resolve_score_query(
             )
         )
     )
+
+    if (
+        not direct_lookup
+        and client is not None
+    ):
+        extract_source_id = getattr(
+            client,
+            "extract_title_id",
+            None,
+        )
+
+        if callable(
+            extract_source_id
+        ):
+            direct_lookup = bool(
+                extract_source_id(
+                    query
+                )
+            )
 
     if not direct_lookup:
         return query
@@ -92,13 +113,14 @@ def search_manga_sources(
         query=query,
     )
 
+    client = build_provider_client(
+        provider
+    )
+
     score_query = resolve_score_query(
         manga,
         resolved_query,
-    )
-
-    client = build_provider_client(
-        provider
+        client=client,
     )
 
     candidates = client.search(
