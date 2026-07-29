@@ -3,6 +3,7 @@ from django.urls import path
 from .web import (
     manga_dashboard as dashboard_views,
     manga_library as library_views,
+    manga_source_coverage as coverage_views,
     manga_sources as source_views,
     manga_sync as sync_views,
 )
@@ -16,6 +17,11 @@ urlpatterns = [
         "",
         dashboard_views.manga_dashboard,
         name="dashboard",
+    ),
+    path(
+        "sources/coverage/",
+        coverage_views.manga_source_coverage,
+        name="manga_source_coverage",
     ),
     path(
         "<int:mal_id>/sources/",

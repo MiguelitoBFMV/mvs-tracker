@@ -85,6 +85,9 @@ from mal_data.services.manga_source_management import (
     toggle_manga_source_active,
     unlink_manga_source,
 )
+from mal_data.services.manga_source_coverage import (
+    build_manga_source_coverage,
+)
 
 def build_anime_item(
     *,
@@ -3865,6 +3868,291 @@ class MangaSourceManagementServiceTests(
                 pk=self.manga_plus.pk
             )
             .exists()
+        )
+
+
+class MangaSourceCoverageServiceTests(
+    TestCase
+):
+    def create_manga(
+        self,
+        *,
+        mal_id,
+        title,
+        publication_status=(
+            "currently_publishing"
+        ),
+        list_status="reading",
+    ):
+        return MangaEntry.objects.create(
+            mal_id=mal_id,
+            title=title,
+            list_status=list_status,
+            publication_status=(
+                publication_status
+            ),
+        )
+
+    def create_source(
+        self,
+        manga,
+        *,
+        provider,
+        priority,
+        active=True,
+    ):
+        return MangaSourceLink.objects.create(
+            manga=manga,
+            provider=provider,
+            source_id=(
+                f"{provider}-{manga.mal_id}"
+            ),
+            source_title=manga.title,
+            source_url=(
+                "https://example.test/"
+                f"{provider}/{manga.mal_id}"
+            ),
+            priority=priority,
+            active=active,
+        )
+
+    def test_classifies_source_coverage(
+        self,
+    ):
+        ready = self.create_manga(
+            mal_id=9101,
+            title="Ready Manga",
+        )
+        single = self.create_manga(
+            mal_id=9102,
+            title="Single Manga",
+        )
+        disabled = self.create_manga(
+            mal_id=9103,
+            title="Disabled Manga",
+        )
+        missing = self.create_manga(
+            mal_id=9104,
+            title="Missing Manga",
+        )
+
+        self.create_source(
+            ready,
+            provider="manga_plus",
+            priority=1,
+        )
+        self.create_source(
+            ready,
+            provider="weeb_central",
+            priority=2,
+        )
+        self.create_source(
+            single,
+            provider="weeb_central",
+            priority=1,
+        )
+        self.create_source(
+            disabled,
+            provider="weeb_central",
+            priority=1,
+            active=False,
+        )
+
+        coverage = (
+            build_manga_source_coverage()
+        )
+
+        self.assertEqual(
+            coverage["summary"],
+            {
+                "targets": 4,
+                "ready": 1,
+                "single_source": 1,
+                "disabled": 1,
+                "needs_setup": 1,
+            },
+        )
+
+        states = [
+            row["coverage_state"]
+            for row in coverage["rows"]
+        ]
+
+        self.assertEqual(
+            states,
+            [
+                "needs_setup",
+                "disabled",
+                "single_source",
+                "ready",
+            ],
+        )
+
+        ready_row = next(
+            row
+            for row in coverage["rows"]
+            if row["manga"] == ready
+        )
+
+        self.assertEqual(
+            ready_row[
+                "primary_source"
+            ]["link"].provider,
+            "manga_plus",
+        )
+
+    def test_ignores_finished_and_inactive_manga(
+        self,
+    ):
+        self.create_manga(
+            mal_id=9201,
+            title="Finished Manga",
+            publication_status="finished",
+        )
+
+        self.create_manga(
+            mal_id=9202,
+            title="Plan Manga",
+            list_status="plan_to_read",
+        )
+
+        coverage = (
+            build_manga_source_coverage()
+        )
+
+        self.assertEqual(
+            coverage["summary"]["targets"],
+            0,
+        )
+
+
+class MangaSourceCoverageViewTests(
+    TestCase
+):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects
+            .create_user(
+                username=(
+                    "coverage-owner"
+                ),
+            )
+        )
+
+        cls.needs_setup = (
+            MangaEntry.objects.create(
+                mal_id=9301,
+                title="Needs Setup Manga",
+                list_status="reading",
+                publication_status=(
+                    "currently_publishing"
+                ),
+            )
+        )
+
+        cls.single_source = (
+            MangaEntry.objects.create(
+                mal_id=9302,
+                title="Single Source Manga",
+                list_status="reading",
+                publication_status=(
+                    "currently_publishing"
+                ),
+            )
+        )
+
+        MangaSourceLink.objects.create(
+            manga=cls.single_source,
+            provider="weeb_central",
+            source_id="WC-9302",
+            source_title=(
+                cls.single_source.title
+            ),
+            source_url=(
+                "https://example.test/"
+                "weeb-central/9302"
+            ),
+            priority=1,
+            active=True,
+        )
+
+    def get_url(self):
+        return reverse(
+            (
+                "manga_insights:"
+                "manga_source_coverage"
+            )
+        )
+
+    def test_anonymous_request_redirects_to_login(
+        self,
+    ):
+        response = self.client.get(
+            self.get_url()
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+    def test_owner_sees_coverage_queue(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            self.get_url()
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertContains(
+            response,
+            "Needs Setup Manga",
+        )
+        self.assertContains(
+            response,
+            "Single Source Manga",
+        )
+        self.assertContains(
+            response,
+            "Needs Setup",
+        )
+        self.assertContains(
+            response,
+            "Single Source",
+        )
+
+    def test_filter_limits_coverage_rows(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            self.get_url(),
+            {
+                "coverage": (
+                    "needs_setup"
+                ),
+            },
+        )
+
+        self.assertContains(
+            response,
+            "Needs Setup Manga",
+        )
+        self.assertNotContains(
+            response,
+            "Single Source Manga",
         )
 
 

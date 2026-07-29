@@ -1950,3 +1950,78 @@ button.danger-button:hover {
     background: rgba(239, 51, 64, 0.12);
 }
 
+.source-coverage-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(5, minmax(130px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.source-coverage-card {
+    display: grid;
+    gap: 8px;
+    padding: 16px;
+    border: 1px solid #3a4352;
+    background: #101419;
+}
+
+.source-coverage-label {
+    color: #9dbdff;
+    font-family: monospace;
+    font-size: 0.76rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.source-coverage-value {
+    color: #f4f6fb;
+    font-family: monospace;
+    font-size: 1.6rem;
+}
+
+.source-coverage-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.source-coverage-filter-active {
+    border-color: #8fb2ff;
+    background: rgba(
+        143,
+        178,
+        255,
+        0.1
+    );
+    color: #b8ceff;
+}
+
+.source-coverage-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 260px;
+}
+
+.source-coverage-cover {
+    width: 42px;
+    height: 60px;
+    border: 1px solid #3a4352;
+    object-fit: cover;
+}
+
+@media (max-width: 1000px) {
+    .source-coverage-grid {
+        grid-template-columns:
+            repeat(2, minmax(140px, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .source-coverage-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
