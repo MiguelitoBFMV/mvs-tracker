@@ -16,6 +16,13 @@ PROVIDER_LABELS = {
     "weeb_central": "Weeb Central",
 }
 
+OFFICIAL_PROVIDERS = {
+    "manga_plus",
+}
+
+
+def is_official_provider(provider):
+    return provider in OFFICIAL_PROVIDERS
 
 def get_provider_label(provider):
     return PROVIDER_LABELS.get(

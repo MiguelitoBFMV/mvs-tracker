@@ -399,6 +399,15 @@
                                                 </span>
                                             {% endif %}
 
+                                            {% if user.is_authenticated %}
+                                                <a
+                                                    class="secondary-button"
+                                                    href="{% url 'manga_insights:manga_source_management' manga.mal_id %}"
+                                                >
+                                                    Sources
+                                                </a>
+                                            {% endif %}
+
                                             <a
                                                 class="secondary-button"
                                                 href="https://myanimelist.net/manga/{{ manga.mal_id }}"

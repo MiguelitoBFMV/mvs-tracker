@@ -1,0 +1,596 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {{ manga.title }} Sources · MAL Insights
+{% endblock %}
+
+{% block content %}
+<header class="hero">
+    <div class="hero-title">
+        <h1>Manga Source Management</h1>
+        <p>
+            Manga: {{ manga.title|upper }} |
+            MAL ID: {{ manga.mal_id }} |
+            Sources: {{ source_count }}
+        </p>
+    </div>
+
+    <div class="hero-meta">
+        Access Mode: Owner<br>
+        Resolution: Priority Order
+    </div>
+</header>
+
+<section class="panel">
+    <header class="panel-header">
+        <h2 class="panel-title">
+            Manga Node
+        </h2>
+
+        <span class="panel-title">
+            {{ manga.personal_status_label }}
+        </span>
+    </header>
+
+    <div class="panel-body">
+        <article class="archive-title-cell">
+            {% if manga.main_picture_url %}
+                <img
+                    class="archive-cover"
+                    src="{{ manga.main_picture_url }}"
+                    alt="{{ manga.display_title }}"
+                >
+            {% else %}
+                <div
+                    class="
+                        archive-cover
+                        archive-cover-empty
+                    "
+                ></div>
+            {% endif %}
+
+            <div>
+                <h3 class="archive-title">
+                    {{ manga.display_title }}
+                </h3>
+
+                <p class="archive-meta">
+                    MAL ID: {{ manga.mal_id }} ·
+                    Chapters:
+                    {{ manga.num_chapters_read }}/
+                    {% if manga.num_chapters > 0 %}
+                        {{ manga.num_chapters }}
+                    {% else %}
+                        TBD
+                    {% endif %}
+                </p>
+
+                <div class="protocol-actions">
+                    <span class="status-pill">
+                        {{ manga.media_type_label }}
+                    </span>
+
+                    {% if manga.publication_status == "currently_publishing" %}
+                        <span
+                            class="
+                                status-pill
+                                status-live
+                            "
+                        >
+                            Publishing
+                        </span>
+                    {% elif manga.publication_status == "finished" %}
+                        <span
+                            class="
+                                status-pill
+                                status-completed
+                            "
+                        >
+                            Finished
+                        </span>
+                    {% elif manga.publication_status == "on_hiatus" %}
+                        <span
+                            class="
+                                status-pill
+                                status-on-hold
+                            "
+                        >
+                            On Hiatus
+                        </span>
+                    {% endif %}
+
+                    <a
+                        class="secondary-button"
+                        href="https://myanimelist.net/manga/{{ manga.mal_id }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        Open MAL
+                    </a>
+
+                    <a
+                        class="secondary-button"
+                        href="{% url 'manga_insights:dashboard' %}"
+                    >
+                        Dashboard
+                    </a>
+                </div>
+            </div>
+        </article>
+    </div>
+</section>
+
+<section class="panel">
+    <header class="panel-header">
+        <h2 class="panel-title">
+            Source Discovery
+        </h2>
+
+        <span class="panel-title">
+            Provider Search
+        </span>
+    </header>
+
+    <div class="panel-body">
+        <form
+            class="source-search-form"
+            method="get"
+            action="{% url 'manga_insights:manga_source_management' manga.mal_id %}"
+        >
+            <input
+                type="hidden"
+                name="search"
+                value="1"
+            >
+
+            <label class="source-form-field">
+                <span>Provider</span>
+
+                <select
+                    class="source-form-control"
+                    name="provider"
+                >
+                    {% for option in provider_options %}
+                        <option
+                            value="{{ option.value }}"
+                            {% if option.value == selected_provider %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ option.label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label class="source-form-field">
+                <span>
+                    Title, source ID or URL
+                </span>
+
+                <input
+                    class="source-form-control"
+                    type="text"
+                    name="query"
+                    value="{{ source_query }}"
+                    placeholder="Leave blank to use the MAL title"
+                >
+            </label>
+
+            <button
+                class="secondary-button source-search-button"
+                type="submit"
+            >
+                Search Sources
+            </button>
+        </form>
+
+        <p class="archive-meta source-search-help">
+            {{ provider_help }}
+        </p>
+
+        {% if search_error %}
+            <div class="source-search-error">
+                {{ search_error }}
+            </div>
+        {% endif %}
+
+        {% if search_result %}
+            <div class="source-result-summary">
+                Provider:
+                <strong>
+                    {{ selected_provider }}
+                </strong>
+                · Query:
+                <strong>
+                    {{ search_result.query }}
+                </strong>
+                · Results:
+                <strong>
+                    {{ search_result.candidates|length }}
+                </strong>
+            </div>
+
+            {% if search_result.candidates %}
+                <div class="table-shell">
+                    <table class="archive-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Candidate</th>
+                                <th>Source ID</th>
+                                <th>Match</th>
+                                <th>Source</th>
+                                <th>Link As</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {% for candidate in search_result.candidates %}
+                                <tr>
+                                    <td>
+                                        <span class="mono-value">
+                                            {{ candidate.position }}
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <div class="source-candidate">
+                                            {% if candidate.thumbnail_url %}
+                                                <img
+                                                    class="source-candidate-cover"
+                                                    src="{{ candidate.thumbnail_url }}"
+                                                    alt="{{ candidate.title }}"
+                                                >
+                                            {% endif %}
+
+                                            <strong>
+                                                {{ candidate.title }}
+                                            </strong>
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        <span class="mono-value">
+                                            {{ candidate.source_id }}
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <span class="mono-value">
+                                            {{ candidate.score }}
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <a
+                                            class="secondary-button compact-button"
+                                            href="{{ candidate.url }}"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            Open
+                                        </a>
+                                    </td>
+
+
+                                    <td>
+                                        <div class="source-save-actions">
+                                            <form
+                                                method="post"
+                                                action="{% url 'manga_insights:save_manga_source' manga.mal_id %}"
+                                            >
+                                                {% csrf_token %}
+
+                                                <input
+                                                    type="hidden"
+                                                    name="provider"
+                                                    value="{{ search_result.provider }}"
+                                                >
+                                                <input
+                                                    type="hidden"
+                                                    name="query"
+                                                    value="{{ search_result.query }}"
+                                                >
+                                                <input
+                                                    type="hidden"
+                                                    name="source_id"
+                                                    value="{{ candidate.source_id }}"
+                                                >
+                                                <input
+                                                    type="hidden"
+                                                    name="role"
+                                                    value="primary"
+                                                >
+
+                                                <button
+                                                    class="secondary-button compact-button"
+                                                    type="submit"
+                                                >
+                                                    Primary
+                                                </button>
+                                            </form>
+
+                                            <form
+                                                method="post"
+                                                action="{% url 'manga_insights:save_manga_source' manga.mal_id %}"
+                                            >
+                                                {% csrf_token %}
+
+                                                <input
+                                                    type="hidden"
+                                                    name="provider"
+                                                    value="{{ search_result.provider }}"
+                                                >
+                                                <input
+                                                    type="hidden"
+                                                    name="query"
+                                                    value="{{ search_result.query }}"
+                                                >
+                                                <input
+                                                    type="hidden"
+                                                    name="source_id"
+                                                    value="{{ candidate.source_id }}"
+                                                >
+                                                <input
+                                                    type="hidden"
+                                                    name="role"
+                                                    value="fallback"
+                                                >
+
+                                                <button
+                                                    class="secondary-button compact-button"
+                                                    type="submit"
+                                                >
+                                                    Fallback
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+            {% else %}
+                <p class="empty-state">
+                    No source candidates were found.
+                </p>
+            {% endif %}
+
+        {% elif search_requested and not search_error %}
+            <p class="empty-state">
+                No source candidates were found.
+            </p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="panel">
+    <header class="panel-header">
+        <h2 class="panel-title">
+            Source Registry
+        </h2>
+
+        <div class="source-registry-header-actions">
+            <span class="panel-title">
+                {{ source_count }} Linked
+            </span>
+
+            {% if source_count %}
+                <form
+                    method="post"
+                    action="{% url 'manga_insights:sync_manga_source_now' manga.mal_id %}"
+                >
+                    {% csrf_token %}
+
+                    <button
+                        class="secondary-button compact-button"
+                        type="submit"
+                    >
+                        Sync Now
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="panel-body">
+        {% if source_rows %}
+            <div class="table-shell">
+                <table class="archive-table">
+                    <thead>
+                        <tr>
+                            <th>Priority</th>
+                            <th>Provider</th>
+                            <th>Source Title</th>
+                            <th>State</th>
+                            <th>Authority</th>
+                            <th>Match</th>
+                            <th>Updated</th>
+                            <th>Source</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for row in source_rows %}
+                            {% with source=row.link %}
+                                <tr>
+                                    <td>
+                                        <span class="mono-value">
+                                            {{ source.priority }}
+                                        </span>
+
+                                        {% if row.role == "primary" %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-live
+                                                "
+                                            >
+                                                Primary
+                                            </span>
+
+                                        {% elif row.role == "fallback" %}
+                                            <span class="status-pill">
+                                                Fallback
+                                            </span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>
+                                        <strong>
+                                            {{ row.provider_label }}
+                                        </strong>
+
+                                        <div class="archive-meta">
+                                            {{ source.provider }}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        {{ source.source_title }}
+
+                                        <div class="archive-meta">
+                                            ID:
+                                            {{ source.source_id }}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        {% if source.active %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-completed
+                                                "
+                                            >
+                                                Active
+                                            </span>
+                                        {% else %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-dropped
+                                                "
+                                            >
+                                                Inactive
+                                            </span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>
+                                        {% if source.is_official %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-live
+                                                "
+                                            >
+                                                Official
+                                            </span>
+                                        {% else %}
+                                            <span class="status-pill">
+                                                External
+                                            </span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>
+                                        <span class="mono-value">
+                                            {{ source.match_score }}
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <span class="mono-value">
+                                            {{ source.updated_at|date:"d M Y H:i" }}
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <a
+                                            class="
+                                                secondary-button
+                                                compact-button
+                                            "
+                                            href="{{ source.source_url }}"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            Open
+                                        </a>
+                                    </td>
+
+                                    <td>
+                                        <div class="source-registry-actions">
+                                            {% if row.role != "primary" %}
+                                                <form
+                                                    method="post"
+                                                    action="{% url 'manga_insights:make_manga_source_primary' manga.mal_id row.link.pk %}"
+                                                >
+                                                    {% csrf_token %}
+
+                                                    <button
+                                                        class="secondary-button compact-button"
+                                                        type="submit"
+                                                    >
+                                                        Make Primary
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+
+                                            <form
+                                                method="post"
+                                                action="{% url 'manga_insights:toggle_manga_source_active' manga.mal_id row.link.pk %}"
+                                            >
+                                                {% csrf_token %}
+
+                                                <button
+                                                    class="secondary-button compact-button"
+                                                    type="submit"
+                                                >
+                                                    {% if row.link.active %}
+                                                        Deactivate
+                                                    {% else %}
+                                                        Activate
+                                                    {% endif %}
+                                                </button>
+                                            </form>
+
+                                            <form
+                                                method="post"
+                                                action="{% url 'manga_insights:unlink_manga_source' manga.mal_id row.link.pk %}"
+                                            >
+                                                {% csrf_token %}
+
+                                                <button
+                                                    class="
+                                                        secondary-button
+                                                        compact-button
+                                                        source-danger-button
+                                                    "
+                                                    type="submit"
+                                                >
+                                                    Unlink
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endwith %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="empty-state">
+                No external sources have been
+                linked to this manga yet.
+            </p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
