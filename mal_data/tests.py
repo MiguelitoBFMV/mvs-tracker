@@ -1949,6 +1949,129 @@ class MangaCanonicalChapterSignalTests(
             ],
         )
 
+    def test_newer_live_chapter_precedes_older(
+        self,
+    ):
+        older_manga = (
+            MangaEntry.objects.create(
+                mal_id=6107,
+                title="Older Weekly Manga",
+                list_status="reading",
+                publication_status=(
+                    "currently_publishing"
+                ),
+                num_chapters_read=10,
+            )
+        )
+
+        newer_manga = (
+            MangaEntry.objects.create(
+                mal_id=6108,
+                title="Newer Weekly Manga",
+                list_status="reading",
+                publication_status=(
+                    "currently_publishing"
+                ),
+                num_chapters_read=10,
+            )
+        )
+
+        older_signal = (
+            MangaChapterSignal.objects.create(
+                manga=older_manga,
+                mal_id=older_manga.mal_id,
+                latest_available_chapter=20,
+                availability_source_type=(
+                    "external"
+                ),
+                availability_source_name=(
+                    "Test Source"
+                ),
+                raw_data={
+                    "external_source": {
+                        "published_at": (
+                            "2026-07-20"
+                            "T12:00:00+00:00"
+                        ),
+                    },
+                },
+            )
+        )
+
+        newer_signal = (
+            MangaChapterSignal.objects.create(
+                manga=newer_manga,
+                mal_id=newer_manga.mal_id,
+                latest_available_chapter=11,
+                availability_source_type=(
+                    "external"
+                ),
+                availability_source_name=(
+                    "Test Source"
+                ),
+                raw_data={
+                    "external_source": {
+                        "published_at": (
+                            "2026-07-27"
+                            "T12:00:00+00:00"
+                        ),
+                    },
+                },
+            )
+        )
+
+        signals = (
+            get_actionable_chapter_signals()
+        )
+
+        self.assertEqual(
+            signals,
+            [
+                newer_signal,
+                older_signal,
+            ],
+        )
+
+    def test_invalid_published_at_does_not_break_order(
+        self,
+    ):
+        manga = MangaEntry.objects.create(
+            mal_id=6109,
+            title="Invalid Date Manga",
+            list_status="reading",
+            publication_status=(
+                "currently_publishing"
+            ),
+            num_chapters_read=10,
+        )
+
+        signal = (
+            MangaChapterSignal.objects.create(
+                manga=manga,
+                mal_id=manga.mal_id,
+                latest_available_chapter=11,
+                availability_source_type=(
+                    "external"
+                ),
+                raw_data={
+                    "external_source": {
+                        "published_at": (
+                            "invalid-date"
+                        ),
+                    },
+                },
+            )
+        )
+
+        signals = (
+            get_actionable_chapter_signals()
+        )
+
+        self.assertEqual(
+            signals,
+            [signal],
+        )
+
 
 class MangaDashboardMirrorTests(TestCase):
     @classmethod

@@ -1,5 +1,13 @@
+from datetime import (
+    datetime,
+    timezone as datetime_timezone,
+)
+
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.dateparse import (
+    parse_datetime,
+)
 
 from mal_data.models import (
     MangaChapterSignal,
@@ -130,6 +138,51 @@ def sync_canonical_chapter_signals():
     }
 
 
+def get_signal_published_at(signal):
+    external_source = (
+        (signal.raw_data or {})
+        .get(
+            "external_source",
+            {},
+        )
+    )
+
+    raw_published_at = (
+        external_source.get(
+            "published_at"
+        )
+    )
+
+    if not raw_published_at:
+        return None
+
+    if isinstance(
+        raw_published_at,
+        datetime,
+    ):
+        published_at = raw_published_at
+
+    else:
+        published_at = parse_datetime(
+            str(raw_published_at)
+        )
+
+    if published_at is None:
+        return None
+
+    if timezone.is_naive(
+        published_at
+    ):
+        published_at = (
+            timezone.make_aware(
+                published_at,
+                datetime_timezone.utc,
+            )
+        )
+
+    return published_at
+
+
 def chapter_signal_priority(signal):
     manga = signal.manga
 
@@ -166,16 +219,24 @@ def chapter_signal_priority(signal):
     else:
         group = 2
 
-    updated_sort = (
-        manga.updated_at_mal.timestamp()
-        if manga.updated_at_mal
+    published_at = (
+        get_signal_published_at(
+            signal
+        )
+    )
+
+    published_sort = (
+        published_at.timestamp()
+        if published_at
         else 0
     )
 
     return (
         group,
-        -updated_sort,
-        -float(signal.pending_chapters),
+        -published_sort,
+        -float(
+            signal.pending_chapters
+        ),
         manga.title.lower(),
     )
 
