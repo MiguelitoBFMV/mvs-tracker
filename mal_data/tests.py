@@ -91,6 +91,13 @@ from mal_data.services.manga_source_coverage import (
 from mal_data.services.manga_sources.manga_fire import (
     MangaFireClient,
 )
+from mal_data.services.manga_sources.mangas_in import (
+    MangasInClient,
+)
+from mal_data.services.manga_sources.mangabat import (
+    MangabatClient,
+)
+
 
 def build_anime_item(
     *,
@@ -4574,3 +4581,383 @@ class MangaFireClientTests(
             client.search(
                 "Kagurabachi"
             )
+
+
+class MangasInClientTests(SimpleTestCase):
+    def build_client(
+        self,
+        *,
+        json_payload=None,
+        html="",
+        status_code=200,
+    ):
+        session = Mock()
+        session.headers = {}
+
+        response = Mock()
+        response.status_code = status_code
+        response.text = html
+        response.json.return_value = json_payload
+
+        session.get.return_value = response
+
+        return MangasInClient(session=session), session
+
+    def test_search_parses_suggestions(self):
+        client, session = self.build_client(
+            json_payload=[
+                {
+                    "value": "Kanojo, Okarishimasu",
+                    "data": "kanojo-okarishimasu",
+                },
+            ],
+        )
+
+        candidates = client.search(
+            "Kanojo Okarishimasu"
+        )
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(
+            candidates[0].source_id,
+            "kanojo-okarishimasu",
+        )
+        self.assertEqual(
+            candidates[0].title,
+            "Kanojo, Okarishimasu",
+        )
+        self.assertEqual(
+            candidates[0].url,
+            (
+                "https://m440.in/manga/"
+                "kanojo-okarishimasu"
+            ),
+        )
+
+        session.get.assert_called_once_with(
+            "https://m440.in/search",
+            params={
+                "q": "Kanojo Okarishimasu",
+            },
+            timeout=30,
+        )
+
+    def test_extracts_current_and_old_urls(self):
+        self.assertEqual(
+            MangasInClient.extract_title_id(
+                "https://m440.in/manga/apotheosis"
+            ),
+            "apotheosis",
+        )
+        self.assertEqual(
+            MangasInClient.extract_title_id(
+                "https://mangas.in/manga/apotheosis"
+            ),
+            "apotheosis",
+        )
+
+    def test_direct_slug_builds_candidate(self):
+        client, session = self.build_client(
+            html=(
+                "<html><body>"
+                "<div class='manga-name'>"
+                "<h1>Apotheosis</h1>"
+                "</div>"
+                "</body></html>"
+            ),
+        )
+
+        candidates = client.search("apotheosis")
+
+        self.assertEqual(
+            candidates[0].source_id,
+            "apotheosis",
+        )
+        self.assertEqual(
+            candidates[0].title,
+            "Apotheosis",
+        )
+
+        session.get.assert_called_once_with(
+            "https://m440.in/manga/apotheosis",
+            params=None,
+            timeout=30,
+        )
+
+    def test_latest_chapter_uses_summary_links(self):
+        client, _session = self.build_client(
+            html=(
+                "<html><body>"
+                "<a href='/manga/apotheosis/1-start'>"
+                "Capítulo 1"
+                "</a>"
+                "<a href='/manga/apotheosis/762-latest'>"
+                "Capítulo 762"
+                "</a>"
+                "</body></html>"
+            ),
+        )
+
+        latest = client.fetch_latest_chapter(
+            "https://m440.in/manga/apotheosis"
+        )
+
+        self.assertEqual(str(latest.number), "762")
+        self.assertEqual(
+            latest.source_id,
+            "762-latest",
+        )
+        self.assertEqual(
+            latest.url,
+            (
+                "https://m440.in/manga/"
+                "apotheosis/762-latest"
+            ),
+        )
+        self.assertIsNone(latest.published_at)
+
+    def test_http_429_has_controlled_error(self):
+        client, _session = self.build_client(
+            status_code=429,
+        )
+
+        with self.assertRaisesMessage(
+            RuntimeError,
+            "Mangas.in rate limit reached",
+        ):
+            client.search(
+                "Kanojo Okarishimasu"
+            )
+
+
+
+class MangabatClientTests(
+    SimpleTestCase
+):
+    def build_client(
+        self,
+        *,
+        html="",
+        json_payload=None,
+        status_code=200,
+    ):
+        session = Mock()
+        session.headers = {}
+
+        response = Mock()
+        response.status_code = (
+            status_code
+        )
+        response.text = html
+        response.json.return_value = (
+            json_payload
+        )
+
+        session.get.return_value = (
+            response
+        )
+
+        return (
+            MangabatClient(
+                session=session
+            ),
+            session,
+        )
+
+    def test_normalizes_search_query(
+        self,
+    ):
+        self.assertEqual(
+            (
+                MangabatClient
+                .normalize_search_query(
+                    (
+                        "Yankee JK "
+                        "Kuzuhana-chan"
+                    )
+                )
+            ),
+            "yankee_jk_kuzuhana_chan",
+        )
+
+    def test_search_parses_candidates(
+        self,
+    ):
+        client, session = (
+            self.build_client(
+                html=(
+                    "<div "
+                    "class='panel_story_list'>"
+                    "<div class='story_item'>"
+                    "<h3><a href='/manga/"
+                    "dream-jumbo-girl'>"
+                    "Dream Jumbo Girl"
+                    "</a></h3>"
+                    "<img src='/covers/"
+                    "dream.jpg'>"
+                    "</div>"
+                    "</div>"
+                ),
+            )
+        )
+
+        candidates = client.search(
+            "Dream Jumbo Girl"
+        )
+
+        self.assertEqual(
+            len(candidates),
+            1,
+        )
+        self.assertEqual(
+            candidates[0].source_id,
+            "dream-jumbo-girl",
+        )
+        self.assertEqual(
+            candidates[0].title,
+            "Dream Jumbo Girl",
+        )
+        self.assertEqual(
+            candidates[0].url,
+            (
+                "https://www.mangabats.com/"
+                "manga/dream-jumbo-girl"
+            ),
+        )
+
+        session.get.assert_called_once_with(
+            (
+                "https://www.mangabats.com/"
+                "search/story/"
+                "dream_jumbo_girl"
+            ),
+            params={
+                "page": 1,
+            },
+            timeout=30,
+        )
+
+    def test_extracts_series_slug(
+        self,
+    ):
+        self.assertEqual(
+            MangabatClient.extract_title_id(
+                (
+                    "https://www.mangabats.com/"
+                    "manga/dream-jumbo-girl"
+                )
+            ),
+            "dream-jumbo-girl",
+        )
+
+        self.assertEqual(
+            MangabatClient.extract_title_id(
+                "dream-jumbo-girl"
+            ),
+            "dream-jumbo-girl",
+        )
+
+    def test_latest_chapter_uses_api_data(
+        self,
+    ):
+        client, session = (
+            self.build_client(
+                json_payload={
+                    "success": True,
+                    "data": {
+                        "chapters": [
+                            {
+                                "chapter_name": (
+                                    "Chapter 51"
+                                ),
+                                "chapter_slug": (
+                                    "chapter-51"
+                                ),
+                                "chapter_num": 51,
+                                "updated_at": (
+                                    "2026-07-20"
+                                    "T12:00:00Z"
+                                ),
+                            },
+                            {
+                                "chapter_name": (
+                                    "Chapter 52"
+                                ),
+                                "chapter_slug": (
+                                    "chapter-52"
+                                ),
+                                "chapter_num": 52,
+                                "updated_at": (
+                                    "2026-07-27"
+                                    "T12:00:00Z"
+                                ),
+                            },
+                        ],
+                    },
+                },
+            )
+        )
+
+        latest = (
+            client.fetch_latest_chapter(
+                (
+                    "https://www.mangabats.com/"
+                    "manga/dream-jumbo-girl"
+                )
+            )
+        )
+
+        self.assertEqual(
+            latest.source_id,
+            "chapter-52",
+        )
+        self.assertEqual(
+            str(latest.number),
+            "52",
+        )
+        self.assertEqual(
+            latest.url,
+            (
+                "https://www.mangabats.com/"
+                "manga/dream-jumbo-girl/"
+                "chapter-52"
+            ),
+        )
+        self.assertEqual(
+            latest.published_at.isoformat(),
+            "2026-07-27T12:00:00+00:00",
+        )
+
+        session.get.assert_called_once_with(
+            (
+                "https://www.mangabats.com/"
+                "api/manga/"
+                "dream-jumbo-girl/"
+                "chapters"
+            ),
+            params={
+                "limit": -1,
+            },
+            timeout=30,
+        )
+
+    def test_http_403_has_controlled_error(
+        self,
+    ):
+        client, _session = (
+            self.build_client(
+                status_code=403,
+            )
+        )
+
+        with self.assertRaisesMessage(
+            RuntimeError,
+            (
+                "Mangabat rejected "
+                "the request"
+            ),
+        ):
+            client.search(
+                "Dream Jumbo Girl"
+            )
+

@@ -1,4 +1,6 @@
 import base64
+import threading
+import time
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -179,8 +181,12 @@ class MangaFireClient:
     BASE_URL = "https://mangafire.to"
     TITLES_API_URL = f"{BASE_URL}/api/titles"
 
+    REQUEST_INTERVAL_SECONDS = 1.05
     REQUEST_TIMEOUT_SECONDS = 30
     SEARCH_LIMIT = 30
+
+    _request_lock = threading.Lock()
+    _last_request_started_at = None
     CHAPTER_PAGE_LIMIT = 200
     MAX_CHAPTER_PAGES = 100
 
@@ -188,6 +194,9 @@ class MangaFireClient:
         self.session = (
             session
             or requests.Session()
+        )
+        self._enforce_rate_limit = (
+            session is None
         )
 
         self.session.headers.update(
@@ -213,12 +222,39 @@ class MangaFireClient:
             }
         )
 
+    @classmethod
+    def _wait_for_rate_limit(cls):
+        with cls._request_lock:
+            if (
+                cls._last_request_started_at
+                is not None
+            ):
+                elapsed = (
+                    time.monotonic()
+                    - cls._last_request_started_at
+                )
+
+                remaining = (
+                    cls.REQUEST_INTERVAL_SECONDS
+                    - elapsed
+                )
+
+                if remaining > 0:
+                    time.sleep(remaining)
+
+            cls._last_request_started_at = (
+                time.monotonic()
+            )
+
     def _get_json(
         self,
         url,
         *,
         params=None,
     ):
+        if self._enforce_rate_limit:
+            self._wait_for_rate_limit()
+
         signed_params = (
             MangaFireVrfSigner
             .sign_api_request(
@@ -236,12 +272,37 @@ class MangaFireClient:
         )
 
         if response.status_code == 403:
-            raise RuntimeError(
-                "MangaFire rejected the "
-                "request (HTTP 403). Its "
-                "access requirements may "
-                "have changed."
+            raw_body = getattr(
+                response,
+                "text",
+                "",
             )
+
+            response_details = (
+                " ".join(
+                    raw_body.split()
+                )[:180]
+                if isinstance(
+                    raw_body,
+                    str,
+                )
+                else ""
+            )
+
+            message = (
+                "MangaFire rejected the "
+                "request (HTTP 403). This "
+                "can be a temporary provider "
+                "or IP block."
+            )
+
+            if response_details:
+                message = (
+                    f"{message} Response: "
+                    f"{response_details}"
+                )
+
+            raise RuntimeError(message)
 
         if response.status_code == 429:
             raise RuntimeError(

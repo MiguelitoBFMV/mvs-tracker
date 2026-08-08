@@ -7,18 +7,27 @@ from mal_data.services.manga_sources.manga_plus import (
 from mal_data.services.manga_sources.weeb_central import (
     WeebCentralClient,
 )
-
+from mal_data.services.manga_sources.mangas_in import (
+    MangasInClient,
+)
+from mal_data.services.manga_sources.mangabat import (
+    MangabatClient,
+)
 
 PROVIDER_CLIENTS = {
     "manga_plus": MangaPlusClient,
     "weeb_central": WeebCentralClient,
     "manga_fire": MangaFireClient,
+    "mangas_in": MangasInClient,
+    "mangabat": MangabatClient,
 }
 
 PROVIDER_LABELS = {
     "manga_plus": "MANGA Plus",
     "weeb_central": "Weeb Central",
     "manga_fire": "MangaFire",
+    "mangas_in": "Mangas.in",
+    "mangabat": "Mangabat",
 }
 
 OFFICIAL_PROVIDERS = {
