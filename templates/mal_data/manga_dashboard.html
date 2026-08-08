@@ -214,6 +214,15 @@
             <header class="panel-header">
                 <h2>Chapter Signals</h2>
 
+                {% if user.is_authenticated %}
+                    <a
+                        class="secondary-button compact-button"
+                        href="{% url 'manga_insights:manga_source_coverage' %}"
+                    >
+                        Source Coverage
+                    </a>
+                {% endif %}
+
                 <div class="episode-signal-actions">
                     {% if user.is_authenticated %}
                         <form
@@ -397,6 +406,15 @@
                                                 >
                                                     On Hiatus
                                                 </span>
+                                            {% endif %}
+
+                                            {% if user.is_authenticated %}
+                                                <a
+                                                    class="secondary-button"
+                                                    href="{% url 'manga_insights:manga_source_management' manga.mal_id %}"
+                                                >
+                                                    Sources
+                                                </a>
                                             {% endif %}
 
                                             <a

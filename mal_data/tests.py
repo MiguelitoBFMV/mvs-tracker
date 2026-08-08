@@ -70,11 +70,34 @@ from mal_data.services.manga_source_signal_sync import (
 from mal_data.services.manga_sources.manga_plus import (
     MangaPlusClient,
 )
-
 from mal_data.services.manga_source_resolver import (
     MangaSourceFetchError,
     fetch_latest_saved_chapter,
 )
+from mal_data.services.manga_source_search import (
+    get_candidate_by_source_id,
+    save_manga_source_candidate,
+    search_manga_sources,
+    save_manga_source_candidate_with_role
+)
+from mal_data.services.manga_source_management import (
+    make_manga_source_primary,
+    toggle_manga_source_active,
+    unlink_manga_source,
+)
+from mal_data.services.manga_source_coverage import (
+    build_manga_source_coverage,
+)
+from mal_data.services.manga_sources.manga_fire import (
+    MangaFireClient,
+)
+from mal_data.services.manga_sources.mangas_in import (
+    MangasInClient,
+)
+from mal_data.services.manga_sources.mangabat import (
+    MangabatClient,
+)
+
 
 def build_anime_item(
     *,
@@ -1936,6 +1959,129 @@ class MangaCanonicalChapterSignalTests(
             ],
         )
 
+    def test_newer_live_chapter_precedes_older(
+        self,
+    ):
+        older_manga = (
+            MangaEntry.objects.create(
+                mal_id=6107,
+                title="Older Weekly Manga",
+                list_status="reading",
+                publication_status=(
+                    "currently_publishing"
+                ),
+                num_chapters_read=10,
+            )
+        )
+
+        newer_manga = (
+            MangaEntry.objects.create(
+                mal_id=6108,
+                title="Newer Weekly Manga",
+                list_status="reading",
+                publication_status=(
+                    "currently_publishing"
+                ),
+                num_chapters_read=10,
+            )
+        )
+
+        older_signal = (
+            MangaChapterSignal.objects.create(
+                manga=older_manga,
+                mal_id=older_manga.mal_id,
+                latest_available_chapter=20,
+                availability_source_type=(
+                    "external"
+                ),
+                availability_source_name=(
+                    "Test Source"
+                ),
+                raw_data={
+                    "external_source": {
+                        "published_at": (
+                            "2026-07-20"
+                            "T12:00:00+00:00"
+                        ),
+                    },
+                },
+            )
+        )
+
+        newer_signal = (
+            MangaChapterSignal.objects.create(
+                manga=newer_manga,
+                mal_id=newer_manga.mal_id,
+                latest_available_chapter=11,
+                availability_source_type=(
+                    "external"
+                ),
+                availability_source_name=(
+                    "Test Source"
+                ),
+                raw_data={
+                    "external_source": {
+                        "published_at": (
+                            "2026-07-27"
+                            "T12:00:00+00:00"
+                        ),
+                    },
+                },
+            )
+        )
+
+        signals = (
+            get_actionable_chapter_signals()
+        )
+
+        self.assertEqual(
+            signals,
+            [
+                newer_signal,
+                older_signal,
+            ],
+        )
+
+    def test_invalid_published_at_does_not_break_order(
+        self,
+    ):
+        manga = MangaEntry.objects.create(
+            mal_id=6109,
+            title="Invalid Date Manga",
+            list_status="reading",
+            publication_status=(
+                "currently_publishing"
+            ),
+            num_chapters_read=10,
+        )
+
+        signal = (
+            MangaChapterSignal.objects.create(
+                manga=manga,
+                mal_id=manga.mal_id,
+                latest_available_chapter=11,
+                availability_source_type=(
+                    "external"
+                ),
+                raw_data={
+                    "external_source": {
+                        "published_at": (
+                            "invalid-date"
+                        ),
+                    },
+                },
+            )
+        )
+
+        signals = (
+            get_actionable_chapter_signals()
+        )
+
+        self.assertEqual(
+            signals,
+            [signal],
+        )
+
 
 class MangaDashboardMirrorTests(TestCase):
     @classmethod
@@ -2949,4 +3095,1869 @@ class MangaSourceFallbackTests(
                 "manga_plus"
             )
 
+
+class MangaSourceManagementViewTests(
+    TestCase
+):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects
+            .create_user(
+                username=(
+                    "manga-source-owner"
+                ),
+            )
+        )
+
+        cls.manga = MangaEntry.objects.create(
+            mal_id=162479,
+            title="Kagurabachi",
+            title_japanese="カグラバチ",
+            list_status="reading",
+            publication_status=(
+                "currently_publishing"
+            ),
+            num_chapters_read=102,
+        )
+
+        MangaSourceLink.objects.create(
+            manga=cls.manga,
+            provider="weeb_central",
+            source_id="SOURCE123",
+            source_title="Kagurabachi",
+            source_url=(
+                "https://weebcentral.com/"
+                "series/SOURCE123/"
+                "Kagurabachi"
+            ),
+            priority=2,
+            active=True,
+        )
+
+        MangaSourceLink.objects.create(
+            manga=cls.manga,
+            provider="manga_plus",
+            source_id="100274",
+            source_title="Kagurabachi",
+            source_url=(
+                "https://"
+                "mangaplus.shueisha.co.jp/"
+                "titles/100274"
+            ),
+            priority=1,
+            active=True,
+            is_official=True,
+        )
+
+    def get_url(self):
+        return reverse(
+            "manga_insights:"
+            "manga_source_management",
+            kwargs={
+                "mal_id": self.manga.mal_id,
+            },
+        )
+
+    def test_anonymous_request_redirects_to_login(
+        self,
+    ):
+        response = self.client.get(
+            self.get_url()
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        self.assertTrue(
+            response.url.startswith(
+                f"{reverse('login')}?next="
+            )
+        )
+
+    def test_owner_sees_sources_in_priority_order(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            self.get_url()
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertEqual(
+            response.context["manga"],
+            self.manga,
+        )
+
+        providers = [
+            row["link"].provider
+            for row in response.context[
+                "source_rows"
+            ]
+        ]
+
+        self.assertEqual(
+            providers,
+            [
+                "manga_plus",
+                "weeb_central",
+            ],
+        )
+
+        self.assertContains(
+            response,
+            "MANGA Plus",
+        )
+        self.assertContains(
+            response,
+            "Weeb Central",
+        )
+        self.assertContains(
+            response,
+            "Primary",
+        )
+        self.assertContains(
+            response,
+            "Fallback",
+        )
+
+    def test_unknown_manga_returns_404(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            reverse(
+                "manga_insights:"
+                "manga_source_management",
+                kwargs={
+                    "mal_id": 999999,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+    @patch(
+        (
+            "mal_data.web.manga_sources."
+            "search_manga_sources"
+        )
+    )
+    def test_owner_can_search_source_candidates(
+        self,
+        mock_search,
+    ):
+        mock_search.return_value = (
+            SimpleNamespace(
+                provider="manga_plus",
+                query="100274",
+                candidates=(
+                    SimpleNamespace(
+                        position=1,
+                        score=Decimal("100.00"),
+                        source_id="100274",
+                        title="Kagurabachi",
+                        url=(
+                            "https://"
+                            "mangaplus.shueisha.co.jp/"
+                            "titles/100274"
+                        ),
+                        thumbnail_url=None,
+                    ),
+                ),
+            )
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            self.get_url(),
+            {
+                "search": "1",
+                "provider": "manga_plus",
+                "query": "100274",
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        mock_search.assert_called_once_with(
+            self.manga,
+            provider="manga_plus",
+            query="100274",
+            limit=10,
+        )
+
+        self.assertContains(
+            response,
+            "Search Sources",
+        )
+        self.assertContains(
+            response,
+            "Kagurabachi",
+        )
+        self.assertContains(
+            response,
+            "Primary",
+        )
+        self.assertContains(
+            response,
+            "Fallback",
+        )
+
+
+    @patch(
+        (
+            "mal_data.web.manga_sources."
+            "save_manga_source_candidate_with_role"
+        )
+    )
+    @patch(
+        (
+            "mal_data.web.manga_sources."
+            "search_manga_sources"
+        )
+    )
+    def test_owner_can_save_primary_source(
+        self,
+        mock_search,
+        mock_save,
+    ):
+        candidate = SimpleNamespace(
+            position=1,
+            score=Decimal("100.00"),
+            source_id="100274",
+            title="Kagurabachi",
+            url=(
+                "https://"
+                "mangaplus.shueisha.co.jp/"
+                "titles/100274"
+            ),
+            thumbnail_url=None,
+        )
+
+        mock_search.return_value = (
+            SimpleNamespace(
+                provider="manga_plus",
+                query="100274",
+                candidates=(candidate,),
+            )
+        )
+
+        source_link = (
+            MangaSourceLink.objects.get(
+                manga=self.manga,
+                provider="manga_plus",
+            )
+        )
+
+        mock_save.return_value = (
+            source_link,
+            False,
+        )
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                (
+                    "manga_insights:"
+                    "save_manga_source"
+                ),
+                kwargs={
+                    "mal_id": self.manga.mal_id,
+                },
+            ),
+            {
+                "provider": "manga_plus",
+                "query": "100274",
+                "source_id": "100274",
+                "role": "primary",
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        mock_search.assert_called_once_with(
+            self.manga,
+            provider="manga_plus",
+            query="100274",
+            limit=32,
+        )
+
+        mock_save.assert_called_once_with(
+            self.manga,
+            provider="manga_plus",
+            candidate=candidate,
+            search_query="100274",
+            role="primary",
+        )
+
+    def test_owner_can_make_fallback_primary(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        weeb_source = (
+            MangaSourceLink.objects.get(
+                manga=self.manga,
+                provider="weeb_central",
+            )
+        )
+
+        response = self.client.post(
+            reverse(
+                (
+                    "manga_insights:"
+                    "make_manga_source_primary"
+                ),
+                kwargs={
+                    "mal_id": self.manga.mal_id,
+                    "link_id": weeb_source.pk,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        weeb_source.refresh_from_db()
+
+        self.assertEqual(
+            weeb_source.priority,
+            1,
+        )
+
+
+    def test_owner_can_toggle_source(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        source_link = (
+            MangaSourceLink.objects.get(
+                manga=self.manga,
+                provider="manga_plus",
+            )
+        )
+
+        self.client.post(
+            reverse(
+                (
+                    "manga_insights:"
+                    "toggle_manga_source_active"
+                ),
+                kwargs={
+                    "mal_id": self.manga.mal_id,
+                    "link_id": source_link.pk,
+                },
+            )
+        )
+
+        source_link.refresh_from_db()
+
+        self.assertFalse(
+            source_link.active
+        )
+
+
+    def test_owner_can_unlink_source(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        source_link = (
+            MangaSourceLink.objects.get(
+                manga=self.manga,
+                provider="manga_plus",
+            )
+        )
+
+        response = self.client.post(
+            reverse(
+                (
+                    "manga_insights:"
+                    "unlink_manga_source"
+                ),
+                kwargs={
+                    "mal_id": self.manga.mal_id,
+                    "link_id": source_link.pk,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        self.assertFalse(
+            MangaSourceLink.objects
+            .filter(
+                pk=source_link.pk
+            )
+            .exists()
+        )
+
+
+    @patch(
+        (
+            "mal_data.web.manga_sources."
+            "sync_external_chapter_signal"
+        )
+    )
+    def test_owner_can_sync_source_now(
+        self,
+        mock_sync,
+    ):
+        source_link = (
+            MangaSourceLink.objects.get(
+                manga=self.manga,
+                provider="manga_plus",
+            )
+        )
+
+        mock_sync.return_value = {
+            "source_link": source_link,
+            "latest_chapter": (
+                SimpleNamespace(
+                    number=Decimal("126")
+                )
+            ),
+            "signal": SimpleNamespace(
+                pending_chapters=Decimal("24")
+            ),
+            "used_fallback": False,
+        }
+
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.post(
+            reverse(
+                (
+                    "manga_insights:"
+                    "sync_manga_source_now"
+                ),
+                kwargs={
+                    "mal_id": self.manga.mal_id,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        mock_sync.assert_called_once_with(
+            self.manga
+        )
+
+
+class MangaSourceSearchServiceTests(
+    TestCase
+):
+    def setUp(self):
+        self.manga = MangaEntry.objects.create(
+            mal_id=162479,
+            title="Kagurabachi",
+            title_japanese="カグラバチ",
+            list_status="reading",
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_search."
+            "build_provider_client"
+        )
+    )
+    def test_direct_url_scores_against_manga_title(
+        self,
+        mock_build_client,
+    ):
+        client = Mock()
+        client.search.return_value = [
+            SimpleNamespace(
+                source_id="100274",
+                title="Kagurabachi",
+                url=(
+                    "https://"
+                    "mangaplus.shueisha.co.jp/"
+                    "titles/100274"
+                ),
+                thumbnail_url=None,
+            )
+        ]
+
+        mock_build_client.return_value = (
+            client
+        )
+
+        result = search_manga_sources(
+            self.manga,
+            provider="manga_plus",
+            query=(
+                "https://"
+                "mangaplus.shueisha.co.jp/"
+                "titles/100274"
+            ),
+        )
+
+        self.assertEqual(
+            len(result.candidates),
+            1,
+        )
+        self.assertEqual(
+            result.candidates[0].score,
+            Decimal("100.00"),
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_search."
+            "build_provider_client"
+        )
+    )
+    def test_candidates_are_ranked(
+        self,
+        mock_build_client,
+    ):
+        client = Mock()
+        client.search.return_value = [
+            SimpleNamespace(
+                source_id="WRONG",
+                title="Blue Lock",
+                url=(
+                    "https://example.test/"
+                    "wrong"
+                ),
+                thumbnail_url=None,
+            ),
+            SimpleNamespace(
+                source_id="RIGHT",
+                title="Kagurabachi",
+                url=(
+                    "https://example.test/"
+                    "right"
+                ),
+                thumbnail_url=None,
+            ),
+        ]
+
+        mock_build_client.return_value = (
+            client
+        )
+
+        result = search_manga_sources(
+            self.manga,
+            provider="weeb_central",
+        )
+
+        self.assertEqual(
+            result.candidates[0].source_id,
+            "RIGHT",
+        )
+        self.assertEqual(
+            result.candidates[0].position,
+            1,
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_search."
+            "build_provider_client"
+        )
+    )
+    def test_saving_manga_plus_marks_official(
+        self,
+        mock_build_client,
+    ):
+        client = Mock()
+        client.search.return_value = [
+            SimpleNamespace(
+                source_id="100274",
+                title="Kagurabachi",
+                url=(
+                    "https://"
+                    "mangaplus.shueisha.co.jp/"
+                    "titles/100274"
+                ),
+                thumbnail_url=None,
+            )
+        ]
+
+        mock_build_client.return_value = (
+            client
+        )
+
+        result = search_manga_sources(
+            self.manga,
+            provider="manga_plus",
+            query="100274",
+        )
+
+        candidate = (
+            get_candidate_by_source_id(
+                result,
+                "100274",
+            )
+        )
+
+        source_link, created = (
+            save_manga_source_candidate(
+                self.manga,
+                provider="manga_plus",
+                candidate=candidate,
+                search_query=result.query,
+                priority=1,
+            )
+        )
+
+        self.assertTrue(created)
+        self.assertTrue(
+            source_link.is_official
+        )
+        self.assertEqual(
+            source_link.priority,
+            1,
+        )
+        self.assertEqual(
+            source_link.match_score,
+            Decimal("100.00"),
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_search."
+            "build_provider_client"
+        )
+    )
+    def test_unspecified_priority_is_preserved(
+        self,
+        mock_build_client,
+    ):
+        MangaSourceLink.objects.create(
+            manga=self.manga,
+            provider="weeb_central",
+            source_id="OLD",
+            source_title="Old Result",
+            source_url=(
+                "https://example.test/old"
+            ),
+            priority=2,
+        )
+
+        client = Mock()
+        client.search.return_value = [
+            SimpleNamespace(
+                source_id="NEW",
+                title="Kagurabachi",
+                url=(
+                    "https://example.test/new"
+                ),
+                thumbnail_url=None,
+            )
+        ]
+
+        mock_build_client.return_value = (
+            client
+        )
+
+        result = search_manga_sources(
+            self.manga,
+            provider="weeb_central",
+        )
+
+        source_link, created = (
+            save_manga_source_candidate(
+                self.manga,
+                provider="weeb_central",
+                candidate=(
+                    result.candidates[0]
+                ),
+                search_query=result.query,
+            )
+        )
+
+        self.assertFalse(created)
+        self.assertEqual(
+            source_link.priority,
+            2,
+        )
+        self.assertEqual(
+            source_link.source_id,
+            "NEW",
+        )
+
+    def test_primary_role_reorders_sources(
+        self,
+    ):
+        weeb_link = (
+            MangaSourceLink.objects.create(
+                manga=self.manga,
+                provider="weeb_central",
+                source_id="WEEB",
+                source_title="Kagurabachi",
+                source_url=(
+                    "https://weebcentral.com/"
+                    "series/WEEB/Kagurabachi"
+                ),
+                priority=1,
+            )
+        )
+
+        candidate = SimpleNamespace(
+            source_id="100274",
+            title="Kagurabachi",
+            url=(
+                "https://"
+                "mangaplus.shueisha.co.jp/"
+                "titles/100274"
+            ),
+            thumbnail_url=None,
+            score=Decimal("100.00"),
+        )
+
+        manga_plus_link, created = (
+            save_manga_source_candidate_with_role(
+                self.manga,
+                provider="manga_plus",
+                candidate=candidate,
+                search_query="100274",
+                role="primary",
+            )
+        )
+
+        self.assertTrue(created)
+
+        weeb_link.refresh_from_db()
+
+        self.assertEqual(
+            manga_plus_link.priority,
+            1,
+        )
+        self.assertEqual(
+            weeb_link.priority,
+            2,
+        )
+
+
+class MangaSourceManagementServiceTests(
+    TestCase
+):
+    def setUp(self):
+        self.manga = MangaEntry.objects.create(
+            mal_id=8001,
+            title="Source Management Manga",
+            list_status="reading",
+        )
+
+        self.manga_plus = (
+            MangaSourceLink.objects.create(
+                manga=self.manga,
+                provider="manga_plus",
+                source_id="MP",
+                source_title="Manga Plus",
+                source_url=(
+                    "https://"
+                    "mangaplus.shueisha.co.jp/"
+                    "titles/100001"
+                ),
+                priority=1,
+                active=True,
+            )
+        )
+
+        self.weeb_central = (
+            MangaSourceLink.objects.create(
+                manga=self.manga,
+                provider="weeb_central",
+                source_id="WC",
+                source_title="Weeb Central",
+                source_url=(
+                    "https://weebcentral.com/"
+                    "series/WC/Test"
+                ),
+                priority=2,
+                active=True,
+            )
+        )
+
+    def test_make_primary_reorders_sources(
+        self,
+    ):
+        updated_source = (
+            make_manga_source_primary(
+                self.weeb_central
+            )
+        )
+
+        self.manga_plus.refresh_from_db()
+
+        self.assertEqual(
+            updated_source.priority,
+            1,
+        )
+        self.assertEqual(
+            self.manga_plus.priority,
+            2,
+        )
+
+    def test_make_primary_activates_source(
+        self,
+    ):
+        self.weeb_central.active = False
+        self.weeb_central.save(
+            update_fields=[
+                "active",
+                "updated_at",
+            ]
+        )
+
+        updated_source = (
+            make_manga_source_primary(
+                self.weeb_central
+            )
+        )
+
+        self.assertTrue(
+            updated_source.active
+        )
+        self.assertEqual(
+            updated_source.priority,
+            1,
+        )
+
+    def test_toggle_source_active(
+        self,
+    ):
+        updated_source = (
+            toggle_manga_source_active(
+                self.manga_plus
+            )
+        )
+
+        self.assertFalse(
+            updated_source.active
+        )
+
+    def test_unlink_compacts_priorities(
+        self,
+    ):
+        unlink_manga_source(
+            self.manga_plus
+        )
+
+        self.weeb_central.refresh_from_db()
+
+        self.assertEqual(
+            self.weeb_central.priority,
+            1,
+        )
+
+        self.assertFalse(
+            MangaSourceLink.objects
+            .filter(
+                pk=self.manga_plus.pk
+            )
+            .exists()
+        )
+
+
+class MangaSourceCoverageServiceTests(
+    TestCase
+):
+    def create_manga(
+        self,
+        *,
+        mal_id,
+        title,
+        publication_status=(
+            "currently_publishing"
+        ),
+        list_status="reading",
+    ):
+        return MangaEntry.objects.create(
+            mal_id=mal_id,
+            title=title,
+            list_status=list_status,
+            publication_status=(
+                publication_status
+            ),
+        )
+
+    def create_source(
+        self,
+        manga,
+        *,
+        provider,
+        priority,
+        active=True,
+    ):
+        return MangaSourceLink.objects.create(
+            manga=manga,
+            provider=provider,
+            source_id=(
+                f"{provider}-{manga.mal_id}"
+            ),
+            source_title=manga.title,
+            source_url=(
+                "https://example.test/"
+                f"{provider}/{manga.mal_id}"
+            ),
+            priority=priority,
+            active=active,
+        )
+
+    def test_classifies_source_coverage(
+        self,
+    ):
+        ready = self.create_manga(
+            mal_id=9101,
+            title="Ready Manga",
+        )
+        single = self.create_manga(
+            mal_id=9102,
+            title="Single Manga",
+        )
+        disabled = self.create_manga(
+            mal_id=9103,
+            title="Disabled Manga",
+        )
+        missing = self.create_manga(
+            mal_id=9104,
+            title="Missing Manga",
+        )
+
+        self.create_source(
+            ready,
+            provider="manga_plus",
+            priority=1,
+        )
+        self.create_source(
+            ready,
+            provider="weeb_central",
+            priority=2,
+        )
+        self.create_source(
+            single,
+            provider="weeb_central",
+            priority=1,
+        )
+        self.create_source(
+            disabled,
+            provider="weeb_central",
+            priority=1,
+            active=False,
+        )
+
+        coverage = (
+            build_manga_source_coverage()
+        )
+
+        self.assertEqual(
+            coverage["summary"],
+            {
+                "targets": 4,
+                "ready": 1,
+                "single_source": 1,
+                "disabled": 1,
+                "needs_setup": 1,
+            },
+        )
+
+        states = [
+            row["coverage_state"]
+            for row in coverage["rows"]
+        ]
+
+        self.assertEqual(
+            states,
+            [
+                "needs_setup",
+                "disabled",
+                "single_source",
+                "ready",
+            ],
+        )
+
+        ready_row = next(
+            row
+            for row in coverage["rows"]
+            if row["manga"] == ready
+        )
+
+        self.assertEqual(
+            ready_row[
+                "primary_source"
+            ]["link"].provider,
+            "manga_plus",
+        )
+
+    def test_ignores_finished_and_inactive_manga(
+        self,
+    ):
+        self.create_manga(
+            mal_id=9201,
+            title="Finished Manga",
+            publication_status="finished",
+        )
+
+        self.create_manga(
+            mal_id=9202,
+            title="Plan Manga",
+            list_status="plan_to_read",
+        )
+
+        coverage = (
+            build_manga_source_coverage()
+        )
+
+        self.assertEqual(
+            coverage["summary"]["targets"],
+            0,
+        )
+
+
+class MangaSourceCoverageViewTests(
+    TestCase
+):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects
+            .create_user(
+                username=(
+                    "coverage-owner"
+                ),
+            )
+        )
+
+        cls.needs_setup = (
+            MangaEntry.objects.create(
+                mal_id=9301,
+                title="Needs Setup Manga",
+                list_status="reading",
+                publication_status=(
+                    "currently_publishing"
+                ),
+            )
+        )
+
+        cls.single_source = (
+            MangaEntry.objects.create(
+                mal_id=9302,
+                title="Single Source Manga",
+                list_status="reading",
+                publication_status=(
+                    "currently_publishing"
+                ),
+            )
+        )
+
+        MangaSourceLink.objects.create(
+            manga=cls.single_source,
+            provider="weeb_central",
+            source_id="WC-9302",
+            source_title=(
+                cls.single_source.title
+            ),
+            source_url=(
+                "https://example.test/"
+                "weeb-central/9302"
+            ),
+            priority=1,
+            active=True,
+        )
+
+    def get_url(self):
+        return reverse(
+            (
+                "manga_insights:"
+                "manga_source_coverage"
+            )
+        )
+
+    def test_anonymous_request_redirects_to_login(
+        self,
+    ):
+        response = self.client.get(
+            self.get_url()
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+    def test_owner_sees_coverage_queue(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            self.get_url()
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+        self.assertContains(
+            response,
+            "Needs Setup Manga",
+        )
+        self.assertContains(
+            response,
+            "Single Source Manga",
+        )
+        self.assertContains(
+            response,
+            "Needs Setup",
+        )
+        self.assertContains(
+            response,
+            "Single Source",
+        )
+
+    def test_filter_limits_coverage_rows(
+        self,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        response = self.client.get(
+            self.get_url(),
+            {
+                "coverage": (
+                    "needs_setup"
+                ),
+            },
+        )
+
+        self.assertContains(
+            response,
+            "Needs Setup Manga",
+        )
+        self.assertNotContains(
+            response,
+            "Single Source Manga",
+        )
+
+
+class MangaFireClientTests(
+    SimpleTestCase
+):
+    def build_client(
+        self,
+        *payloads,
+        status_codes=None,
+    ):
+        session = Mock()
+        session.headers = {}
+
+        resolved_status_codes = (
+            status_codes
+            or [200] * len(payloads)
+        )
+
+        responses = []
+
+        for payload, status_code in zip(
+            payloads,
+            resolved_status_codes,
+        ):
+            response = Mock()
+            response.status_code = (
+                status_code
+            )
+            response.json.return_value = (
+                payload
+            )
+            responses.append(response)
+
+        session.get.side_effect = (
+            responses
+        )
+
+        return (
+            MangaFireClient(
+                session=session
+            ),
+            session,
+        )
+
+    def test_extracts_new_and_legacy_title_ids(
+        self,
+    ):
+        self.assertEqual(
+            MangaFireClient.extract_title_id(
+                (
+                    "https://mangafire.to/"
+                    "title/v92q7-kagurabachii"
+                )
+            ),
+            "v92q7",
+        )
+
+        self.assertEqual(
+            MangaFireClient.extract_title_id(
+                (
+                    "https://mangafire.to/"
+                    "manga/kagurabachii.v92q7"
+                )
+            ),
+            "v92q7",
+        )
+
+        self.assertEqual(
+            MangaFireClient.extract_title_id(
+                "v92q7"
+            ),
+            "v92q7",
+        )
+
+    def test_search_parses_api_candidates(
+        self,
+    ):
+        client, session = (
+            self.build_client(
+                {
+                    "items": [
+                        {
+                            "title": (
+                                "Kagurabachi"
+                            ),
+                            "url": (
+                                "/title/"
+                                "v92q7-"
+                                "kagurabachii"
+                            ),
+                            "poster": {
+                                "medium": (
+                                    "/poster/"
+                                    "kagurabachi.jpg"
+                                ),
+                            },
+                        },
+                    ],
+                    "meta": {
+                        "hasNext": False,
+                    },
+                }
+            )
+        )
+
+        candidates = client.search(
+            "Kagurabachi"
+        )
+
+        self.assertEqual(
+            len(candidates),
+            1,
+        )
+        self.assertEqual(
+            candidates[0].source_id,
+            "v92q7",
+        )
+        self.assertEqual(
+            candidates[0].title,
+            "Kagurabachi",
+        )
+        self.assertEqual(
+            candidates[0].url,
+            (
+                "https://mangafire.to/"
+                "title/v92q7-"
+                "kagurabachii"
+            ),
+        )
+
+        called_url = session.get.call_args.args[0]
+        called_params = dict(
+            session.get.call_args.kwargs["params"]
+        )
+
+        self.assertEqual(
+            called_url,
+            "https://mangafire.to/api/titles",
+        )
+        self.assertEqual(
+            called_params["keyword"],
+            "Kagurabachi",
+        )
+        self.assertEqual(
+            called_params["language"],
+            "en",
+        )
+        self.assertEqual(
+            called_params["limit"],
+            "30",
+        )
+        self.assertEqual(
+            called_params["page"],
+            "1",
+        )
+        self.assertTrue(
+            called_params["vrf"],
+        )
+
+    def test_direct_url_fetches_title_detail(
+        self,
+    ):
+        client, session = (
+            self.build_client(
+                {
+                    "data": {
+                        "title": (
+                            "Kagurabachi"
+                        ),
+                        "url": (
+                            "/title/"
+                            "v92q7-"
+                            "kagurabachii"
+                        ),
+                        "poster": {
+                            "large": (
+                                "/poster/"
+                                "large.jpg"
+                            ),
+                        },
+                    },
+                }
+            )
+        )
+
+        candidates = client.search(
+            (
+                "https://mangafire.to/"
+                "title/v92q7-"
+                "kagurabachii"
+            )
+        )
+
+        self.assertEqual(
+            candidates[0].source_id,
+            "v92q7",
+        )
+
+        called_url = session.get.call_args.args[0]
+        called_params = dict(
+            session.get.call_args.kwargs["params"]
+        )
+
+        self.assertEqual(
+            called_url,
+            (
+                "https://mangafire.to/"
+                "api/titles/v92q7"
+            ),
+        )
+        self.assertTrue(
+            called_params["vrf"],
+        )
+
+
+    def test_latest_chapter_uses_highest_number(
+        self,
+    ):
+        client, _session = (
+            self.build_client(
+                {
+                    "items": [
+                        {
+                            "id": 9316858,
+                            "number": "126",
+                            "name": "",
+                            "createdAt": (
+                                1785100000
+                            ),
+                        },
+                        {
+                            "id": 8072566,
+                            "number": "125",
+                            "name": "",
+                            "createdAt": (
+                                1784500000
+                            ),
+                        },
+                    ],
+                    "meta": {
+                        "hasNext": False,
+                    },
+                }
+            )
+        )
+
+        latest = (
+            client.fetch_latest_chapter(
+                (
+                    "https://mangafire.to/"
+                    "title/v92q7-"
+                    "kagurabachii"
+                )
+            )
+        )
+
+        self.assertEqual(
+            latest.source_id,
+            "9316858",
+        )
+        self.assertEqual(
+            str(latest.number),
+            "126",
+        )
+        self.assertEqual(
+            latest.url,
+            (
+                "https://mangafire.to/"
+                "title/v92q7-"
+                "kagurabachii/"
+                "chapter/9316858"
+            ),
+        )
+        self.assertIsNotNone(
+            latest.published_at
+        )
+
+    def test_http_403_has_controlled_error(
+        self,
+    ):
+        client, _session = (
+            self.build_client(
+                {},
+                status_codes=[403],
+            )
+        )
+
+        with self.assertRaisesMessage(
+            RuntimeError,
+            "MangaFire rejected the request",
+        ):
+            client.search(
+                "Kagurabachi"
+            )
+
+
+class MangasInClientTests(SimpleTestCase):
+    def build_client(
+        self,
+        *,
+        json_payload=None,
+        html="",
+        status_code=200,
+    ):
+        session = Mock()
+        session.headers = {}
+
+        response = Mock()
+        response.status_code = status_code
+        response.text = html
+        response.json.return_value = json_payload
+
+        session.get.return_value = response
+
+        return MangasInClient(session=session), session
+
+    def test_search_parses_suggestions(self):
+        client, session = self.build_client(
+            json_payload=[
+                {
+                    "value": "Kanojo, Okarishimasu",
+                    "data": "kanojo-okarishimasu",
+                },
+            ],
+        )
+
+        candidates = client.search(
+            "Kanojo Okarishimasu"
+        )
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(
+            candidates[0].source_id,
+            "kanojo-okarishimasu",
+        )
+        self.assertEqual(
+            candidates[0].title,
+            "Kanojo, Okarishimasu",
+        )
+        self.assertEqual(
+            candidates[0].url,
+            (
+                "https://m440.in/manga/"
+                "kanojo-okarishimasu"
+            ),
+        )
+
+        session.get.assert_called_once_with(
+            "https://m440.in/search",
+            params={
+                "q": "Kanojo Okarishimasu",
+            },
+            timeout=30,
+        )
+
+    def test_extracts_current_and_old_urls(self):
+        self.assertEqual(
+            MangasInClient.extract_title_id(
+                "https://m440.in/manga/apotheosis"
+            ),
+            "apotheosis",
+        )
+        self.assertEqual(
+            MangasInClient.extract_title_id(
+                "https://mangas.in/manga/apotheosis"
+            ),
+            "apotheosis",
+        )
+
+    def test_direct_slug_builds_candidate(self):
+        client, session = self.build_client(
+            html=(
+                "<html><body>"
+                "<div class='manga-name'>"
+                "<h1>Apotheosis</h1>"
+                "</div>"
+                "</body></html>"
+            ),
+        )
+
+        candidates = client.search("apotheosis")
+
+        self.assertEqual(
+            candidates[0].source_id,
+            "apotheosis",
+        )
+        self.assertEqual(
+            candidates[0].title,
+            "Apotheosis",
+        )
+
+        session.get.assert_called_once_with(
+            "https://m440.in/manga/apotheosis",
+            params=None,
+            timeout=30,
+        )
+
+    def test_latest_chapter_uses_summary_links(self):
+        client, _session = self.build_client(
+            html=(
+                "<html><body>"
+                "<a href='/manga/apotheosis/1-start'>"
+                "Capítulo 1"
+                "</a>"
+                "<a href='/manga/apotheosis/762-latest'>"
+                "Capítulo 762"
+                "</a>"
+                "</body></html>"
+            ),
+        )
+
+        latest = client.fetch_latest_chapter(
+            "https://m440.in/manga/apotheosis"
+        )
+
+        self.assertEqual(str(latest.number), "762")
+        self.assertEqual(
+            latest.source_id,
+            "762-latest",
+        )
+        self.assertEqual(
+            latest.url,
+            (
+                "https://m440.in/manga/"
+                "apotheosis/762-latest"
+            ),
+        )
+        self.assertIsNone(latest.published_at)
+
+    def test_http_429_has_controlled_error(self):
+        client, _session = self.build_client(
+            status_code=429,
+        )
+
+        with self.assertRaisesMessage(
+            RuntimeError,
+            "Mangas.in rate limit reached",
+        ):
+            client.search(
+                "Kanojo Okarishimasu"
+            )
+
+
+
+class MangabatClientTests(
+    SimpleTestCase
+):
+    def build_client(
+        self,
+        *,
+        html="",
+        json_payload=None,
+        status_code=200,
+    ):
+        session = Mock()
+        session.headers = {}
+
+        response = Mock()
+        response.status_code = (
+            status_code
+        )
+        response.text = html
+        response.json.return_value = (
+            json_payload
+        )
+
+        session.get.return_value = (
+            response
+        )
+
+        return (
+            MangabatClient(
+                session=session
+            ),
+            session,
+        )
+
+    def test_normalizes_search_query(
+        self,
+    ):
+        self.assertEqual(
+            (
+                MangabatClient
+                .normalize_search_query(
+                    (
+                        "Yankee JK "
+                        "Kuzuhana-chan"
+                    )
+                )
+            ),
+            "yankee_jk_kuzuhana_chan",
+        )
+
+    def test_search_parses_candidates(
+        self,
+    ):
+        client, session = (
+            self.build_client(
+                html=(
+                    "<div "
+                    "class='panel_story_list'>"
+                    "<div class='story_item'>"
+                    "<h3><a href='/manga/"
+                    "dream-jumbo-girl'>"
+                    "Dream Jumbo Girl"
+                    "</a></h3>"
+                    "<img src='/covers/"
+                    "dream.jpg'>"
+                    "</div>"
+                    "</div>"
+                ),
+            )
+        )
+
+        candidates = client.search(
+            "Dream Jumbo Girl"
+        )
+
+        self.assertEqual(
+            len(candidates),
+            1,
+        )
+        self.assertEqual(
+            candidates[0].source_id,
+            "dream-jumbo-girl",
+        )
+        self.assertEqual(
+            candidates[0].title,
+            "Dream Jumbo Girl",
+        )
+        self.assertEqual(
+            candidates[0].url,
+            (
+                "https://www.mangabats.com/"
+                "manga/dream-jumbo-girl"
+            ),
+        )
+
+        session.get.assert_called_once_with(
+            (
+                "https://www.mangabats.com/"
+                "search/story/"
+                "dream_jumbo_girl"
+            ),
+            params={
+                "page": 1,
+            },
+            timeout=30,
+        )
+
+    def test_extracts_series_slug(
+        self,
+    ):
+        self.assertEqual(
+            MangabatClient.extract_title_id(
+                (
+                    "https://www.mangabats.com/"
+                    "manga/dream-jumbo-girl"
+                )
+            ),
+            "dream-jumbo-girl",
+        )
+
+        self.assertEqual(
+            MangabatClient.extract_title_id(
+                "dream-jumbo-girl"
+            ),
+            "dream-jumbo-girl",
+        )
+
+    def test_latest_chapter_uses_api_data(
+        self,
+    ):
+        client, session = (
+            self.build_client(
+                json_payload={
+                    "success": True,
+                    "data": {
+                        "chapters": [
+                            {
+                                "chapter_name": (
+                                    "Chapter 51"
+                                ),
+                                "chapter_slug": (
+                                    "chapter-51"
+                                ),
+                                "chapter_num": 51,
+                                "updated_at": (
+                                    "2026-07-20"
+                                    "T12:00:00Z"
+                                ),
+                            },
+                            {
+                                "chapter_name": (
+                                    "Chapter 52"
+                                ),
+                                "chapter_slug": (
+                                    "chapter-52"
+                                ),
+                                "chapter_num": 52,
+                                "updated_at": (
+                                    "2026-07-27"
+                                    "T12:00:00Z"
+                                ),
+                            },
+                        ],
+                    },
+                },
+            )
+        )
+
+        latest = (
+            client.fetch_latest_chapter(
+                (
+                    "https://www.mangabats.com/"
+                    "manga/dream-jumbo-girl"
+                )
+            )
+        )
+
+        self.assertEqual(
+            latest.source_id,
+            "chapter-52",
+        )
+        self.assertEqual(
+            str(latest.number),
+            "52",
+        )
+        self.assertEqual(
+            latest.url,
+            (
+                "https://www.mangabats.com/"
+                "manga/dream-jumbo-girl/"
+                "chapter-52"
+            ),
+        )
+        self.assertEqual(
+            latest.published_at.isoformat(),
+            "2026-07-27T12:00:00+00:00",
+        )
+
+        session.get.assert_called_once_with(
+            (
+                "https://www.mangabats.com/"
+                "api/manga/"
+                "dream-jumbo-girl/"
+                "chapters"
+            ),
+            params={
+                "limit": -1,
+            },
+            timeout=30,
+        )
+
+    def test_http_403_has_controlled_error(
+        self,
+    ):
+        client, _session = (
+            self.build_client(
+                status_code=403,
+            )
+        )
+
+        with self.assertRaisesMessage(
+            RuntimeError,
+            (
+                "Mangabat rejected "
+                "the request"
+            ),
+        ):
+            client.search(
+                "Dream Jumbo Girl"
+            )
 

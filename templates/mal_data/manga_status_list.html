@@ -222,6 +222,9 @@
                                     Updated
                                 </a>
                             </th>
+                            {% if user.is_authenticated %}
+                                <th>Sources</th>
+                            {% endif %}
                         </tr>
                     </thead>
 
@@ -361,6 +364,19 @@
                                         {% endif %}
                                     </span>
                                 </td>
+                                {% if user.is_authenticated %}
+                                    <td>
+                                        <a
+                                            class="
+                                                secondary-button
+                                                compact-button
+                                            "
+                                            href="{% url 'manga_insights:manga_source_management' manga.mal_id %}"
+                                        >
+                                            Manage
+                                        </a>
+                                    </td>
+                                {% endif %}
                             </tr>
                         {% endfor %}
                     </tbody>

@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}
+    Source Coverage · MAL Insights
+{% endblock %}
+
+{% block content %}
+<header class="hero">
+    <div class="hero-title">
+        <h1>Manga Source Coverage</h1>
+
+        <p>
+            Publishing Reading Targets:
+            {{ summary.targets }}
+        </p>
+    </div>
+
+    <div class="hero-meta">
+        Access Mode: Owner<br>
+        Scope: Reading + Publishing
+    </div>
+</header>
+
+<section class="source-coverage-grid">
+    <article class="source-coverage-card">
+        <span class="source-coverage-label">
+            Targets
+        </span>
+
+        <strong class="source-coverage-value">
+            {{ summary.targets }}
+        </strong>
+    </article>
+
+    <article class="source-coverage-card">
+        <span class="source-coverage-label">
+            Ready
+        </span>
+
+        <strong class="source-coverage-value">
+            {{ summary.ready }}
+        </strong>
+    </article>
+
+    <article class="source-coverage-card">
+        <span class="source-coverage-label">
+            Single Source
+        </span>
+
+        <strong class="source-coverage-value">
+            {{ summary.single_source }}
+        </strong>
+    </article>
+
+    <article class="source-coverage-card">
+        <span class="source-coverage-label">
+            Disabled
+        </span>
+
+        <strong class="source-coverage-value">
+            {{ summary.disabled }}
+        </strong>
+    </article>
+
+    <article class="source-coverage-card">
+        <span class="source-coverage-label">
+            Needs Setup
+        </span>
+
+        <strong class="source-coverage-value">
+            {{ summary.needs_setup }}
+        </strong>
+    </article>
+</section>
+
+<section class="panel">
+    <header class="panel-header">
+        <h2 class="panel-title">
+            Coverage Queue
+        </h2>
+
+        <a
+            class="secondary-button compact-button"
+            href="{% url 'manga_insights:dashboard' %}"
+        >
+            Dashboard
+        </a>
+    </header>
+
+    <div class="panel-body">
+        <nav
+            class="source-coverage-filters"
+            aria-label="Source coverage filters"
+        >
+            {% for option in filter_options %}
+                <a
+                    class="
+                        secondary-button
+                        compact-button
+                        {% if option.value == selected_coverage %}
+                            source-coverage-filter-active
+                        {% endif %}
+                    "
+                    href="?coverage={{ option.value }}"
+                >
+                    {{ option.label }}
+                </a>
+            {% endfor %}
+        </nav>
+
+        {% if coverage_rows %}
+            <div class="table-shell">
+                <table class="archive-table">
+                    <thead>
+                        <tr>
+                            <th>Manga</th>
+                            <th>Progress</th>
+                            <th>Coverage</th>
+                            <th>Active Sources</th>
+                            <th>Primary</th>
+                            <th>Management</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for row in coverage_rows %}
+                            {% with manga=row.manga %}
+                                <tr>
+                                    <td>
+                                        <article
+                                            class="
+                                                source-coverage-title
+                                            "
+                                        >
+                                            {% if manga.main_picture_url %}
+                                                <img
+                                                    class="source-coverage-cover"
+                                                    src="{{ manga.main_picture_url }}"
+                                                    alt="{{ manga.display_title }}"
+                                                >
+                                            {% endif %}
+
+                                            <div>
+                                                <strong>
+                                                    {{ manga.display_title }}
+                                                </strong>
+
+                                                <div class="archive-meta">
+                                                    MAL ID:
+                                                    {{ manga.mal_id }}
+                                                </div>
+                                            </div>
+                                        </article>
+                                    </td>
+
+                                    <td>
+                                        <span class="mono-value">
+                                            {{ manga.num_chapters_read }}
+                                            /
+                                            {% if manga.num_chapters %}
+                                                {{ manga.num_chapters }}
+                                            {% else %}
+                                                TBD
+                                            {% endif %}
+                                        </span>
+
+                                        {% if manga.is_rereading %}
+                                            <div class="archive-meta">
+                                                Rereading
+                                            </div>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>
+                                        {% if row.coverage_state == "ready" %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-completed
+                                                "
+                                            >
+                                                {{ row.coverage_label }}
+                                            </span>
+
+                                        {% elif row.coverage_state == "single_source" %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-on-hold
+                                                "
+                                            >
+                                                {{ row.coverage_label }}
+                                            </span>
+
+                                        {% elif row.coverage_state == "disabled" %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-dropped
+                                                "
+                                            >
+                                                {{ row.coverage_label }}
+                                            </span>
+
+                                        {% else %}
+                                            <span
+                                                class="
+                                                    status-pill
+                                                    status-live
+                                                "
+                                            >
+                                                {{ row.coverage_label }}
+                                            </span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>
+                                        <span class="mono-value">
+                                            {{ row.active_source_count }}
+                                            active
+                                        </span>
+
+                                        {% if row.linked_source_count != row.active_source_count %}
+                                            <div class="archive-meta">
+                                                {{ row.linked_source_count }}
+                                                linked
+                                            </div>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>
+                                        {% if row.primary_source %}
+                                            <strong>
+                                                {{ row.primary_source.provider_label }}
+                                            </strong>
+
+                                            <div class="archive-meta">
+                                                Priority
+                                                {{ row.primary_source.link.priority }}
+                                            </div>
+                                        {% else %}
+                                            <span class="archive-meta">
+                                                No active source
+                                            </span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>
+                                        <a
+                                            class="
+                                                secondary-button
+                                                compact-button
+                                            "
+                                            href="{% url 'manga_insights:manga_source_management' manga.mal_id %}"
+                                        >
+                                            Manage Sources
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endwith %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        {% else %}
+            <p class="empty-state">
+                No manga matches this
+                coverage filter.
+            </p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
