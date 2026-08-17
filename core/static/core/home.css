@@ -5,6 +5,8 @@
     --text: #f8fafc;
     --muted: #94a3b8;
     --border: rgba(148, 163, 184, 0.18);
+    
+    --ambient-rgb: 61, 139, 255;
 
     --anime-primary: #7397ff;
     --anime-secondary: #8b5cf6;
@@ -30,18 +32,7 @@ body {
     min-height: 100vh;
     margin: 0;
     color: var(--text);
-    background:
-        radial-gradient(
-            circle at 10% 20%,
-            rgba(115, 151, 255, 0.14),
-            transparent 30%
-        ),
-        radial-gradient(
-            circle at 90% 80%,
-            rgba(236, 72, 153, 0.12),
-            transparent 32%
-        ),
-        var(--background);
+    background: var(--background);
     font-family:
         Inter,
         system-ui,
@@ -49,6 +40,48 @@ body {
         BlinkMacSystemFont,
         "Segoe UI",
         sans-serif;
+    position: relative;
+    overflow-x: hidden;
+}
+
+body::before {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    content: "";
+
+    background:
+        radial-gradient(
+            circle at 18% 42%,
+            rgba(var(--ambient-rgb), 0.20),
+            transparent 34%
+        ),
+        radial-gradient(
+            circle at 82% 68%,
+            rgba(var(--ambient-rgb), 0.11),
+            transparent 38%
+        );
+}
+
+body:has(.module-card--anime.module-card--selected) {
+    --ambient-rgb: 61, 139, 255;
+}
+
+body:has(.module-card--games.module-card--selected) {
+    --ambient-rgb: 220, 48, 48;
+}
+
+body:has(.module-card--hibi.module-card--selected) {
+    --ambient-rgb: 218, 151, 45;
+}
+
+body:has(.module-card--watchroom.module-card--selected) {
+    --ambient-rgb: 167, 82, 255;
+}
+
+body:has(.module-card--music.module-card--selected) {
+    --ambient-rgb: 40, 200, 164;
 }
 
 a {
@@ -57,58 +90,145 @@ a {
 }
 
 .platform {
-    width: min(1180px, calc(100% - 40px));
+    width: min(1500px, calc(100% - 48px));
     margin: 0 auto;
-    padding: 64px 0;
+    padding: 24px 0 20px;
 }
 
 .platform-header {
-    max-width: 760px;
-    margin-bottom: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+    max-width: none;
+    margin-bottom: 14px;
+}
+
+.platform-brand {
+    min-width: 0;
 }
 
 .platform-eyebrow {
-    margin: 0 0 10px;
+    margin: 0 0 5px;
     color: #8aa9ff;
-    font-size: 0.82rem;
+    font-size: 0.7rem;
     font-weight: 700;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
 }
 
 .platform-title {
     margin: 0;
-    font-size: clamp(2.5rem, 6vw, 4.8rem);
+    font-size: clamp(2rem, 3vw, 2.8rem);
     line-height: 1;
-    letter-spacing: -0.05em;
+    letter-spacing: -0.04em;
 }
 
-.platform-description {
-    margin: 20px 0 0;
+.platform-tagline {
+    margin: 5px 0 0;
     color: var(--muted);
-    font-size: 1.05rem;
-    line-height: 1.7;
+    font-size: 0.82rem;
+    letter-spacing: 0.06em;
+}
+
+.selector-heading {
+    margin: 8px 0 18px;
+    text-align: center;
+}
+
+.selector-eyebrow {
+    margin: 0 0 4px;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+}
+
+.selector-title {
+    margin: 0;
+    font-size: clamp(1.8rem, 3vw, 2.8rem);
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .module-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 24px;
+    grid-template-areas:
+        "anime hibi watchroom"
+        "games hibi music";
+    grid-template-columns:
+        minmax(0, 1fr)
+        minmax(320px, 1.12fr)
+        minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(260px, 1fr));
+    gap: 20px;
+}
+
+.module-grid:has(.module-card--selected) .module-card:not(.module-card--selected) {
+    filter: brightness(0.78) saturate(0.78);
+    opacity: 0.82;
+    transform: scale(0.985);
+}
+
+.module-card--anime {
+    grid-area: anime;
+    --module-rgb: 61, 139, 255;
+    --module-accent: #69a8ff;
+}
+
+.module-card--games {
+    grid-area: games;
+    --module-rgb: 220, 48, 48;
+    --module-accent: #ff4d4d;
+}
+
+.module-card--hibi {
+    grid-area: hibi;
+    --module-rgb: 218, 151, 45;
+    --module-accent: #f0b34f;
+}
+
+.module-card--watchroom {
+    grid-area: watchroom;
+    --module-rgb: 167, 82, 255;
+    --module-accent: #c477ff;
+}
+
+.module-card--music {
+    grid-area: music;
+    --module-rgb: 40, 200, 164;
+    --module-accent: #4ee0bd;
 }
 
 .module-card {
     position: relative;
     display: flex;
-    min-height: 390px;
+    min-height: 260px;
     overflow: hidden;
     border: 1px solid var(--border);
     border-radius: 28px;
-    background: var(--surface);
     isolation: isolate;
     transition:
-        transform 180ms ease,
-        border-color 180ms ease,
-        box-shadow 180ms ease;
+        transform 220ms ease,
+        border-color 220ms ease,
+        box-shadow 220ms ease,
+        filter 220ms ease,
+        opacity 220ms ease;
+    border-color: rgba(var(--module-rgb), 0.22);
+
+    background:
+        radial-gradient(
+            circle at 75% 8%,
+            rgba(var(--module-rgb), 0.28),
+            transparent 42%
+        ),
+        linear-gradient(
+            145deg,
+            rgba(var(--module-rgb), 0.10) 0%,
+            rgba(7, 13, 25, 0.96) 62%
+        );
 }
 
 .module-card::before {
@@ -131,6 +251,18 @@ a {
     z-index: -1;
     content: "";
     opacity: 0.8;
+
+    background:
+        radial-gradient(
+            circle at 72% 18%,
+            rgba(var(--module-rgb), 0.38),
+            transparent 34%
+        ),
+        linear-gradient(
+            135deg,
+            rgba(var(--module-rgb), 0.18),
+            transparent 64%
+        );
 }
 
 .module-card:hover {
@@ -139,60 +271,36 @@ a {
     box-shadow: 0 28px 60px rgba(0, 0, 0, 0.35);
 }
 
-.module-card--anime::after {
-    background:
-        radial-gradient(
-            circle at 70% 18%,
-            rgba(139, 92, 246, 0.48),
-            transparent 34%
-        ),
-        linear-gradient(
-            135deg,
-            rgba(115, 151, 255, 0.28),
-            transparent 60%
-        );
+.module-card--selected {
+    z-index: 5;
+
+    transform: translateY(-5px) scale(1.025);
+
+    border-color: rgba(var(--module-rgb), 0.92);
+
+    box-shadow:
+        0 0 0 1px rgba(var(--module-rgb), 0.30),
+        0 0 24px rgba(var(--module-rgb), 0.30),
+        0 0 70px rgba(var(--module-rgb), 0.20),
+        0 30px 70px rgba(0, 0, 0, 0.48);
 }
 
-.module-card--games::after {
-    background:
-        radial-gradient(
-            circle at 72% 18%,
-            rgba(245, 158, 11, 0.46),
-            transparent 32%
-        ),
-        linear-gradient(
-            135deg,
-            rgba(239, 68, 68, 0.24),
-            transparent 62%
-        );
+.module-card--selected:hover {
+    transform: translateY(-4px) scale(1.025);
 }
 
-.module-card--watchroom::after {
-    background:
-        radial-gradient(
-            circle at 72% 18%,
-            rgba(217, 70, 239, 0.44),
-            transparent 34%
-        ),
-        linear-gradient(
-            135deg,
-            rgba(124, 58, 237, 0.28),
-            transparent 64%
-        );
+.module-card--selected::after {
+    opacity: 1;
 }
 
-.module-card--music::after {
+.module-card--selected .module-icon {
+    border-color: rgba(var(--module-rgb), 0.5);
+
+    box-shadow:
+        0 0 24px rgba(var(--module-rgb), 0.20);
+
     background:
-        radial-gradient(
-            circle at 72% 18%,
-            rgba(52, 211, 153, 0.4),
-            transparent 34%
-        ),
-        linear-gradient(
-            135deg,
-            rgba(6, 182, 212, 0.25),
-            transparent 64%
-        );
+        rgba(var(--module-rgb), 0.10);
 }
 
 .module-card--hibi::after {
@@ -224,16 +332,11 @@ a {
         );
 }
 
-.module-card--wide {
-    grid-column: 1 / -1;
-    min-height: 320px;
-}
-
-.module-card--wide .module-card-content {
+.module-card--hibi .module-card-content {
     padding: 34px 38px;
 }
 
-.module-card--wide section {
+.module-card--hibi section {
     max-width: 760px;
 }
 
@@ -288,6 +391,24 @@ a {
     color: #cbd5e1;
 }
 
+.module-status--selected {
+    border-color: rgba(var(--module-rgb), 0.58);
+    color: var(--module-accent);
+    background: rgba(var(--module-rgb), 0.14);
+
+    box-shadow:
+        0 0 18px rgba(var(--module-rgb), 0.12);
+}
+
+.module-card--selected .module-title {
+    text-shadow:
+        0 0 28px rgba(var(--module-rgb), 0.28);
+}
+
+.module-card:focus-visible {
+    outline: none;
+}
+
 .module-category {
     margin: 0 0 10px;
     color: var(--muted);
@@ -334,60 +455,116 @@ a {
 }
 
 .module-action {
+    color: var(--module-accent);
     font-weight: 700;
-}
-
-.module-card--anime .module-action {
-    color: #a8bfff;
-}
-
-.module-card--games .module-action {
-    color: #fbbf24;
-}
-
-.module-card--watchroom .module-action {
-    color: #f0abfc;
-}
-
-.module-card--music .module-action {
-    color: #6ee7b7;
-}
-
-.module-card--hibi .module-action {
-    color: #5eead4;
 }
 
 .platform-footer {
     display: flex;
     justify-content: space-between;
     gap: 20px;
-    margin-top: 38px;
-    padding-top: 24px;
+    margin-top: 12px;
+    padding-top: 12px;
     border-top: 1px solid var(--border);
     color: var(--muted);
     font-size: 0.85rem;
 }
 
-@media (max-width: 820px) {
-    .module-grid {
-        grid-template-columns: 1fr;
+.navigation-hints {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.navigation-hint {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.navigation-hint kbd {
+    display: inline-grid;
+    min-width: 24px;
+    height: 22px;
+    place-items: center;
+    padding: 0 6px;
+
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 5px;
+
+    color: #cbd5e1;
+    background: rgba(15, 23, 42, 0.72);
+
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.navigation-divider {
+    color: rgba(148, 163, 184, 0.45);
+}
+
+.platform-footer-meta {
+    white-space: nowrap;
+}
+
+@media (max-width: 1099px) {
+    .platform {
+        width: min(100% - 32px, 760px);
+        padding: 28px 0;
     }
 
-    .module-card,
-    .module-card--wide {
-        grid-column: auto;
-        min-height: 320px;
+    .module-grid {
+        grid-template-areas:
+            "anime"
+            "games"
+            "hibi"
+            "watchroom"
+            "music";
+
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(5, auto);
+        gap: 18px;
+    }
+
+    .module-card {
+        min-height: 300px;
+    }
+
+    .module-card--hibi {
+        min-height: 360px;
+    }
+
+    .navigation-hints {
+        display: none;
+    }
+}
+
+@media (max-width: 820px) {
+    .platform-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 18px;
+    }
+
+    .selector-heading {
+        margin: 24px 0 20px;
+    }
+
+    .selector-title {
+        font-size: clamp(1.8rem, 7vw, 2.5rem);
     }
 }
 
 @media (max-width: 560px) {
     .platform {
-        width: min(100% - 24px, 1180px);
-        padding: 36px 0;
+        width: calc(100% - 24px);
+        padding: 24px 0;
     }
 
     .module-card-content,
-    .module-card--wide .module-card-content {
+    .module-card--hibi .module-card-content {
         padding: 24px;
     }
 
@@ -400,6 +577,23 @@ a {
     .platform-footer {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .selector-heading {
+        margin: 20px 0 18px;
+    }
+
+    .selector-title {
+        font-size: 1.8rem;
+        letter-spacing: 0.04em;
+    }
+
+    .module-card {
+        min-height: 290px;
+    }
+
+    .platform-footer {
+        gap: 8px;
     }
 }
 
@@ -513,12 +707,36 @@ a {
     width: fit-content;
     align-items: center;
     gap: 20px;
-    margin-top: 26px;
-    padding: 12px 14px 12px 18px;
+    margin-top: 0;
+    padding: 10px 12px 10px 16px;
     border: 1px solid var(--border);
     border-radius: 16px;
     background: rgba(15, 23, 42, 0.66);
     backdrop-filter: blur(12px);
+}
+
+@media (min-width: 1100px) {
+    .platform {
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows:
+            auto
+            auto
+            minmax(0, 1fr)
+            auto;
+        padding: 18px 0 12px;
+    }
+
+    .module-grid {
+        min-height: 0;
+        grid-template-rows:
+            minmax(0, 1fr)
+            minmax(0, 1fr);
+    }
+
+    .module-card {
+        min-height: 0;
+    }
 }
 
 .access-copy {

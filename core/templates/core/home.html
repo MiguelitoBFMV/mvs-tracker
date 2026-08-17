@@ -12,56 +12,67 @@
 <body>
     <main class="platform">
         <header class="platform-header">
-            <p class="platform-eyebrow">Personal Media Platform</p>
 
-            <h1 class="platform-title">MVS Tracker</h1>
-
-            <p class="platform-description">
-                A personal platform for organizing what I want to consume,
-                tracking what I actually do and analyzing my progress across
-                anime, manga, games, series, movies and music.
-            </p>
+            <div class="platform-brand">
+                <p class="platform-eyebrow">Personal Media Platform</p>
+                <h1 class="platform-title">MVS Tracker</h1>
+                <p class="platform-tagline">Your universe. Tracked.</p>
+            </div>
 
             <section class="platform-access" aria-label="Access status">
                 {% if user.is_authenticated %}
-                    <div class="access-copy">
-                        <span class="access-label">Owner session</span>
-                        <strong class="access-value">{{ user.username }}</strong>
-                    </div>
 
-                    <form method="post" action="{% url 'logout' %}">
-                        {% csrf_token %}
-                        <button
-                            class="access-button access-button--logout"
-                            type="submit"
-                        >
-                            Log out
-                        </button>
-                    </form>
+                <div class="access-copy">
+                    <span class="access-label">Owner session</span>
+                    <strong class="access-value">{{ user.username }}</strong>
+                </div>
+
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button
+                        class="access-button access-button--logout"
+                        type="submit"
+                    >
+                        Log out
+                    </button>
+                </form>
+
                 {% else %}
-                    <div class="access-copy">
-                        <span class="access-label">Public access</span>
-                        <strong class="access-value">Read-only mode</strong>
-                    </div>
 
-                    <a class="access-button" href="{% url 'login' %}">
-                        Sign in
-                    </a>
+                <div class="access-copy">
+                    <span class="access-label">Public access</span>
+                    <strong class="access-value">Read-only mode</strong>
+                </div>
+
+                <a class="access-button" href="{% url 'login' %}">
+                    Sign in
+                </a>
+
                 {% endif %}
             </section>
+
         </header>
 
+        <section class="selector-heading">
+            <p class="selector-eyebrow">Select a module</p>
+            <h2 id="modules-title" class="selector-title">
+                Choose your focus
+            </h2>
+        </section>
+
         <section class="module-grid" aria-labelledby="modules-title">
-            <h2 id="modules-title" hidden>MVS Tracker modules</h2>
 
             <a
                 class="module-card module-card--anime"
+                data-module="anime"
                 href="{% url 'mal_insights:dashboard' %}"
             >
                 <article class="module-card-content">
                     <header class="module-card-top">
                         <span class="module-icon" aria-hidden="true">📺</span>
-                        <span class="module-status">Available</span>
+                        <span class="module-status">
+                            Available
+                        </span>
                     </header>
 
                     <section>
@@ -71,6 +82,7 @@
                             Library, progress, seasonal discovery,
                             franchise relations and backlog analytics.
                         </p>
+
                     </section>
 
                     <footer class="module-footer">
@@ -84,6 +96,7 @@
 
             <a
                 class="module-card module-card--games"
+                data-module="games"
                 href="{% url 'games:dashboard' %}"
             >
                 <article class="module-card-content">
@@ -112,6 +125,7 @@
 
             <a
                 class="module-card module-card--watchroom"
+                data-module="watchroom"
                 href="{% url 'watchroom:dashboard' %}"
             >
                 <article class="module-card-content">
@@ -162,6 +176,8 @@
                     module-card--music
                     module-card--disabled
                 "
+                data-module="music"
+                tabindex="0"
             >
                 <div class="module-card-content">
                     <header class="module-card-top">
@@ -193,9 +209,10 @@
                 class="
                     module-card
                     module-card--hibi
-                    module-card--wide
                     module-card--disabled
                 "
+                data-module="hibi"
+                tabindex="0"
             >
                 <div class="module-card-content">
                     <header class="module-card-top">
@@ -231,9 +248,29 @@
         </section>
 
         <footer class="platform-footer">
-            <span>One platform. Four trackers. One activity log.</span>
-            <span>MVS Tracker · Localhost</span>
+            <div class="navigation-hints" aria-label="Navigation controls">
+                <span class="navigation-hint">
+                    <kbd>←</kbd>
+                    <kbd>↑</kbd>
+                    <kbd>↓</kbd>
+                    <kbd>→</kbd>
+                    <span>Navigate</span>
+                </span>
+
+                <span class="navigation-divider" aria-hidden="true">·</span>
+
+                <span class="navigation-hint">
+                    <kbd>Enter</kbd>
+                    <span>Select</span>
+                </span>
+            </div>
+
+            <span class="platform-footer-meta">
+                MVS Tracker · Localhost
+            </span>
         </footer>
     </main>
+
+    <script src="{% static 'core/home.js' %}" defer></script>
 </body>
 </html>
