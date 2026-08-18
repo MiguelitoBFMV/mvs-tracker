@@ -1,7 +1,10 @@
 from django.db import models
 from django.utils import timezone
 
-from decimal import Decimal
+from decimal import (
+    Decimal,
+    ROUND_FLOOR,
+)
 
 class MangaEntry(models.Model):
     # Datos base del manga en MAL
@@ -402,6 +405,9 @@ class MangaChapterSignal(models.Model):
         ):
             return (
                 self.latest_available_chapter
+                .to_integral_value(
+                    rounding=ROUND_FLOOR
+                )
             )
 
         canonical_total = (

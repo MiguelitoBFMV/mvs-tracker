@@ -2082,6 +2082,50 @@ class MangaCanonicalChapterSignalTests(
             [signal],
         )
 
+    def test_decimal_external_chapter_is_floored_for_mal_progress(
+        self,
+    ):
+        manga = MangaEntry.objects.create(
+            mal_id=6110,
+            title="Decimal Chapter Manga",
+            list_status="reading",
+            publication_status=(
+                "currently_publishing"
+            ),
+            num_chapters_read=2,
+        )
+
+        signal = (
+            MangaChapterSignal.objects.create(
+                manga=manga,
+                mal_id=manga.mal_id,
+                latest_available_chapter=(
+                    Decimal("9.50")
+                ),
+                availability_source_type=(
+                    "external"
+                ),
+                availability_source_name=(
+                    "Mangabat"
+                ),
+            )
+        )
+
+        self.assertEqual(
+            signal.latest_available_chapter,
+            Decimal("9.50"),
+        )
+
+        self.assertEqual(
+            signal.target_chapter,
+            Decimal("9"),
+        )
+
+        self.assertEqual(
+            signal.pending_chapters,
+            Decimal("7"),
+        )
+
 
 class MangaDashboardMirrorTests(TestCase):
     @classmethod
