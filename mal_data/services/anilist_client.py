@@ -131,6 +131,73 @@ class AniListClient:
             .get("data", {})
             .get("Media")
         )
+
+    def search_manga_candidates(
+        self,
+        search,
+        per_page=10,
+    ):
+        query = """
+        query ($search: String!, $perPage: Int!) {
+            Page(page: 1, perPage: $perPage) {
+                media(
+                    search: $search,
+                    type: MANGA
+                ) {
+                    id
+                    idMal
+                    title {
+                        romaji
+                        english
+                        native
+                    }
+                    status
+                    format
+                    chapters
+                    volumes
+                    countryOfOrigin
+                    coverImage {
+                        extraLarge
+                        large
+                        medium
+                    }
+                }
+            }
+        }
+        """
+
+        response = requests.post(
+            self.API_URL,
+            json={
+                "query": query,
+                "variables": {
+                    "search": search,
+                    "perPage": per_page,
+                },
+            },
+            timeout=30,
+        )
+
+        if not response.ok:
+            raise Exception(
+                "AniList API error "
+                f"{response.status_code}: "
+                f"{response.text}"
+            )
+
+        payload = response.json()
+
+        if "errors" in payload:
+            raise Exception(
+                payload["errors"]
+            )
+
+        return (
+            payload
+            .get("data", {})
+            .get("Page", {})
+            .get("media", [])
+        )
     
     def search_anime(self, search):
         query = """

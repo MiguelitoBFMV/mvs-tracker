@@ -97,6 +97,9 @@ from mal_data.services.manga_sources.mangas_in import (
 from mal_data.services.manga_sources.mangabat import (
     MangabatClient,
 )
+from mal_data.services.anilist_client import (
+    AniListClient,
+)
 
 
 def build_anime_item(
@@ -252,6 +255,9 @@ class MalInsightsPublicRouteTests(TestCase):
             ),
             reverse("mal_insights:anime_search"),
             reverse("mal_insights:seasonal_board"),
+            reverse(
+                "manga_insights:manga_search"
+            ),
         ]
 
     def test_public_routes_are_available_without_login(
@@ -311,6 +317,10 @@ class MalInsightsProtectedRouteTests(TestCase):
             reverse(
                 "manga_insights:"
                 "sync_manual_manga_rescues"
+            ),
+            reverse(
+                "manga_insights:"
+                "rescue_manga_from_search"
             ),
         ]
 
@@ -5004,4 +5014,292 @@ class MangabatClientTests(
             client.search(
                 "Dream Jumbo Girl"
             )
+
+
+class AniListMangaSearchClientTests(
+    TestCase
+):
+    @patch(
+        "mal_data.services.anilist_client."
+        "requests.post"
+    )
+    def test_search_manga_candidates(
+        self,
+        mock_post,
+    ):
+        response = Mock()
+        response.ok = True
+        response.status_code = 200
+        response.json.return_value = {
+            "data": {
+                "Page": {
+                    "media": [
+                        {
+                            "id": 12345,
+                            "idMal": 67890,
+                            "title": {
+                                "romaji": (
+                                    "Test Manga"
+                                ),
+                                "english": None,
+                                "native": (
+                                    "テスト漫画"
+                                ),
+                            },
+                            "status": (
+                                "RELEASING"
+                            ),
+                            "format": "MANGA",
+                            "chapters": None,
+                            "volumes": None,
+                            "countryOfOrigin": "JP",
+                            "coverImage": {
+                                "large": (
+                                    "https://example.test/"
+                                    "cover.jpg"
+                                ),
+                            },
+                        },
+                    ],
+                },
+            },
+        }
+
+        mock_post.return_value = response
+
+        results = (
+            AniListClient()
+            .search_manga_candidates(
+                "Test Manga"
+            )
+        )
+
+        self.assertEqual(
+            len(results),
+            1,
+        )
+
+        self.assertEqual(
+            results[0]["idMal"],
+            67890,
+        )
+
+        request_json = (
+            mock_post
+            .call_args
+            .kwargs["json"]
+        )
+
+        self.assertEqual(
+            request_json["variables"],
+            {
+                "search": "Test Manga",
+                "perPage": 10,
+            },
+        )
+
+        self.assertIn(
+            "type: MANGA",
+            request_json["query"],
+        )
+
+
+class MangaSearchViewTests(
+    TestCase
+):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects
+            .create_user(
+                username=(
+                    "manga-search-owner"
+                ),
+            )
+        )
+
+    @patch(
+        "mal_data.web.manga_search."
+        "AniListClient"
+    )
+    def test_search_displays_anilist_candidate(
+        self,
+        mock_client_class,
+    ):
+        mock_client_class.return_value\
+            .search_manga_candidates\
+            .return_value = [
+                {
+                    "id": 1111,
+                    "idMal": 2222,
+                    "title": {
+                        "romaji": (
+                            "Rescue Manga"
+                        ),
+                        "english": None,
+                        "native": (
+                            "レスキュー漫画"
+                        ),
+                    },
+                    "status": "RELEASING",
+                    "format": "MANGA",
+                    "chapters": None,
+                    "volumes": None,
+                    "countryOfOrigin": "JP",
+                    "coverImage": {
+                        "large": (
+                            "https://example.test/"
+                            "rescue.jpg"
+                        ),
+                    },
+                },
+            ]
+
+        response = self.client.get(
+            reverse(
+                "manga_insights:manga_search"
+            ),
+            {
+                "q": "Rescue Manga",
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "Rescue Manga",
+        )
+
+        self.assertContains(
+            response,
+            "MAL ID",
+        )
+
+        self.assertContains(
+            response,
+            "2222",
+        )
+
+        self.assertEqual(
+            response.context["results"][0]["mal_id"],
+            2222,
+        )
+
+        self.assertContains(
+            response,
+            "PUBLISHING",
+        )
+
+    @patch(
+        (
+            "mal_data.web.manga_search."
+            "sync_manual_tracked_manga_entry"
+        )
+    )
+    def test_owner_can_rescue_manga(
+        self,
+        mock_sync,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        mock_sync.return_value = (
+            SimpleNamespace(
+                mal_id=2222,
+                display_title=(
+                    "Rescue Manga"
+                ),
+                personal_status_label=(
+                    "Reading"
+                ),
+            ),
+            True,
+        )
+
+        response = self.client.post(
+            reverse(
+                (
+                    "manga_insights:"
+                    "rescue_manga_from_search"
+                )
+            ),
+            {
+                "mal_id": "2222",
+                "title_snapshot": (
+                    "Rescue Manga"
+                ),
+                "status": "reading",
+                "chapters_read": "12",
+                "volumes_read": "2",
+                "score": "8",
+                "return_query": (
+                    "Rescue Manga"
+                ),
+            },
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        tracked = (
+            ManualTrackedManga.objects
+            .get(
+                mal_id=2222
+            )
+        )
+
+        self.assertEqual(
+            tracked.status,
+            "reading",
+        )
+
+        self.assertEqual(
+            tracked.chapters_read,
+            12,
+        )
+
+        self.assertEqual(
+            tracked.volumes_read,
+            2,
+        )
+
+        self.assertEqual(
+            tracked.score,
+            8,
+        )
+
+        mock_sync.assert_called_once_with(
+            tracked
+        )
+
+    def test_anonymous_rescue_redirects_to_login(
+        self,
+    ):
+        response = self.client.post(
+            reverse(
+                (
+                    "manga_insights:"
+                    "rescue_manga_from_search"
+                )
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        self.assertTrue(
+            response.url.startswith(
+                reverse("login")
+            )
+        )
 
