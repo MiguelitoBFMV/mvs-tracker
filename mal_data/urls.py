@@ -8,12 +8,16 @@ from .web import sync as sync_views
 from .web import dashboard as dashboard_views
 from .web import oauth as oauth_views
 
+
 app_name = "mal_insights"
 
 
 urlpatterns = [
-    path("", dashboard_views.dashboard, name="dashboard"),
-
+    path(
+        "",
+        dashboard_views.dashboard,
+        name="dashboard",
+    ),
     path(
         "status/<str:status>/",
         library_views.anime_status_list,
@@ -40,10 +44,10 @@ urlpatterns = [
         name="sync_episode_signals",
     ),
     path(
-    "sync/manual-rescues/",
-    sync_views.sync_manual_rescues_view,
-    name="sync_manual_rescues",
-),
+        "sync/manual-rescues/",
+        sync_views.sync_manual_rescues_view,
+        name="sync_manual_rescues",
+    ),
     path(
         "<int:mal_id>/relations/sync/",
         relations_views.sync_anime_relations_view,
@@ -75,9 +79,9 @@ urlpatterns = [
         name="add_seasonal_to_plan",
     ),
     path(
-    "oauth/mal/connect/",
-    oauth_views.mal_oauth_connect,
-    name="mal_oauth_connect",
+        "oauth/mal/connect/",
+        oauth_views.mal_oauth_connect,
+        name="mal_oauth_connect",
     ),
     path(
         "oauth/mal/callback/",
