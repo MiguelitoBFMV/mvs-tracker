@@ -132,6 +132,98 @@ class AniListClient:
             .get("Media")
         )
 
+    def fetch_manga_relations_by_mal_id(
+        self,
+        mal_id,
+    ):
+        query = """
+        query ($malId: Int!) {
+            Media(
+                idMal: $malId
+                type: MANGA
+            ) {
+                id
+                idMal
+                title {
+                    romaji
+                    english
+                    native
+                }
+                relations {
+                    edges {
+                        relationType
+                        node {
+                            id
+                            idMal
+                            type
+                            format
+                            status
+
+                            title {
+                                romaji
+                                english
+                                native
+                            }
+
+                            coverImage {
+                                extraLarge
+                                large
+                                medium
+                            }
+
+                            episodes
+                            chapters
+                            volumes
+
+                            startDate {
+                                year
+                                month
+                                day
+                            }
+
+                            endDate {
+                                year
+                                month
+                                day
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+
+        response = requests.post(
+            self.API_URL,
+            json={
+                "query": query,
+                "variables": {
+                    "malId": mal_id,
+                },
+            },
+            timeout=30,
+        )
+
+        if not response.ok:
+            raise Exception(
+                "AniList API error "
+                f"{response.status_code}: "
+                f"{response.text}"
+            )
+
+        payload = response.json()
+
+        if "errors" in payload:
+            raise Exception(
+                payload["errors"]
+            )
+
+        return (
+            payload
+            .get("data", {})
+            .get("Media")
+        )
+
     def search_manga_candidates(
         self,
         search,
