@@ -1030,6 +1030,19 @@ a:hover {
     margin: 0;
 }
 
+.compact-button {
+    display: inline-flex;
+    padding: 7px 10px;
+    font-size: 12px;
+}
+
+.archive-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
 @media (max-width: 720px) {
     .relation-source {
         grid-template-columns: 1fr;
