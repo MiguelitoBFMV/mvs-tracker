@@ -5,25 +5,87 @@ from django.conf import settings
 from django.utils import timezone
 
 from mal_data.models import AnimeEntry, AnimeMetadata, AnimeRelation, MangaEntry
-from mal_data.services.mal_client import MyAnimeListClient
+from mal_data.services.anilist_client import (
+    AniListClient,
+)
+from mal_data.services.manga_relations_sync import (
+    normalize_anilist_relations,
+)
 
 
-def sync_anime_relations(anime_id, save_raw=True):
-    client = MyAnimeListClient()
-    data = client.fetch_anime_details(anime_id)
+def sync_anime_relations(
+    anime_id,
+    save_raw=True,
+):
+    client = AniListClient()
+
+    data = (
+        client
+        .fetch_anime_relations_by_mal_id(
+            anime_id
+        )
+    )
+
+    if not data:
+        raise ValueError(
+            "AniList returned no anime "
+            "for this MAL ID."
+        )
 
     if save_raw:
-        save_raw_json(anime_id, data)
+        save_raw_json(
+            anime_id,
+            data,
+        )
 
-    source_mal_id = data.get("id")
-    source_title = data.get("title") or ""
+    source_mal_id = (
+        data.get("idMal")
+        or anime_id
+    )
 
-    source_anime = AnimeEntry.objects.filter(mal_id=source_mal_id).first()
+    source_title_data = (
+        data.get("title")
+        or {}
+    )
 
-    related_anime = data.get("related_anime", [])
-    related_manga = data.get("related_manga", [])
+    source_title = (
+        source_title_data.get(
+            "romaji"
+        )
+        or source_title_data.get(
+            "english"
+        )
+        or source_title_data.get(
+            "native"
+        )
+        or ""
+    )
 
-    anime_created, anime_updated = save_relations(
+    source_anime = (
+        AnimeEntry.objects
+        .filter(
+            mal_id=source_mal_id
+        )
+        .first()
+    )
+
+    (
+        related_anime,
+        related_manga,
+    ) = normalize_anilist_relations(
+        data
+    )
+
+    prune_stale_relations(
+        source_mal_id=source_mal_id,
+        related_anime=related_anime,
+        related_manga=related_manga,
+    )
+
+    (
+        anime_created,
+        anime_updated,
+    ) = save_relations(
         source_anime=source_anime,
         source_mal_id=source_mal_id,
         source_title=source_title,
@@ -31,7 +93,10 @@ def sync_anime_relations(anime_id, save_raw=True):
         relation_source_type="anime",
     )
 
-    manga_created, manga_updated = save_relations(
+    (
+        manga_created,
+        manga_updated,
+    ) = save_relations(
         source_anime=source_anime,
         source_mal_id=source_mal_id,
         source_title=source_title,
@@ -40,15 +105,87 @@ def sync_anime_relations(anime_id, save_raw=True):
     )
 
     return {
-        "source_mal_id": source_mal_id,
-        "source_title": source_title,
-        "related_anime_count": len(related_anime),
-        "related_manga_count": len(related_manga),
-        "anime_created": anime_created,
-        "anime_updated": anime_updated,
-        "manga_created": manga_created,
-        "manga_updated": manga_updated,
+        "source_mal_id": (
+            source_mal_id
+        ),
+        "source_title": (
+            source_title
+        ),
+        "related_anime_count": (
+            len(related_anime)
+        ),
+        "related_manga_count": (
+            len(related_manga)
+        ),
+        "anime_created": (
+            anime_created
+        ),
+        "anime_updated": (
+            anime_updated
+        ),
+        "manga_created": (
+            manga_created
+        ),
+        "manga_updated": (
+            manga_updated
+        ),
     }
+
+def prune_stale_relations(
+    *,
+    source_mal_id,
+    related_anime,
+    related_manga,
+):
+    current_keys = {
+        (
+            item["node"]["id"],
+            "anime",
+            item["relation_type"],
+        )
+        for item in related_anime
+    }
+
+    current_keys.update(
+        {
+            (
+                item["node"]["id"],
+                "manga",
+                item["relation_type"],
+            )
+            for item in related_manga
+        }
+    )
+
+    existing_relations = (
+        AnimeRelation.objects
+        .filter(
+            source_mal_id=(
+                source_mal_id
+            )
+        )
+    )
+
+    stale_ids = [
+        relation.pk
+        for relation
+        in existing_relations
+        if (
+            relation.target_mal_id,
+            relation.relation_source_type,
+            relation.relation_type,
+        )
+        not in current_keys
+    ]
+
+    if stale_ids:
+        (
+            AnimeRelation.objects
+            .filter(
+                pk__in=stale_ids
+            )
+            .delete()
+        )
 
 def save_raw_json(anime_id, data):
     raw_dir = settings.BASE_DIR / "data" / "raw"
@@ -101,6 +238,24 @@ def save_relations(
             "target_local_list_status": target_local_list_status,
             "raw_data": item,
             "last_synced_at": timezone.now(),
+            "target_num_episodes": (
+                node.get(
+                    "num_episodes"
+                )
+                or 0
+            ),
+            "target_num_chapters": (
+                node.get(
+                    "num_chapters"
+                )
+                or 0
+            ),
+            "target_num_volumes": (
+                node.get(
+                    "num_volumes"
+                )
+                or 0
+            ),
         }
 
         _, created = AnimeRelation.objects.update_or_create(

@@ -989,6 +989,24 @@ class AnimeRelation(models.Model):
     target_status = models.CharField(max_length=50, blank=True, null=True)
     target_picture_url = models.URLField(blank=True, null=True)
 
+    target_num_episodes = (
+        models.PositiveIntegerField(
+            default=0
+        )
+    )
+
+    target_num_chapters = (
+        models.PositiveIntegerField(
+            default=0
+        )
+    )
+
+    target_num_volumes = (
+        models.PositiveIntegerField(
+            default=0
+        )
+    )
+
     relation_type = models.CharField(max_length=100)
     relation_type_formatted = models.CharField(max_length=100, blank=True, null=True)
 
@@ -1003,80 +1021,251 @@ class AnimeRelation(models.Model):
 
     @property
     def target_anime_entry(self):
-        if self.relation_source_type != "anime":
+        if (
+            self.relation_source_type
+            != "anime"
+        ):
             return None
 
-        return AnimeEntry.objects.filter(mal_id=self.target_mal_id).first()
-    
+        return (
+            AnimeEntry.objects
+            .filter(
+                mal_id=self.target_mal_id
+            )
+            .first()
+        )
+
+
     @property
     def target_anime_metadata(self):
-        if self.relation_source_type != "anime":
+        if (
+            self.relation_source_type
+            != "anime"
+        ):
             return None
 
-        return AnimeMetadata.objects.filter(mal_id=self.target_mal_id).first()
+        return (
+            AnimeMetadata.objects
+            .filter(
+                mal_id=self.target_mal_id
+            )
+            .first()
+        )
+
+
+    @property
+    def target_manga_entry(self):
+        if (
+            self.relation_source_type
+            != "manga"
+        ):
+            return None
+
+        return (
+            MangaEntry.objects
+            .filter(
+                mal_id=self.target_mal_id
+            )
+            .first()
+        )
+
+
+    @property
+    def has_local_target(self):
+        if (
+            self.relation_source_type
+            == "anime"
+        ):
+            return (
+                self.target_anime_entry
+                is not None
+            )
+
+        if (
+            self.relation_source_type
+            == "manga"
+        ):
+            return (
+                self.target_manga_entry
+                is not None
+            )
+
+        return False
+
 
     @property
     def target_display_status(self):
-        target = self.target_anime_entry
+        if (
+            self.relation_source_type
+            == "anime"
+        ):
+            target = (
+                self.target_anime_entry
+            )
+
+        else:
+            target = (
+                self.target_manga_entry
+            )
 
         if target:
-            return target.personal_status_label
+            return (
+                target.personal_status_label
+            )
 
         if self.target_local_list_status:
-            return self.target_local_list_status
+            return (
+                self.target_local_list_status
+            )
 
         return "Not in local list"
 
 
     @property
     def target_display_media_type(self):
-        target = self.target_anime_entry
+        if (
+            self.relation_source_type
+            == "anime"
+        ):
+            target = (
+                self.target_anime_entry
+            )
 
-        if target and target.media_type:
-            return target.media_type
+            if (
+                target
+                and target.media_type
+            ):
+                return target.media_type
 
-        metadata = self.target_anime_metadata
+            metadata = (
+                self.target_anime_metadata
+            )
 
-        if metadata and metadata.media_type:
-            return metadata.media_type
+            if (
+                metadata
+                and metadata.media_type
+            ):
+                return metadata.media_type
 
-        return self.target_media_type or "-"
+        else:
+            target = (
+                self.target_manga_entry
+            )
+
+            if (
+                target
+                and target.media_type
+            ):
+                return target.media_type
+
+        return (
+            self.target_media_type
+            or "-"
+        )
 
 
     @property
     def target_display_airing_status(self):
-        target = self.target_anime_entry
+        if (
+            self.relation_source_type
+            != "anime"
+        ):
+            return (
+                self.target_status
+                or "-"
+            )
 
-        if target and target.airing_status:
+        target = (
+            self.target_anime_entry
+        )
+
+        if (
+            target
+            and target.airing_status
+        ):
             return target.airing_status
 
-        metadata = self.target_anime_metadata
+        metadata = (
+            self.target_anime_metadata
+        )
 
-        if metadata and metadata.airing_status:
+        if (
+            metadata
+            and metadata.airing_status
+        ):
             return metadata.airing_status
 
-        return self.target_status or "-"
+        return (
+            self.target_status
+            or "-"
+        )
 
 
     @property
     def target_display_progress(self):
-        target = self.target_anime_entry
+        if (
+            self.relation_source_type
+            == "anime"
+        ):
+            target = (
+                self.target_anime_entry
+            )
+
+            if target:
+                total = (
+                    target.num_episodes
+                    or "TBD"
+                )
+
+                return (
+                    f"{target.num_episodes_watched}"
+                    f"/{total}"
+                )
+
+            total = (
+                self.target_num_episodes
+                or "TBD"
+            )
+
+            return f"-/{total}"
+
+        target = (
+            self.target_manga_entry
+        )
 
         if target:
-            total_episodes = target.num_episodes or "TBD"
-            return f"{target.num_episodes_watched}/{total_episodes}"
+            total = (
+                target.num_chapters
+                or "TBD"
+            )
 
-        metadata = self.target_anime_metadata
+            return (
+                f"{target.num_chapters_read}"
+                f"/{total}"
+            )
 
-        if metadata and metadata.num_episodes:
-            return f"-/{metadata.num_episodes}"
+        total = (
+            self.target_num_chapters
+            or "TBD"
+        )
 
-        return "-"
+        return f"-/{total}"
 
 
     @property
     def target_display_score(self):
-        target = self.target_anime_entry
+        if (
+            self.relation_source_type
+            == "anime"
+        ):
+            target = (
+                self.target_anime_entry
+            )
+
+        else:
+            target = (
+                self.target_manga_entry
+            )
 
         if target:
             return target.score
@@ -1086,30 +1275,83 @@ class AnimeRelation(models.Model):
 
     @property
     def target_display_title(self):
-        target = self.target_anime_entry
+        if (
+            self.relation_source_type
+            == "anime"
+        ):
+            target = (
+                self.target_anime_entry
+            )
 
-        if target:
-            return target.display_title
+            if target:
+                return (
+                    target.display_title
+                )
 
-        metadata = self.target_anime_metadata
+            metadata = (
+                self.target_anime_metadata
+            )
 
-        if metadata:
-            return metadata.display_title
+            if metadata:
+                return (
+                    metadata.display_title
+                )
+
+        else:
+            target = (
+                self.target_manga_entry
+            )
+
+            if target:
+                return (
+                    target.display_title
+                )
 
         return self.target_title
 
 
     @property
     def target_display_picture_url(self):
-        target = self.target_anime_entry
+        if (
+            self.relation_source_type
+            == "anime"
+        ):
+            target = (
+                self.target_anime_entry
+            )
 
-        if target and target.main_picture_url:
-            return target.main_picture_url
+            if (
+                target
+                and target.main_picture_url
+            ):
+                return (
+                    target.main_picture_url
+                )
 
-        metadata = self.target_anime_metadata
+            metadata = (
+                self.target_anime_metadata
+            )
 
-        if metadata and metadata.main_picture_url:
-            return metadata.main_picture_url
+            if (
+                metadata
+                and metadata.main_picture_url
+            ):
+                return (
+                    metadata.main_picture_url
+                )
+
+        else:
+            target = (
+                self.target_manga_entry
+            )
+
+            if (
+                target
+                and target.main_picture_url
+            ):
+                return (
+                    target.main_picture_url
+                )
 
         return self.target_picture_url
 
@@ -1117,15 +1359,13 @@ class AnimeRelation(models.Model):
     @property
     def is_external_metadata_node(self):
         return (
-            self.relation_source_type == "anime"
-            and self.target_anime_entry is None
-            and self.target_anime_metadata is not None
+            self.relation_source_type
+            == "anime"
+            and self.target_anime_entry
+            is None
+            and self.target_anime_metadata
+            is not None
         )
-
-
-    @property
-    def has_local_target(self):
-        return self.target_anime_entry is not None
 
     class Meta:
         unique_together = (
