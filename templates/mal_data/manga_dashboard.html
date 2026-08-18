@@ -429,6 +429,13 @@
 
                                             <a
                                                 class="secondary-button"
+                                                href="{% url 'manga_insights:manga_relations_detail' manga.mal_id %}"
+                                            >
+                                                Relations
+                                            </a>
+
+                                            <a
+                                                class="secondary-button"
                                                 href="https://myanimelist.net/manga/{{ manga.mal_id }}"
                                                 target="_blank"
                                                 rel="noopener noreferrer"

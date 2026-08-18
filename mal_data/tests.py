@@ -28,6 +28,7 @@ from mal_data.models import (
     MangaSyncEvent,
     ManualTrackedAnime,
     ManualTrackedManga,
+    MangaRelation
 )
 from mal_data.services.anime_list_sync import (
     sync_anime_status,
@@ -99,6 +100,9 @@ from mal_data.services.manga_sources.mangabat import (
 )
 from mal_data.services.anilist_client import (
     AniListClient,
+)
+from mal_data.services.manga_relations_sync import (
+    sync_manga_relations,
 )
 
 
@@ -5301,5 +5305,502 @@ class MangaSearchViewTests(
             response.url.startswith(
                 reverse("login")
             )
+        )
+
+
+class MangaRelationsSyncTests(
+    TestCase
+):
+    def setUp(self):
+        self.source = (
+            MangaEntry.objects.create(
+                mal_id=8001,
+                title="Source Manga",
+                list_status="reading",
+                publication_status=(
+                    "currently_publishing"
+                ),
+            )
+        )
+
+        self.local_manga = (
+            MangaEntry.objects.create(
+                mal_id=8002,
+                title="Related Manga",
+                list_status=(
+                    "plan_to_read"
+                ),
+                publication_status=(
+                    "finished"
+                ),
+                num_chapters=50,
+                num_chapters_read=0,
+            )
+        )
+
+        self.local_anime = (
+            AnimeEntry.objects.create(
+                mal_id=8003,
+                title="Related Anime",
+                list_status=(
+                    "completed"
+                ),
+                airing_status=(
+                    "finished_airing"
+                ),
+                num_episodes=12,
+                num_episodes_watched=12,
+            )
+        )
+
+    @patch(
+        "mal_data.services."
+        "manga_relations_sync."
+        "AniListClient"
+    )
+    def test_syncs_anime_and_manga_relations(
+        self,
+        mock_client_class,
+    ):
+        mock_client_class.return_value\
+            .fetch_manga_relations_by_mal_id\
+            .return_value = {
+                "id": 70001,
+                "idMal": 8001,
+                "title": {
+                    "romaji": "Source Manga",
+                    "english": None,
+                    "native": "ソース漫画",
+                },
+                "relations": {
+                    "edges": [
+                        {
+                            "relationType": (
+                                "ADAPTATION"
+                            ),
+                            "node": {
+                                "id": 70003,
+                                "idMal": 8003,
+                                "type": "ANIME",
+                                "format": "TV",
+                                "status": (
+                                    "FINISHED"
+                                ),
+                                "title": {
+                                    "romaji": (
+                                        "Related Anime"
+                                    ),
+                                    "english": None,
+                                    "native": "",
+                                },
+                                "coverImage": {
+                                    "large": (
+                                        "https://"
+                                        "example.test/"
+                                        "anime.jpg"
+                                    ),
+                                },
+                                "episodes": 12,
+                                "chapters": None,
+                                "volumes": None,
+                                "startDate": None,
+                                "endDate": None,
+                            },
+                        },
+                        {
+                            "relationType": (
+                                "SIDE_STORY"
+                            ),
+                            "node": {
+                                "id": 70002,
+                                "idMal": 8002,
+                                "type": "MANGA",
+                                "format": "MANGA",
+                                "status": (
+                                    "FINISHED"
+                                ),
+                                "title": {
+                                    "romaji": (
+                                        "Related Manga"
+                                    ),
+                                    "english": None,
+                                    "native": "",
+                                },
+                                "coverImage": {
+                                    "large": (
+                                        "https://"
+                                        "example.test/"
+                                        "manga.jpg"
+                                    ),
+                                },
+                                "episodes": None,
+                                "chapters": 50,
+                                "volumes": 5,
+                                "startDate": None,
+                                "endDate": None,
+                            },
+                        },
+                    ],
+                },
+            }
+
+        result = (
+            sync_manga_relations(
+                8001,
+                save_raw=False,
+            )
+        )
+
+        self.assertEqual(
+            result[
+                "related_anime_count"
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            result[
+                "related_manga_count"
+            ],
+            1,
+        )
+
+        self.assertEqual(
+            MangaRelation.objects.count(),
+            2,
+        )
+
+        anime_relation = (
+            MangaRelation.objects.get(
+                relation_source_type=(
+                    "anime"
+                )
+            )
+        )
+
+        self.assertTrue(
+            anime_relation
+            .has_local_target
+        )
+
+        self.assertEqual(
+            anime_relation
+            .target_display_progress,
+            "12/12",
+        )
+
+        manga_relation = (
+            MangaRelation.objects.get(
+                relation_source_type=(
+                    "manga"
+                )
+            )
+        )
+
+        self.assertTrue(
+            manga_relation
+            .has_local_target
+        )
+
+        self.assertEqual(
+            manga_relation
+            .target_display_progress,
+            "0/50",
+        )
+
+        self.assertEqual(
+            (
+                manga_relation
+                .target_display_status
+            ),
+            "Plan to read",
+        )
+
+
+class MangaRelationDisplayTests(
+    TestCase
+):
+    def test_external_manga_uses_cached_metadata(
+        self,
+    ):
+        source = (
+            MangaEntry.objects.create(
+                mal_id=8101,
+                title="Source",
+                list_status="reading",
+            )
+        )
+
+        relation = (
+            MangaRelation.objects.create(
+                source_manga=source,
+                source_mal_id=8101,
+                source_title="Source",
+                target_mal_id=8102,
+                target_title=(
+                    "External Manga"
+                ),
+                target_media_type="manga",
+                target_status=(
+                    "currently_publishing"
+                ),
+                target_num_chapters=42,
+                relation_type=(
+                    "spin_off"
+                ),
+                relation_source_type=(
+                    "manga"
+                ),
+            )
+        )
+
+        self.assertFalse(
+            relation.has_local_target
+        )
+
+        self.assertEqual(
+            (
+                relation
+                .target_display_title
+            ),
+            "External Manga",
+        )
+
+        self.assertEqual(
+            (
+                relation
+                .target_display_progress
+            ),
+            "-/42",
+        )
+
+        self.assertEqual(
+            (
+                relation
+                .target_display_status
+            ),
+            "Not in local list",
+        )
+
+
+class MangaRelationsViewTests(
+    TestCase
+):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = (
+            get_user_model()
+            .objects
+            .create_user(
+                username=(
+                    "manga-relations-owner"
+                ),
+            )
+        )
+
+        cls.source = (
+            MangaEntry.objects.create(
+                mal_id=8201,
+                title="Source Manga",
+                list_status="reading",
+                publication_status=(
+                    "currently_publishing"
+                ),
+                num_chapters_read=10,
+            )
+        )
+
+        cls.related_manga = (
+            MangaEntry.objects.create(
+                mal_id=8202,
+                title="Related Manga",
+                list_status=(
+                    "plan_to_read"
+                ),
+                publication_status=(
+                    "finished"
+                ),
+            )
+        )
+
+        cls.related_anime = (
+            AnimeEntry.objects.create(
+                mal_id=8203,
+                title="Related Anime",
+                list_status=(
+                    "completed"
+                ),
+                airing_status=(
+                    "finished_airing"
+                ),
+                num_episodes=12,
+                num_episodes_watched=12,
+            )
+        )
+
+        MangaRelation.objects.create(
+            source_manga=cls.source,
+            source_mal_id=8201,
+            source_title="Source Manga",
+            target_mal_id=8202,
+            target_title="Related Manga",
+            relation_type="side_story",
+            relation_type_formatted=(
+                "Side Story"
+            ),
+            relation_source_type=(
+                "manga"
+            ),
+        )
+
+        MangaRelation.objects.create(
+            source_manga=cls.source,
+            source_mal_id=8201,
+            source_title="Source Manga",
+            target_mal_id=8203,
+            target_title="Related Anime",
+            relation_type="adaptation",
+            relation_type_formatted=(
+                "Adaptation"
+            ),
+            relation_source_type=(
+                "anime"
+            ),
+        )
+
+    def get_url(self):
+        return reverse(
+            (
+                "manga_insights:"
+                "manga_relations_detail"
+            ),
+            kwargs={
+                "mal_id": (
+                    self.source.mal_id
+                ),
+            },
+        )
+
+    def test_public_relations_page(
+        self,
+    ):
+        response = self.client.get(
+            self.get_url()
+        )
+
+        self.assertEqual(
+            response.status_code,
+            200,
+        )
+
+        self.assertContains(
+            response,
+            "Source Manga",
+        )
+
+        self.assertContains(
+            response,
+            "Related Manga",
+        )
+
+        self.assertContains(
+            response,
+            "Related Anime",
+        )
+
+        self.assertContains(
+            response,
+            "LOCAL NODE",
+        )
+
+    def test_unknown_source_returns_404(
+        self,
+    ):
+        response = self.client.get(
+            reverse(
+                (
+                    "manga_insights:"
+                    "manga_relations_detail"
+                ),
+                kwargs={
+                    "mal_id": 999999,
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            404,
+        )
+
+    def test_anonymous_sync_redirects_to_login(
+        self,
+    ):
+        response = self.client.post(
+            reverse(
+                (
+                    "manga_insights:"
+                    "sync_manga_relations"
+                ),
+                kwargs={
+                    "mal_id": (
+                        self.source.mal_id
+                    ),
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        self.assertTrue(
+            response.url.startswith(
+                reverse("login")
+            )
+        )
+
+    @patch(
+        (
+            "mal_data.web."
+            "manga_relations."
+            "sync_manga_relations"
+        )
+    )
+    def test_owner_can_sync_relations(
+        self,
+        mock_sync,
+    ):
+        self.client.force_login(
+            self.owner
+        )
+
+        mock_sync.return_value = {
+            "related_anime_count": 1,
+            "related_manga_count": 2,
+        }
+
+        response = self.client.post(
+            reverse(
+                (
+                    "manga_insights:"
+                    "sync_manga_relations"
+                ),
+                kwargs={
+                    "mal_id": (
+                        self.source.mal_id
+                    ),
+                },
+            )
+        )
+
+        self.assertEqual(
+            response.status_code,
+            302,
+        )
+
+        mock_sync.assert_called_once_with(
+            self.source.mal_id
         )
 

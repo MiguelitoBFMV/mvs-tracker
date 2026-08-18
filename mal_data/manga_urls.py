@@ -6,7 +6,8 @@ from .web import (
     manga_source_coverage as coverage_views,
     manga_sources as source_views,
     manga_sync as sync_views,
-    manga_search as search_views
+    manga_search as search_views,
+    manga_relations as relation_views
 )
 
 
@@ -18,6 +19,16 @@ urlpatterns = [
         "",
         dashboard_views.manga_dashboard,
         name="dashboard",
+    ),
+    path(
+        "<int:mal_id>/relations/",
+        relation_views.manga_relations_detail,
+        name="manga_relations_detail",
+    ),
+    path(
+        "<int:mal_id>/relations/sync/",
+        relation_views.sync_manga_relations_view,
+        name="sync_manga_relations",
     ),
     path(
         "search/",

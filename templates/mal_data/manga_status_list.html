@@ -223,7 +223,7 @@
                                 </a>
                             </th>
                             {% if user.is_authenticated %}
-                                <th>Sources</th>
+                                <th>Actions</th>
                             {% endif %}
                         </tr>
                     </thead>
@@ -366,15 +366,27 @@
                                 </td>
                                 {% if user.is_authenticated %}
                                     <td>
-                                        <a
-                                            class="
-                                                secondary-button
-                                                compact-button
-                                            "
-                                            href="{% url 'manga_insights:manga_source_management' manga.mal_id %}"
-                                        >
-                                            Manage
-                                        </a>
+                                        <div class="archive-actions">
+                                            <a
+                                                class="
+                                                    secondary-button
+                                                    compact-button
+                                                "
+                                                href="{% url 'manga_insights:manga_source_management' manga.mal_id %}"
+                                            >
+                                                Sources
+                                            </a>
+
+                                            <a
+                                                class="
+                                                    secondary-button
+                                                    compact-button
+                                                "
+                                                href="{% url 'manga_insights:manga_relations_detail' manga.mal_id %}"
+                                            >
+                                                Relations
+                                            </a>
+                                        </div>
                                     </td>
                                 {% endif %}
                             </tr>

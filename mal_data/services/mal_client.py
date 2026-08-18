@@ -182,7 +182,10 @@ class MyAnimeListClient:
         return manga_data.get("my_list_status")
 
 
-    def fetch_manga_details(self, manga_id):
+    def fetch_manga_details(
+        self,
+        manga_id,
+    ):
         url = self.MANGA_DETAIL_URL.format(
             manga_id=manga_id
         )
@@ -200,6 +203,43 @@ class MyAnimeListClient:
                     "num_chapters",
                     "start_date",
                     "end_date",
+                    "related_anime",
+                    "related_manga",
+                    (
+                        "related_anime{"
+                        "node{"
+                        "id,"
+                        "title,"
+                        "main_picture,"
+                        "alternative_titles,"
+                        "media_type,"
+                        "status,"
+                        "num_episodes,"
+                        "start_date,"
+                        "end_date"
+                        "},"
+                        "relation_type,"
+                        "relation_type_formatted"
+                        "}"
+                    ),
+                    (
+                        "related_manga{"
+                        "node{"
+                        "id,"
+                        "title,"
+                        "main_picture,"
+                        "alternative_titles,"
+                        "media_type,"
+                        "status,"
+                        "num_chapters,"
+                        "num_volumes,"
+                        "start_date,"
+                        "end_date"
+                        "},"
+                        "relation_type,"
+                        "relation_type_formatted"
+                        "}"
+                    ),
                 ]
             ),
         }
