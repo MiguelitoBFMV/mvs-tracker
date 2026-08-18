@@ -1,34 +1,34 @@
 # MAL Insights — Modelo de datos y arquitectura
 
-Este documento describe el estado implementado de **MAL Insights — Anime & Manga** dentro de MVS Tracker, junto con las extensiones que siguen pendientes.
+Este documento describe el estado final implementado de **MAL Insights — Anime & Manga** dentro de MVS Tracker.
 
-MAL Insights nació como **MAL Insight Lab** y continúa usando la aplicación Django técnica `mal_data`. Anime se encuentra funcionalmente estable. Manga ya dispone de biblioteca, dashboard, sincronización de progreso, rescates manuales y Chapter Signals canónicos y externos.
+MAL Insights nació como **MAL Insight Lab** y conserva la aplicación Django técnica `mal_data`. El módulo está ahora **funcionalmente completo** para su alcance actual: biblioteca personal, sincronización, señales de Anime y Manga, rescates manuales, fuentes externas de capítulos, búsqueda, relaciones cruzadas Anime ↔ Manga y acceso público de solo lectura.
 
-El checkpoint documentado corresponde a:
+El checkpoint actual se expresa sin fijar un número de migración o de pruebas, porque ambos cambian con mantenimiento incremental:
 
 ```text
 Aplicación Django técnica: mal_data
 Nombre público del módulo: MAL Insights
 Ruta Anime: /anime/
 Ruta Manga: /manga/
-Migraciones documentadas: hasta mal_data.0016
 Base de datos operativa: Supabase PostgreSQL
-Pruebas de mal_data: 46 OK
-Pruebas globales: 349 OK
 Pruebas automatizadas: SQLite en memoria
+Estado de la suite de mal_data: OK
+Estado de la suite global: OK
+Estado funcional del módulo: COMPLETE
 ```
 
 El módulo combina:
 
 - MyAnimeList como fuente principal de la relación personal.
-- AniList como fuente pública de emisión, descubrimiento y metadatos de Anime.
-- MANGA Plus y Weeb Central como fuentes explícitas de disponibilidad de capítulos.
+- AniList como fuente pública de emisión, búsqueda, descubrimiento y relaciones.
+- MANGA Plus, Weeb Central, MangaFire, Mangas.in y Mangabat como fuentes explícitas de disponibilidad de capítulos.
 - Persistencia local-first en PostgreSQL.
 - Acceso público de solo lectura.
 - Acciones privadas para el owner autenticado.
 - Sincronización explícita y separada por responsabilidad.
 - Dos mundos internos: Anime y Manga.
-- Integración futura con Hibi Log.
+- Una frontera de lectura clara para la futura integración con Hibi Log.
 
 ---
 
@@ -42,7 +42,7 @@ MAL Insights
 └── Manga
 ```
 
-Anime incluye actualmente:
+Anime incluye:
 
 - Biblioteca personal.
 - Watching y Rewatching.
@@ -54,10 +54,12 @@ Anime incluye actualmente:
 - Relation Scan.
 - Franchise Audit.
 - Sequel Radar.
+- Relaciones Anime ↔ Anime.
+- Relaciones Anime → Manga / Light Novel / Novel.
 - Metadatos externos.
 - OAuth con renovación automática.
 
-Manga incluye actualmente:
+Manga incluye:
 
 - Manga Command Center.
 - Archivo público por estado.
@@ -65,12 +67,18 @@ Manga incluye actualmente:
 - Sincronización optimizada de biblioteca.
 - Sincronización de progreso activo.
 - Manual Manga Rescues.
+- Search / Rescue mediante AniList.
 - Manga Command Logs.
 - Señales canónicas de finalización.
 - Chapter Signals con disponibilidad externa.
 - Fuentes persistentes por manga.
+- Source Management.
+- Source Coverage.
 - Prioridad configurable y fallback automático.
-- MANGA Plus y Weeb Central.
+- Cinco proveedores de capítulos.
+- Manga Relations.
+- Relaciones Manga → Anime.
+- Relaciones Manga ↔ Manga / Novel.
 
 Watchroom administra series, películas, cartoons, documentales y live action fuera del ecosistema anime. Game Kiroku administra videojuegos. Estos dominios no se mezclan dentro de MAL Insights.
 
@@ -80,9 +88,11 @@ Watchroom administra series, películas, cartoons, documentales y live action fu
 
 MAL Insights sigue estas reglas:
 
-- MyAnimeList es la fuente principal del estado, progreso y score personal.
-- AniList complementa Anime; no reemplaza la biblioteca personal.
-- MANGA Plus y Weeb Central aportan disponibilidad de capítulos, no progreso personal.
+- MyAnimeList es la fuente principal del estado, progreso, score y rewatch / reread personal.
+- El MAL ID es la identidad canónica usada para conectar datos de distintas fuentes.
+- AniList complementa el módulo; no reemplaza la biblioteca personal.
+- AniList descubre relaciones de Anime y Manga.
+- Los proveedores externos de Manga aportan disponibilidad de capítulos, no progreso personal.
 - Los datos sincronizados se almacenan localmente.
 - Las páginas normales leen desde la base local.
 - Una vista GET normal no produce sincronizaciones ni escrituras ocultas.
@@ -98,7 +108,7 @@ MAL Insights sigue estas reglas:
 - Anime y Manga conservan dashboards, navegación y señales propias.
 - Las fuentes externas se vinculan una vez y luego se consultan por su identificador guardado.
 - Un fallo externo individual no detiene la sincronización de los demás mangas.
-- Hibi Log consumirá actividad derivada de ambos mundos en una etapa posterior.
+- Hibi Log consumirá datos de MAL Insights sin que `mal_data` dependa de Hibi Log.
 
 ---
 
@@ -158,7 +168,7 @@ Dropped
 
 ### Switch Anime / Manga
 
-El encabezado compartido muestra un selector de mundo:
+El encabezado compartido muestra:
 
 ```text
 MAL INSIGHTS                     [ ANIME | MANGA ]
@@ -185,7 +195,9 @@ AnimeEntry
 ├── AnimeAiringData
 ├── AnimeSyncEvent
 └── AnimeRelation
-    └── AnimeMetadata como fallback externo
+    ├── target AnimeEntry
+    ├── target AnimeMetadata
+    └── target MangaEntry
 
 ManualTrackedAnime
 └── reconstruye o actualiza AnimeEntry
@@ -195,38 +207,36 @@ SeasonalAnime
 MangaEntry
 ├── MangaSyncEvent
 ├── MangaChapterSignal
-└── MangaSourceLink [0..n]
+├── MangaSourceLink [0..n]
+└── MangaRelation
+    ├── target MangaEntry
+    ├── target AnimeEntry
+    └── target AnimeMetadata
 
 ManualTrackedManga
 └── reconstruye o actualiza MangaEntry
 ```
 
-### Responsabilidad de las entidades Manga
+La biblioteca personal y las relaciones son conceptos distintos:
 
 ```text
-MangaEntry
-    Biblioteca personal local de Manga.
+AnimeEntry / MangaEntry
+    estado personal
 
-MangaSyncEvent
-    Command Log de cambios personales.
+AnimeRelation / MangaRelation
+    grafo de conexiones
 
-ManualTrackedManga
-    Excepción persistente para entradas omitidas por la lista MAL.
-
-MangaChapterSignal
-    Estado vigente de disponibilidad y capítulos pendientes.
-
-MangaSourceLink
-    Asociación persistente entre un manga local y una serie externa.
+AnimeMetadata
+    fallback para nodos Anime no presentes en la biblioteca local
 ```
 
 ---
 
 ## 5. MangaEntry
 
-`MangaEntry` representa una entrada personal de manga importada desde MyAnimeList.
+`MangaEntry` representa una entrada personal de Manga importada o reconstruida desde MyAnimeList.
 
-### Campos implementados
+### Campos principales
 
 | Campo | Tipo | Nulo / vacío | Descripción |
 |---|---|---:|---|
@@ -235,7 +245,7 @@ MangaSourceLink
 | `title_japanese` | `CharField` | Sí | Título japonés. |
 | `title_english` | `CharField` | Sí | Título inglés. |
 | `main_picture_url` | `URLField` | Sí | Portada principal. |
-| `media_type` | `CharField` | Sí | Tipo de publicación. |
+| `media_type` | `CharField` | Sí | Manga, light novel, novel, one-shot u otro tipo MAL. |
 | `publication_status` | `CharField` | Sí | Estado editorial. |
 | `num_volumes` | `PositiveIntegerField` | No | Total conocido de volúmenes. |
 | `num_chapters` | `PositiveIntegerField` | No | Total canónico conocido. |
@@ -266,21 +276,6 @@ plan_to_read
 is_rereading = True
 ```
 
-### Título visible
-
-Cuando existe título japonés:
-
-```text
-Título principal (日本語タイトル)
-```
-
-### Orden
-
-```text
-updated_at_mal descendente
-title ascendente
-```
-
 ---
 
 ## 6. MangaSyncEvent
@@ -297,36 +292,24 @@ volume_changed
 score_changed
 ```
 
-### Campos
+### Semántica
 
-| Campo | Tipo | Nulo / vacío | Descripción |
-|---|---|---:|---|
-| `manga` | `ForeignKey` | Sí | Entrada relacionada. |
-| `mal_id` | `PositiveIntegerField` | No | Snapshot del MAL ID. |
-| `title_snapshot` | `CharField` | No | Título al momento del evento. |
-| `event_type` | `CharField` | No | Tipo de cambio. |
-| `old_value` | `CharField` | Sí | Valor anterior. |
-| `new_value` | `CharField` | Sí | Valor nuevo. |
-| `created_at` | `DateTimeField` | No | Fecha del evento. |
-
-Ejemplos:
+Un evento registra que el valor local cambió durante una sincronización:
 
 ```text
 CH_UPDATE
 Seihantai na Kimi to Boku [CH. 42 → CH. 43]
-
-VOLUME_UPDATE
-Manga X [VOL. 8 → VOL. 9]
-
-STATUS_UPDATE
-Manga Y [Reading → Completed]
 ```
+
+El timestamp de `MangaSyncEvent` es la hora del cambio detectado por el sistema. **No debe interpretarse como la hora exacta en que el usuario leyó el capítulo.**
+
+Esta distinción es importante para la futura integración con Hibi Log.
 
 ---
 
-## 7. ManualTrackedManga
+## 7. ManualTrackedManga y Search / Rescue
 
-`ManualTrackedManga` protege entradas que existen en la lista real del usuario, pero que el endpoint general de lista de MAL omite.
+`ManualTrackedManga` protege entradas que existen en la lista real del usuario, pero que el endpoint general de lista de MAL puede omitir.
 
 ### Campos
 
@@ -344,21 +327,25 @@ Manga Y [Reading → Completed]
 | `created_at` | `DateTimeField` | No | Fecha de creación. |
 | `updated_at` | `DateTimeField` | No | Última actualización. |
 
-### Semántica
-
-`ManualTrackedManga` no crea una segunda biblioteca.
+### Flujo de rescate
 
 ```text
-La lista general omite el manga
+La lista general de MAL omite el manga
 ↓
-ManualTrackedManga recuerda la excepción
+Search / Rescue busca candidatos en AniList
 ↓
-El detalle individual de MAL entrega el estado real cuando es posible
+El candidato aporta AniList ID + MAL ID
+↓
+Rescue / Track crea o actualiza ManualTrackedManga
+↓
+El detalle individual de MAL intenta recuperar el estado personal real
 ↓
 MangaEntry se reconstruye o actualiza
 ↓
-El tracker manual se mantiene alineado como fallback
+ManualTrackedManga permanece como safety net
 ```
+
+`ManualTrackedManga` no crea una segunda biblioteca.
 
 ---
 
@@ -401,43 +388,47 @@ o
 manga.num_chapters
 ```
 
-### Objetivo vigente
+### Objetivo vigente con fuente externa
 
-Cuando existe disponibilidad externa:
+El valor externo se conserva como `Decimal`.
 
-```text
-target_chapter = latest_available_chapter
-```
-
-En caso contrario:
+Ejemplo:
 
 ```text
-target_chapter = canonical_total_chapters
+latest_available_chapter = 9.50
 ```
+
+Sin embargo, el progreso personal de MAL usa capítulos enteros. Por eso el objetivo consumible por Chapter Signals se normaliza hacia abajo:
+
+```text
+9.50 external
+→ target_chapter = 9
+```
+
+Ejemplo:
+
+```text
+READ 2
+AVAILABLE 9
+PENDING +7
+```
+
+El valor decimal original permanece disponible en los datos de la fuente.
 
 ### Capítulos pendientes
 
 ```text
-target_chapter
--
-manga.num_chapters_read
+max(
+    target_chapter - manga.num_chapters_read,
+    0
+)
 ```
-
-El resultado nunca baja de cero y admite capítulos decimales, por ejemplo `125.5`.
 
 ### Prioridad visual
 
-La jerarquía actual favorece:
+Las señales de manga actualmente en publicación y con capítulos pendientes tienen prioridad sobre backlog finalizado.
 
-```text
-0. Publicación activa con fuente viva
-1. Publicación activa sin fuente viva
-2. Otros casos intermedios
-3. Manga finalizado
-4. Rereading
-```
-
-Dentro de cada grupo se consideran actualización, cantidad pendiente y título.
+Cuando existe `published_at` válido del proveedor, las señales vivas más recientes se muestran primero. Fechas externas inválidas no deben romper el orden.
 
 ---
 
@@ -461,6 +452,7 @@ La búsqueda se utiliza para descubrir el vínculo. Las sincronizaciones posteri
 | `search_query` | `CharField` | Sí | Consulta usada al vincular. |
 | `priority` | `PositiveSmallIntegerField` | No | Orden de preferencia. |
 | `active` | `BooleanField` | No | Participa o no en resolución. |
+| `is_official` | `BooleanField` | No | Marca una fuente oficial como MANGA Plus. |
 | `raw_data` | `JSONField` | No | Datos adicionales. |
 | `created_at` | `DateTimeField` | No | Fecha de creación. |
 | `updated_at` | `DateTimeField` | No | Última modificación. |
@@ -480,81 +472,94 @@ Guardar otra selección del mismo proveedor actualiza el vínculo existente.
 Un número menor tiene mayor preferencia:
 
 ```text
-MANGA Plus      priority=1
-Weeb Central    priority=2
+priority=1   Primary
+priority=2   Fallback
+priority=3   siguiente fallback
 ```
 
-La prioridad expresa la preferencia del usuario. El `match_score` solo expresa qué tan probable es que el candidato corresponda al manga correcto.
+La prioridad expresa preferencia de resolución. `match_score` expresa confianza de matching.
 
 ---
 
 ## 10. Proveedores de Chapter Signals
 
-### MANGA Plus
-
-Identificador interno:
+El registro actual incluye cinco proveedores:
 
 ```text
 manga_plus
+weeb_central
+manga_fire
+mangas_in
+mangabat
 ```
+
+### MANGA Plus
 
 Uso principal:
 
 - Fuente oficial preferida para títulos compatibles.
 - Búsqueda por título, ID o URL oficial.
-- Lectura de metadatos de serie y capítulos recientes.
+- Lectura de metadatos recientes.
 - Detección del capítulo numéricamente más alto.
-
-Ejemplo:
-
-```text
-https://mangaplus.shueisha.co.jp/titles/100274
-```
-
-Aunque MANGA Plus exponga una ventana limitada de capítulos recientes, es suficiente para Chapter Signals cuando el objetivo es detectar el último capítulo disponible.
+- `is_official = True`.
 
 ### Weeb Central
 
-Identificador interno:
+Uso principal:
 
-```text
-weeb_central
-```
+- Búsqueda por título.
+- Parseo de capítulos.
+- Soporte de capítulos enteros y decimales.
+- Fuente principal o fallback.
+
+### MangaFire
 
 Uso principal:
 
-- Búsqueda de series por título.
-- Parseo de lista completa de capítulos.
-- Soporte de números enteros y decimales.
-- Fuente principal o fallback configurable.
+- Búsqueda de candidatos.
+- Consulta de capítulos.
+- Soporte del mecanismo VRF requerido por sus endpoints.
 
-### Registro común
-
-Los clientes se registran en:
+Limitación conocida:
 
 ```text
-mal_data/services/manga_sources/registry.py
+Cloudflare / HTTP 403
 ```
 
-El registro centraliza:
+Puede bloquear solicitudes válidas, por lo que debe considerarse un proveedor frágil y convivir con fallbacks.
 
-- Proveedor disponible.
-- Clase cliente.
-- Etiqueta visible.
+### Mangas.in
 
-Añadir un proveedor futuro requiere implementar el mismo contrato básico:
+Uso principal:
+
+- Búsqueda y resolución por slug.
+- Compatibilidad con el host actual `m440.in`.
+- Compatibilidad con URLs históricas `mangas.in`.
+- Detección del último capítulo desde el resumen de la serie.
+
+### Mangabat
+
+Uso principal:
+
+- Búsqueda por título.
+- Slug persistente.
+- Endpoint de capítulos.
+- Detección del último capítulo y timestamp cuando existe.
+
+### Contrato común
+
+Los proveedores se normalizan alrededor de operaciones equivalentes a:
 
 ```text
 search(query)
-fetch_chapters(series_url)
 fetch_latest_chapter(series_url)
 ```
+
+El resolver no necesita conocer los detalles internos del proveedor.
 
 ---
 
 ## 11. Resolución, prioridad y fallback
-
-La resolución vive fuera de los comandos HTTP o de consola.
 
 Flujo normal:
 
@@ -563,20 +568,22 @@ Obtener MangaSourceLink activos
 ↓
 Ordenar por priority y provider
 ↓
-Intentar fuente principal
+Intentar Primary
 ↓
-Si falla o no entrega capítulos útiles, intentar la siguiente
+Si falla o queda vacío, intentar Fallback
 ↓
-Devolver fuente usada, capítulo e historial de intentos
+Continuar hasta obtener un capítulo útil
+↓
+Devolver fuente usada + capítulo + historial de intentos
 ```
 
 ### Sin override
 
 ```text
 MANGA Plus falla
-→ Weeb Central responde
-→ la señal usa Weeb Central
-→ raw_data registra used_fallback = true
+→ Mangabat responde
+→ la señal usa Mangabat
+→ raw_data registra fallback
 ```
 
 ### Con provider explícito
@@ -585,11 +592,11 @@ MANGA Plus falla
 --provider manga_plus
 ```
 
-Solo se consulta MANGA Plus. No existe fallback implícito porque el owner pidió verificar esa fuente concreta.
+Solo se consulta ese proveedor. No existe fallback implícito porque el owner pidió verificar una fuente concreta.
 
 ### Resultado de intentos
 
-Cada intento registra:
+Cada intento registra información equivalente a:
 
 ```text
 provider
@@ -599,7 +606,7 @@ ok
 error
 ```
 
-Estados posibles:
+Estados:
 
 ```text
 success
@@ -607,11 +614,65 @@ empty
 error
 ```
 
-Si todas las fuentes fallan, el resolver devuelve un error agregado. Si una fuente responde sin capítulos y otra sí tiene datos, se utiliza la fuente útil.
+---
+
+## 12. Source Management y Source Coverage
+
+### Source Management
+
+Ruta conceptual:
+
+```text
+/manga/<mal_id>/sources/
+```
+
+La interfaz owner permite:
+
+- Buscar candidatos en un proveedor.
+- Revisar score, título, URL y portada.
+- Guardar como Primary.
+- Guardar como Fallback.
+- Promover un fallback a Primary.
+- Activar o desactivar.
+- Desvincular.
+- Ejecutar `Sync Now`.
+
+La gestión de fuentes ya no depende de Django Admin.
+
+### Source Coverage
+
+Ruta:
+
+```text
+/manga/sources/coverage/
+```
+
+Su alcance técnico es deliberadamente acotado:
+
+```text
+Reading
++
+currently_publishing
+```
+
+Clasifica mangas en estados como:
+
+```text
+Needs Setup
+Disabled
+Single Source
+Ready
+```
+
+No representa prioridad personal de lectura. Su pregunta es únicamente:
+
+```text
+¿Este Chapter Signal tiene cobertura externa utilizable y suficiente?
+```
 
 ---
 
-## 12. Sincronización de Manga
+## 13. Sincronización de Manga
 
 ### Sync Manga Library
 
@@ -691,7 +752,7 @@ Para cada manga:
 
 ### Manga Sync Signals
 
-El botón del dashboard ejecuta en este orden:
+El botón ejecuta:
 
 ```text
 1. Progreso personal desde MAL
@@ -700,122 +761,133 @@ El botón del dashboard ejecuta en este orden:
 4. Reordenamiento final de señales accionables
 ```
 
-El resumen informa:
-
-```text
-Signals
-Pending
-External targets
-External created
-External updated
-External unchanged
-External empty
-External errors
-External fallbacks
-```
-
 ---
 
-## 13. Comandos de fuentes Manga
+## 14. Manga Relations
 
-### Buscar candidatos
+`MangaRelation` representa una relación descubierta desde AniList para un `MangaEntry` local.
 
-```bash
-python manage.py search_manga_source MAL_ID   --provider manga_plus   --query SOURCE_ID_OR_URL
-```
-
-### Guardar un resultado
-
-```bash
-python manage.py search_manga_source MAL_ID   --provider manga_plus   --query SOURCE_ID_OR_URL   --save 1   --priority 1
-```
-
-### Inspeccionar sin modificar
-
-```bash
-python manage.py inspect_manga_source MAL_ID
-```
-
-### Inspeccionar un proveedor concreto
-
-```bash
-python manage.py inspect_manga_source MAL_ID   --provider weeb_central
-```
-
-### Sincronizar una señal externa
-
-```bash
-python manage.py sync_manga_source_signal MAL_ID
-```
-
-Los comandos son owner/developer tooling. La gestión visual de fuentes todavía no está implementada.
-
----
-
-## 14. Dashboard y archivo Manga
-
-### Manga Command Center
-
-El dashboard incluye:
-
-- Perfil.
-- Estado de sincronización.
-- Backlog Clear Ratio.
-- JP Title Signal.
-- Chapter Signals.
-- Manga Command Logs.
-- Controles owner.
-
-### Chapter Signals
-
-Cada señal puede mostrar:
+Puede apuntar a:
 
 ```text
-READ 102
-AVAILABLE 126
-PENDING +24
-MANGA PLUS
-PUBLISHING
+Manga
+Light Novel
+Novel
+One-shot
+Anime
 ```
 
-Para mangas finalizados sin disponibilidad externa:
+### Campos conceptuales principales
 
 ```text
-READ 43
-TOTAL 71
-TO COMPLETE +28
-CANONICAL TOTAL
-FINISHED
+source_manga
+source_mal_id
+source_title
+
+target_mal_id
+target_title
+target_media_type
+target_status
+target_picture_url
+
+target_num_episodes
+target_num_chapters
+target_num_volumes
+
+relation_type
+relation_type_formatted
+relation_source_type   # anime | manga
+
+target_local_list_status
+raw_data
+last_synced_at
 ```
 
-### Archivo
-
-Estados públicos:
+La unicidad se define por la combinación:
 
 ```text
-All
-Reading
-Completed
-Plan to Read
-On Hold
-Dropped
+source_mal_id
++
+target_mal_id
++
+relation_source_type
++
+relation_type
 ```
 
-Reading incluye:
+### Resolución de target local
+
+Si el target es Anime:
 
 ```text
-list_status = reading
-OR
-is_rereading = True
+AnimeEntry
+→ AnimeMetadata fallback
 ```
 
-Filtros implementados incluyen estado de publicación y tipo de manga.
+Si el target es Manga:
+
+```text
+MangaEntry
+```
+
+### Propiedades de presentación
+
+`MangaRelation` expone una capa uniforme:
+
+```text
+target_display_title
+target_display_picture_url
+target_display_status
+target_display_media_type
+target_display_progress
+target_display_score
+has_local_target
+```
+
+Ejemplo Manga → Anime local:
+
+```text
+ADAPTATION
+LOCAL NODE
+TV
+COMPLETED
+13/13
+SCORE 10
+```
+
+Ejemplo Manga → Manga externo:
+
+```text
+SIDE STORY
+NOT LOCAL
+MANGA
+-/15
+SEARCH / RESCUE
+```
+
+### Sincronización
+
+```text
+Manga MAL ID
+↓
+AniList Media(type=MANGA, idMal=...)
+↓
+relations.edges
+↓
+separar Anime / Manga
+↓
+normalizar
+↓
+guardar / actualizar
+↓
+eliminar relaciones obsoletas
+```
+
+Nodos sin MAL ID se omiten porque no existe una identidad canónica segura para integrarlos con la biblioteca local.
 
 ---
 
 ## 15. Modelos Anime
-
-La mitad Anime conserva su arquitectura estable.
 
 ### AnimeEntry
 
@@ -834,7 +906,7 @@ Señal externa de AniList con:
 
 ### AnimeSyncEvent
 
-Command Log con:
+Command Log:
 
 ```text
 created
@@ -843,13 +915,11 @@ episode_changed
 score_changed
 ```
 
+Igual que `MangaSyncEvent`, su timestamp registra cuándo el sistema detectó el cambio, no necesariamente cuándo ocurrió la actividad real.
+
 ### ManualTrackedAnime
 
 Fallback persistente para entradas omitidas por el endpoint general de MAL.
-
-### AnimeRelation y AnimeMetadata
-
-Relaciones y metadatos de nodos externos usados por Relation Scan, Franchise Audit y Sequel Radar.
 
 ### SeasonalAnime
 
@@ -857,7 +927,139 @@ Catálogo estacional sincronizado desde AniList.
 
 ---
 
-## 16. MALOAuthToken
+## 16. AnimeRelation y paridad Anime → Manga
+
+`AnimeRelation` conserva las relaciones Anime ↔ Anime y ahora también resuelve correctamente targets Manga / Light Novel / Novel.
+
+### Relation source type
+
+```text
+anime
+manga
+```
+
+### Target Anime
+
+Puede resolverse contra:
+
+```text
+AnimeEntry
+o
+AnimeMetadata
+```
+
+### Target Manga
+
+Puede resolverse contra:
+
+```text
+MangaEntry
+```
+
+### Datos externos persistidos
+
+Además de título, portada, status y tipo, la relación puede conservar totales externos:
+
+```text
+target_num_episodes
+target_num_chapters
+target_num_volumes
+```
+
+Eso permite mostrar progreso aproximado de un nodo externo:
+
+```text
+NOT LOCAL
+LIGHT NOVEL
+-/14
+```
+
+### Target local
+
+Cuando existe `MangaEntry`, la UI usa la información personal real:
+
+```text
+LOCAL NODE
+READING
+51/TBD
+SCORE 10
+```
+
+y ofrece navegación a:
+
+```text
+Scan Manga Node
+Sources
+Open MAL
+```
+
+Cuando no existe localmente:
+
+```text
+Search / Rescue
+Open MAL
+```
+
+### Descubrimiento
+
+Anime Relations también usa AniList:
+
+```text
+Anime MAL ID
+↓
+AniList Media(type=ANIME, idMal=...)
+↓
+relations.edges
+↓
+Anime targets + Manga targets
+↓
+normalización
+↓
+persistencia local
+↓
+prune de relaciones obsoletas
+```
+
+### Franchise Audit
+
+Franchise Audit sigue deliberadamente centrado en las relaciones Anime. Manga / Novels no se incorporan al audit audiovisual.
+
+---
+
+## 17. Relación bidireccional Anime ↔ Manga
+
+La arquitectura final permite navegar en ambas direcciones.
+
+Ejemplo:
+
+```text
+Kaoru Hana Anime
+MAL 59845
+COMPLETED 13/13
+        ↓
+ADAPTATION
+        ↓
+Kaoru Hana Manga
+MAL 144267
+READING 51/TBD
+        ↓
+ADAPTATION
+        ↓
+Kaoru Hana Anime
+```
+
+Principios:
+
+- AniList descubre la conexión.
+- MAL ID ancla la identidad.
+- `AnimeEntry` y `MangaEntry` aportan el estado personal.
+- Las vistas nunca necesitan duplicar el progreso personal dentro de la relación.
+- Una resincronización actualiza relaciones existentes y elimina edges obsoletos.
+- La navegación está disponible desde los archivos completos, no solo desde Episode Signals o Chapter Signals.
+
+---
+
+## 18. MALOAuthToken
 
 `MALOAuthToken` almacena la conexión OAuth de MyAnimeList.
 
@@ -907,7 +1109,7 @@ No se permite un bucle infinito.
 
 ---
 
-## 17. Fuentes externas y local-first
+## 19. Fuentes externas y local-first
 
 ### MyAnimeList
 
@@ -920,42 +1122,54 @@ Fuente principal para:
 - Biblioteca Anime.
 - Biblioteca Manga.
 - Detalles individuales.
-- Relaciones.
 - Add to Plan.
+- MAL ID canónico.
 
 ### AniList
 
-Fuente complementaria de Anime para:
+Fuente pública para:
 
 - Emisiones.
 - Próximo episodio.
 - Episodios emitidos.
 - Streaming.
 - Títulos nativos.
-- Search.
+- Search / Rescue.
 - Seasonal Board.
+- Relaciones Anime.
+- Relaciones Manga.
 
-### MANGA Plus y Weeb Central
-
-Fuentes de disponibilidad, no de progreso personal.
+### Proveedores Manga
 
 ```text
-Proveedor externo
+MANGA Plus
+Weeb Central
+MangaFire
+Mangas.in
+Mangabat
+```
+
+Aportan disponibilidad de capítulos.
+
+```text
+Proveedor
 ↓
-Cliente explícito
+cliente específico
 ↓
-Normalización
+normalización
 ↓
-MangaSourceLink + MangaChapterSignal
+MangaSourceLink
 ↓
-Dashboard local
+MangaChapterSignal
+↓
+dashboard local
 ```
 
 Las páginas normales no dependen de una respuesta externa para renderizar.
 
 ---
 
-## 18. Acceso y seguridad
+## 20. Acceso y seguridad
 
 ### Acceso público
 
@@ -986,6 +1200,8 @@ Incluyen:
 - Relation Sync.
 - Seasonal Sync.
 - Add to Plan.
+- Source Management.
+- Source Coverage owner tooling.
 
 ### OAuth
 
@@ -1012,14 +1228,7 @@ Nunca deben versionarse:
 
 ---
 
-## 19. Pruebas
-
-Checkpoint actual:
-
-```text
-mal_data: 46 pruebas aprobadas
-global: 349 pruebas aprobadas
-```
+## 21. Pruebas
 
 Las pruebas usan:
 
@@ -1028,55 +1237,166 @@ config.test_settings
 SQLite en memoria
 ```
 
-No modifican Supabase.
+Nunca modifican Supabase.
 
-Cobertura relevante de Manga:
+El checkpoint final del módulo tiene verdes tanto la suite de `mal_data` como la suite global.
 
-- Dashboard y rutas públicas.
-- Acciones POST protegidas.
+La cobertura relevante incluye:
+
+### Anime
+
+- Rutas públicas y protegidas.
+- OAuth.
+- Renovación de tokens.
+- Retry ante MAL 401.
 - Library Sync.
-- Created / Updated / Unchanged.
+- Episode Signals.
+- Manual Rescues.
+- Search.
+- Seasonal.
+- Relations.
+- AniList relation sync.
+- Anime → Manga / Novel local y externo.
+- Progress / score / status local en relation nodes.
+- Vistas de relaciones.
+
+### Manga
+
+- Dashboard y archivos.
+- Library Sync.
 - Reading y Rereading.
-- Rescates manuales.
-- Manga Command Logs.
-- Señales canónicas.
-- Señales externas.
-- Preservación del total canónico.
-- Parseo de MANGA Plus.
-- Parseo de Weeb Central.
-- Matching de títulos.
+- Manual Rescues.
+- Search / Rescue.
+- Command Logs.
+- Chapter Signals canónicos.
+- Chapter Signals externos.
+- Capítulos decimales.
+- Orden por `published_at`.
+- Los cinco proveedores.
+- Matching.
 - Persistencia de fuentes.
+- Source Management.
+- Source Coverage.
 - Prioridad.
 - Provider override.
 - Fallback automático.
-- Aislamiento de errores en batch.
-- Integración con Sync Signals.
+- Error isolation.
+- Manga Relations.
+- Manga → Anime.
+- Manga → Manga.
+- Vistas públicas de relations.
 
 ---
 
-## 20. Estado de implementación
+## 22. Frontera MAL Insights → Hibi Log
+
+MAL Insights queda cerrado sin implementar Hibi Log dentro de `mal_data`.
+
+La relación futura es de consumo:
+
+```text
+MAL INSIGHTS
+    │
+    │ datos locales read-only
+    ▼
+HIBI LOG
+```
+
+### MAL Insights es dueño de
+
+```text
+AnimeEntry / MangaEntry
+MAL ID
+títulos
+portadas
+estado personal
+progreso
+score
+Episode Signals
+Chapter Signals
+fechas de emisión/publicación disponibles
+AnimeSyncEvent / MangaSyncEvent
+```
+
+Una identidad transversal suficiente puede expresarse como:
+
+```text
+anime:<mal_id>
+manga:<mal_id>
+```
+
+### Hibi Log será dueño de
+
+```text
+fecha real de actividad
+hora real de actividad
+duración
+sesión
+agrupación diaria
+activity calendar
+content calendar
+notas de sesión
+analytics temporales
+```
+
+### Regla crítica
+
+```text
+AnimeSyncEvent.created_at
+MangaSyncEvent.created_at
+```
+
+indican cuándo MAL Insights **detectó** un cambio.
+
+No demuestran:
+
+```text
+"el episodio se vio exactamente a esa hora"
+"el capítulo se leyó exactamente a esa hora"
+```
+
+Por eso Hibi Log no debe inferir cronología real a partir de timestamps de sincronización.
+
+### Dependencias prohibidas dentro de MAL Insights
+
+No se añaden:
+
+- Foreign keys hacia Hibi Log.
+- Modelos de sesiones Hibi.
+- Calendarios Hibi.
+- Escrituras de Hibi desde `mal_data`.
+- Lógica de agregación diaria Hibi.
+
+El contrato final queda:
+
+> MAL Insights proporciona identidad, biblioteca, estado, progreso y señales de contenido. Hibi Log consume esos datos y es dueño de la cronología real.
+
+---
+
+## 23. Estado final de implementación
 
 ```text
 Documento: mal-insights-data-model.md
 Módulo: MAL Insights
 Aplicación técnica: mal_data
-Migraciones documentadas: hasta mal_data.0016
-Pruebas mal_data: 46 OK
-Pruebas globales: 349 OK
+Estado: FUNCTIONALLY COMPLETE
 
 Anime:
-Estado: Funcionalmente estable
 Dashboard y archivos: Implementados
 OAuth: Implementado
 MAL Library Sync: Implementado y optimizado
 Episode Signals: Implementado
 Manual Rescues: Implementado
+Search / Rescue: Implementado
 Seasonal Board: Implementado
-Relations / Franchise Audit / Sequel Radar: Implementados
-Search: Implementado
+Relations Anime ↔ Anime: Implementadas
+Relations Anime → Manga / LN / Novel: Implementadas
+Relation discovery via AniList: Implementado
+Franchise Audit: Implementado
+Sequel Radar: Implementado
 
 Manga:
-MangaEntry ampliado: Implementado
+MangaEntry: Implementado
 Dashboard: Implementado
 Switch Anime / Manga: Implementado
 Rutas públicas y archivos: Implementados
@@ -1084,43 +1404,52 @@ Manga Library Sync: Implementado
 Reading Progress Sync: Implementado
 Manga Command Logs: Implementados
 Manual Manga Rescues: Implementados
+Search / Rescue via AniList: Implementado
 Canonical Chapter Signals: Implementados
+External Chapter Signals: Implementados
 MangaSourceLink: Implementado
 MANGA Plus: Implementado
 Weeb Central: Implementado
+MangaFire: Implementado
+Mangas.in: Implementado
+Mangabat: Implementado
 Prioridad y fallback: Implementados
-Batch externo desde Sync Signals: Implementado
-Manga Relations: Pendiente
-Anime ↔ Manga Bridge: Pendiente
-Gestión owner de fuentes desde UI: Pendiente
+Source Management: Implementado
+Source Coverage: Implementado
+Manga Relations: Implementadas
+Manga → Anime Bridge: Implementado
+Manga ↔ Manga / Novel: Implementado
+
+Cross-world:
+Anime ↔ Manga navigation: Implementada
+MAL ID canonical identity: Implementada
+AniList relation discovery: Implementada
+Local progress enrichment: Implementado
+
+Hibi Log:
+Contrato de frontera: Definido
+Implementación dentro de mal_data: No corresponde
 ```
 
 ---
 
-## 21. Siguiente etapa
+## 24. Trabajo futuro
 
-El bloque técnico de Chapter Signals queda cerrado.
+MAL Insights no tiene otro bloque funcional obligatorio pendiente.
 
-La siguiente mejora natural es una interfaz owner para:
+Las extensiones futuras son reactivas a necesidades reales:
 
-- Buscar fuentes por manga.
-- Revisar candidatos.
-- Guardar un vínculo.
-- Activar o desactivar fuentes.
-- Cambiar prioridades.
-- Ver la última consulta y el fallback usado.
+1. Añadir nuevos proveedores solo cuando una lectura real lo requiera.
+2. Detectar automáticamente cuándo un rescate manual vuelve a aparecer en el endpoint normal de MAL.
+3. Mejorar casos sin MAL ID confirmado.
+4. Ajustar proveedores cuando cambien sus endpoints o medidas anti-bot.
+5. Incorporar nuevos análisis solo si el uso cotidiano del módulo revela valor real.
 
-Después de esa interfaz, las extensiones de mayor valor son:
-
-1. Manga Relations.
-2. Anime ↔ Manga adaptation bridge.
-3. Integración de actividad con Hibi Log.
-4. Nuevos proveedores solo cuando un flujo de lectura real lo justifique.
-
-No forman parte del bloque cerrado:
+No forman parte del alcance actual:
 
 - Scraping universal.
 - Soporte para cada extensión de Mihon.
 - Descarga o lectura dentro de MVS Tracker.
 - Sincronización permanente en background.
 - Múltiples usuarios.
+- Construcción de Hibi Log dentro de MAL Insights.
