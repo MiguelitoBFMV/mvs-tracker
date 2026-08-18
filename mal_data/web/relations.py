@@ -219,7 +219,7 @@ def sync_anime_relations_view(request, mal_id):
         messages.success(
             request,
             (
-                "Relaciones actualizadas desde MAL. "
+                "Relations updated from AniList. "
                 f"Anime relacionados: {result['related_anime_count']} · "
                 f"Manga relacionados: {result['related_manga_count']}"
             ),
