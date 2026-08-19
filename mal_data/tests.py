@@ -58,6 +58,7 @@ from mal_data.services.manga_reading_sync import (
 from mal_data.services.manga_chapter_signal_sync import (
     get_actionable_chapter_signals,
     sync_canonical_chapter_signals,
+    build_chapter_release_display
 )
 from mal_data.services.manga_source_matching import (
     source_title_score,
@@ -2144,6 +2145,261 @@ class MangaCanonicalChapterSignalTests(
             Decimal("7"),
         )
 
+    def test_new_release_precedes_recent_activity(
+        self,
+    ):
+        now = timezone.now()
+
+        new_release_manga = (
+            MangaEntry.objects.create(
+                mal_id=6120,
+                title="New Release",
+                list_status="reading",
+                publication_status=(
+                    "currently_publishing"
+                ),
+                num_chapters_read=10,
+                updated_at_mal=(
+                    now
+                    - timedelta(days=2)
+                ),
+            )
+        )
+
+        recent_manga = (
+            MangaEntry.objects.create(
+                mal_id=6121,
+                title="Recently Read",
+                list_status="reading",
+                publication_status="finished",
+                num_chapters_read=10,
+                num_chapters=20,
+                updated_at_mal=(
+                    now
+                    - timedelta(hours=1)
+                ),
+            )
+        )
+
+        new_signal = (
+            MangaChapterSignal.objects.create(
+                manga=new_release_manga,
+                mal_id=(
+                    new_release_manga.mal_id
+                ),
+                latest_available_chapter=11,
+                latest_available_changed_at=(
+                    now
+                ),
+                availability_source_type=(
+                    "external"
+                ),
+            )
+        )
+
+        recent_signal = (
+            MangaChapterSignal.objects.create(
+                manga=recent_manga,
+                mal_id=recent_manga.mal_id,
+                canonical_total_chapters=20,
+            )
+        )
+
+        signals = (
+            get_actionable_chapter_signals()
+        )
+
+        self.assertEqual(
+            signals,
+            [
+                new_signal,
+                recent_signal,
+            ],
+        )
+
+    def test_recent_activity_precedes_small_finished_backlog(
+        self,
+    ):
+        now = timezone.now()
+
+        recent = MangaEntry.objects.create(
+            mal_id=6122,
+            title="Recent Manga",
+            list_status="reading",
+            publication_status="finished",
+            num_chapters_read=5,
+            num_chapters=30,
+        )
+
+        easy_cleanup = (
+            MangaEntry.objects.create(
+                mal_id=6123,
+                title="Easy Cleanup",
+                list_status="reading",
+                publication_status="finished",
+                num_chapters_read=18,
+                num_chapters=20,
+            )
+        )
+
+        recent_signal = (
+            MangaChapterSignal.objects.create(
+                manga=recent,
+                mal_id=recent.mal_id,
+                canonical_total_chapters=30,
+            )
+        )
+
+        cleanup_signal = (
+            MangaChapterSignal.objects.create(
+                manga=easy_cleanup,
+                mal_id=easy_cleanup.mal_id,
+                canonical_total_chapters=20,
+            )
+        )
+
+        MangaSyncEvent.objects.create(
+            manga=recent,
+            mal_id=recent.mal_id,
+            title_snapshot=recent.title,
+            event_type="chapter_changed",
+            old_value="CH. 4",
+            new_value="CH. 5",
+            created_at=now,
+        )
+
+        signals = (
+            get_actionable_chapter_signals()
+        )
+
+        self.assertEqual(
+            signals,
+            [
+                recent_signal,
+                cleanup_signal,
+            ],
+        )
+
+    def test_finished_backlog_prefers_fewer_pending_chapters(
+        self,
+    ):
+        now = timezone.now()
+
+        almost_done = (
+            MangaEntry.objects.create(
+                mal_id=6124,
+                title="Almost Done",
+                list_status="reading",
+                publication_status="finished",
+                num_chapters_read=18,
+                num_chapters=20,
+                updated_at_mal=(
+                    now
+                    - timedelta(days=30)
+                ),
+            )
+        )
+
+        large_backlog = (
+            MangaEntry.objects.create(
+                mal_id=6125,
+                title="Large Backlog",
+                list_status="reading",
+                publication_status="finished",
+                num_chapters_read=10,
+                num_chapters=40,
+                updated_at_mal=(
+                    now
+                    - timedelta(days=30)
+                ),
+            )
+        )
+
+        almost_signal = (
+            MangaChapterSignal.objects.create(
+                manga=almost_done,
+                mal_id=almost_done.mal_id,
+                canonical_total_chapters=20,
+            )
+        )
+
+        large_signal = (
+            MangaChapterSignal.objects.create(
+                manga=large_backlog,
+                mal_id=large_backlog.mal_id,
+                canonical_total_chapters=40,
+            )
+        )
+
+        signals = (
+            get_actionable_chapter_signals()
+        )
+
+        self.assertEqual(
+            signals,
+            [
+                almost_signal,
+                large_signal,
+            ],
+        )
+
+    def test_release_display_prefers_published_at(
+        self,
+    ):
+        now = timezone.now()
+
+        manga = MangaEntry.objects.create(
+            mal_id=6128,
+            title="Fresh Chapter Manga",
+            list_status="reading",
+            publication_status=(
+                "currently_publishing"
+            ),
+            num_chapters_read=10,
+        )
+
+        signal = (
+            MangaChapterSignal.objects.create(
+                manga=manga,
+                mal_id=manga.mal_id,
+                latest_available_chapter=11,
+                latest_available_changed_at=(
+                    now
+                    - timedelta(hours=5)
+                ),
+                availability_source_type=(
+                    "external"
+                ),
+                raw_data={
+                    "external_source": {
+                        "published_at": (
+                            now
+                            - timedelta(
+                                minutes=30
+                            )
+                        ).isoformat(),
+                    },
+                },
+            )
+        )
+
+        display = (
+            build_chapter_release_display(
+                signal,
+                reference_time=now,
+            )
+        )
+
+        self.assertEqual(
+            display["prefix"],
+            "Latest Chapter",
+        )
+
+        self.assertEqual(
+            display["value"],
+            "30 min ago",
+        )
+
 
 class MangaDashboardMirrorTests(TestCase):
     @classmethod
@@ -2873,6 +3129,67 @@ class MangaExternalChapterSignalTests(
                 manga=self.manga
             )
             .exists()
+        )
+
+    @patch(
+        (
+            "mal_data.services."
+            "manga_source_signal_sync."
+            "fetch_latest_saved_chapter"
+        )
+    )
+    def test_new_chapter_records_change_time(
+        self,
+        mock_fetch_latest,
+    ):
+        signal = (
+            MangaChapterSignal.objects.create(
+                manga=self.manga,
+                mal_id=self.manga.mal_id,
+                latest_available_chapter=(
+                    Decimal("67")
+                ),
+            )
+        )
+
+        mock_fetch_latest.return_value = (
+            self.source_link,
+            SimpleNamespace(
+                source_id="CHAPTER68",
+                label="Chapter 68",
+                number=Decimal("68"),
+                url=(
+                    "https://weebcentral.com/"
+                    "chapters/CHAPTER68"
+                ),
+                published_at=None,
+            ),
+            [
+                {
+                    "provider": (
+                        "weeb_central"
+                    ),
+                    "priority": 1,
+                    "status": "success",
+                    "ok": True,
+                    "error": None,
+                }
+            ],
+        )
+
+        sync_external_chapter_signal(
+            self.manga
+        )
+
+        signal.refresh_from_db()
+
+        self.assertEqual(
+            signal.latest_available_chapter,
+            Decimal("68"),
+        )
+
+        self.assertIsNotNone(
+            signal.latest_available_changed_at
         )
 
 

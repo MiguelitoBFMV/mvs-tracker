@@ -55,6 +55,10 @@ def sync_external_chapter_signal(
         )
     )
 
+    previous_latest_chapter = (
+        signal.latest_available_chapter
+    )
+
     previous_values = (
         signal.latest_available_chapter,
         signal.availability_source_type,
@@ -102,6 +106,17 @@ def sync_external_chapter_signal(
     signal.latest_available_chapter = (
         latest_chapter.number
     )
+
+    if (
+        previous_latest_chapter
+        is not None
+        and latest_chapter.number
+        > previous_latest_chapter
+    ):
+        signal.latest_available_changed_at = (
+            checked_at
+    )
+
     signal.availability_source_type = (
         "external"
     )
@@ -139,6 +154,7 @@ def sync_external_chapter_signal(
             "availability_source_type",
             "availability_source_name",
             "availability_source_url",
+            "latest_available_changed_at",
             "external_checked_at",
             "raw_data",
             "last_synced_at",
