@@ -308,6 +308,13 @@
                                             {% endif %}
                                         </div>
 
+                                        {% if signal.has_live_availability and signal.release_display %}
+                                            <div class="protocol-release-meta">
+                                                {{ signal.release_display.prefix|upper }}:
+                                                {{ signal.release_display.value }}
+                                            </div>
+                                        {% endif %}
+
                                         <div class="protocol-progress-row">
                                             <span>
                                                 {% if signal.has_live_availability %}

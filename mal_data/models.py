@@ -347,6 +347,13 @@ class MangaChapterSignal(models.Model):
         )
     )
 
+    latest_available_changed_at = (
+        models.DateTimeField(
+            blank=True,
+            null=True,
+        )
+    )
+
     availability_source_type = (
         models.CharField(
             max_length=30,
