@@ -1,4 +1,5 @@
 from time import perf_counter
+import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -25,6 +26,57 @@ def _failed_titles(results, limit=3):
 
     return ", ".join(titles[:limit])
 
+def _external_error_message(results):
+    for result in results:
+        if result["ok"]:
+            continue
+
+        error = result.get("error")
+
+        if not error:
+            continue
+
+        error = str(error)
+
+        # Los errores de AniList llegan como:
+        #
+        # AniList API error 403: {"errors": [...]}
+        #
+        # Extraemos el mensaje real del API para
+        # no mostrar todo el JSON en el toast.
+        json_start = error.find("{")
+
+        if json_start != -1:
+            try:
+                payload = json.loads(
+                    error[json_start:]
+                )
+
+                api_errors = (
+                    payload.get("errors")
+                    or []
+                )
+
+                if api_errors:
+                    message = (
+                        api_errors[0]
+                        .get("message")
+                    )
+
+                    if message:
+                        return message
+
+            except (
+                json.JSONDecodeError,
+                TypeError,
+            ):
+                pass
+
+        # Fallback: si el error no tiene JSON
+        # utilizable, mostramos el texto original.
+        return error
+
+    return None
 
 @login_required
 @require_POST
@@ -122,6 +174,12 @@ def sync_episode_signals_view(request):
             if not result["ok"]
         )
 
+        airing_error_message = (
+            _external_error_message(
+                airing_results
+            )
+        )
+
         total_errors = (
             personal_errors
             + airing_errors
@@ -135,6 +193,15 @@ def sync_episode_signals_view(request):
             f"AniList updated: {airing_ok} · "
             f"Errors: {total_errors}"
         )
+
+        if (
+            airing_errors
+            and airing_error_message
+        ):
+            message += (
+                " · AniList: "
+                f"{airing_error_message}"
+            )
 
         if total_errors:
             messages.warning(
