@@ -2575,6 +2575,44 @@
                                     </button>
                                 </div>
                             </form>
+                            {% if playthrough.status == "dropped" %}
+                                <form
+                                    method="post"
+                                    action="{% url 'games:update_playthrough_state' game.slug playthrough.pk %}"
+                                    class="playthrough-action-form"
+                                >
+                                    {% csrf_token %}
+
+                                    <button
+                                        type="submit"
+                                        name="action"
+                                        value="restore_playing"
+                                        class="playthrough-action--resume"
+                                    >
+                                        Restore as Playing
+                                    </button>
+
+                                    <button
+                                        type="submit"
+                                        name="action"
+                                        value="restore_paused"
+                                    >
+                                        Restore as Paused
+                                    </button>
+                                </form>
+                            {% endif %}
+
+                            <form
+                                method="post"
+                                action="{% url 'games:delete_playthrough' game.slug playthrough.pk %}"
+                                class="access-delete-form"
+                            >
+                                {% csrf_token %}
+
+                                <button type="submit">
+                                    Delete Playthrough
+                                </button>
+                            </form>
                         </details>
                     {% endif %}
                 </article>

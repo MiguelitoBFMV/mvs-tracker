@@ -31,6 +31,7 @@ from games.models import (
 )
 from games.services.playthrough_state import (
     change_playthrough_state,
+    delete_playthrough_record,
     start_new_playthrough,
 )
 from games.services.igdb_normalizer import (
@@ -1646,4 +1647,27 @@ def delete_competitive_tier(
         entry.game.get_absolute_url()
     )
 
+
+@login_required
+@require_POST
+def delete_playthrough(
+    request,
+    slug,
+    playthrough_id,
+):
+    entry = _get_detail_entry(slug)
+
+    playthrough = get_object_or_404(
+        Playthrough,
+        pk=playthrough_id,
+        library_entry=entry,
+    )
+
+    delete_playthrough_record(
+        playthrough=playthrough,
+    )
+
+    return redirect(
+        entry.game.get_absolute_url()
+    )
 

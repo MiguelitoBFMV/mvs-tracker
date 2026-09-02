@@ -12,23 +12,33 @@ from games.models import (
 TRANSITIONS = {
     "pause": {
         Playthrough.Status.PLAYING:
-            Playthrough.Status.PAUSED,
+        Playthrough.Status.PAUSED,
     },
     "resume": {
         Playthrough.Status.PAUSED:
-            Playthrough.Status.PLAYING,
+        Playthrough.Status.PLAYING,
     },
     "complete": {
         Playthrough.Status.PLAYING:
-            Playthrough.Status.COMPLETED,
+        Playthrough.Status.COMPLETED,
         Playthrough.Status.PAUSED:
-            Playthrough.Status.COMPLETED,
+        Playthrough.Status.COMPLETED,
     },
     "drop": {
         Playthrough.Status.PLAYING:
-            Playthrough.Status.DROPPED,
+        Playthrough.Status.DROPPED,
         Playthrough.Status.PAUSED:
-            Playthrough.Status.DROPPED,
+        Playthrough.Status.DROPPED,
+    },
+
+    # Correcciones manuales de un Dropped accidental.
+    "restore_playing": {
+        Playthrough.Status.DROPPED:
+        Playthrough.Status.PLAYING,
+    },
+    "restore_paused": {
+        Playthrough.Status.DROPPED:
+        Playthrough.Status.PAUSED,
     },
 }
 
@@ -84,7 +94,10 @@ def change_playthrough_state(
             "for its current state."
         )
 
-    if action == "resume":
+    if action in {
+        "resume",
+        "restore_playing",
+    }:
         (
             Playthrough.objects
             .filter(
@@ -110,6 +123,12 @@ def change_playthrough_state(
             timezone.localdate()
         )
 
+    if target_status in {
+        Playthrough.Status.PLAYING,
+        Playthrough.Status.PAUSED,
+    }:
+        playthrough.finished_on = None
+
     playthrough.status = target_status
     playthrough.full_clean()
     playthrough.save()
@@ -131,6 +150,7 @@ def change_playthrough_state(
     )
 
     return playthrough
+
 
 @transaction.atomic
 def start_new_playthrough(
@@ -213,3 +233,75 @@ def start_new_playthrough(
     locked_entry.save()
 
     return playthrough
+
+
+@transaction.atomic
+def delete_playthrough_record(*, playthrough):
+    library_entry = (
+        LibraryEntry.objects
+        .select_for_update()
+        .get(pk=playthrough.library_entry_id)
+    )
+
+    playthrough = (
+        Playthrough.objects
+        .select_for_update()
+        .get(
+            pk=playthrough.pk,
+            library_entry=library_entry,
+        )
+    )
+
+    playthrough.delete()
+
+    remaining = list(
+        Playthrough.objects
+        .filter(library_entry=library_entry)
+        .order_by("-number")
+    )
+
+    playing = next(
+        (
+            item
+            for item in remaining
+            if item.status == Playthrough.Status.PLAYING
+        ),
+        None,
+    )
+
+    paused = next(
+        (
+            item
+            for item in remaining
+            if item.status == Playthrough.Status.PAUSED
+        ),
+        None,
+    )
+
+    if playing:
+        library_entry.status = LibraryEntry.Status.PLAYING
+
+    elif paused:
+        library_entry.status = LibraryEntry.Status.PAUSED
+
+    elif remaining:
+        latest = remaining[0]
+
+        status_map = {
+            Playthrough.Status.COMPLETED:
+                LibraryEntry.Status.COMPLETED,
+            Playthrough.Status.DROPPED:
+                LibraryEntry.Status.DROPPED,
+        }
+
+        library_entry.status = status_map.get(
+            latest.status,
+            LibraryEntry.Status.PLAN_TO_PLAY,
+        )
+
+    else:
+        library_entry.status = LibraryEntry.Status.PLAN_TO_PLAY
+
+    library_entry.full_clean()
+    library_entry.save()
+

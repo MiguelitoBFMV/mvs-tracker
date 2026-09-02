@@ -47,10 +47,10 @@ urlpatterns = [
         name="delete_franchise",
     ),
     path(
-                "franchises/<slug:slug>/",
-                franchise_views.franchise_detail,
-                name="franchise_detail",
-        ),
+        "franchises/<slug:slug>/",
+        franchise_views.franchise_detail,
+        name="franchise_detail",
+    ),
     path(
         (
             "library/<slug:slug>/"
@@ -64,7 +64,7 @@ urlpatterns = [
         igdb_views.igdb_search,
         name="igdb_search",
     ),
-        path(
+    path(
         "igdb/<int:igdb_id>/import/",
         igdb_views.igdb_import,
         name="igdb_import",
@@ -87,7 +87,7 @@ urlpatterns = [
         detail_views.update_playthrough_state,
         name="update_playthrough_state",
     ),
-        path(
+    path(
         "library/<slug:slug>/igdb/refresh/",
         igdb_views.igdb_refresh,
         name="igdb_refresh",
@@ -99,6 +99,14 @@ urlpatterns = [
         ),
         detail_views.update_playthrough,
         name="update_playthrough",
+    ),
+    path(
+        (
+            "library/<slug:slug>/"
+            "playthroughs/<int:playthrough_id>/delete/"
+        ),
+        detail_views.delete_playthrough,
+        name="delete_playthrough",
     ),
     path(
         (
