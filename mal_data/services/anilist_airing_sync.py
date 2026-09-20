@@ -1,3 +1,5 @@
+import time
+
 from datetime import datetime, timezone as datetime_timezone
 from django.db.models import Q
 from django.utils import timezone
@@ -5,6 +7,7 @@ from django.utils import timezone
 from mal_data.models import AnimeAiringData, AnimeEntry
 from mal_data.services.anilist_client import AniListClient
 
+ANILIST_REQUEST_DELAY_SECONDS = 3.0
 
 def sync_airing_data_for_anime(mal_id):
     anime = AnimeEntry.objects.filter(mal_id=mal_id).first()
@@ -85,7 +88,13 @@ def sync_episode_signals():
 
     results = []
 
-    for anime in targets:
+    for index, anime in enumerate(
+        targets
+    ):
+        if index > 0:
+            time.sleep(
+                ANILIST_REQUEST_DELAY_SECONDS
+            )
         try:
             airing_data, created = sync_airing_data_for_anime(
                 anime.mal_id

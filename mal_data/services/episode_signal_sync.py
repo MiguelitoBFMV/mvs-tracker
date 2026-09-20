@@ -1,4 +1,5 @@
 import copy
+import time
 
 from django.db.models import Q
 from django.utils import timezone
@@ -13,6 +14,7 @@ from mal_data.services.anime_list_sync import (
 )
 from mal_data.services.mal_client import MyAnimeListClient
 
+ANILIST_REQUEST_DELAY_SECONDS = 3.0
 
 def get_active_signal_entries():
     return (
@@ -197,7 +199,14 @@ def sync_episode_signals_complete():
 
     airing_results = []
 
-    for anime in active_targets:
+    for index, anime in enumerate(
+        active_targets
+    ):
+        if index > 0:
+            time.sleep(
+                ANILIST_REQUEST_DELAY_SECONDS
+            )
+
         try:
             airing_data, created = (
                 sync_airing_data_for_anime(
